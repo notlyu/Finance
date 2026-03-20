@@ -6,12 +6,16 @@ const sequelize = require('./config/database');
 const authRoutes = require('./routes/authRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
 const goalRoutes = require('./routes/goalRoutes');
+const wishRoutes = require('./routes/wishRoutes');
+const safetyPillowRoutes = require('./routes/safetyPillowRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+app.use('/api/wishes', wishRoutes);
+app.use('/api/safety-pillow', safetyPillowRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/goals', goalRoutes);

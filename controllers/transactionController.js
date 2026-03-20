@@ -1,25 +1,24 @@
 const { Op } = require('sequelize');
 const { Transaction, Category, User, Family, Goal, GoalContribution } = require('../models');
+const safetyPillowController = require('./safetyPillowController'); // <-- добавлен импорт
 
 // Вспомогательная функция для определения видимости операции
 const prepareTransactionForUser = (transaction, currentUserId) => {
   const isOwner = transaction.user_id === currentUserId;
   if (!isOwner && transaction.is_private) {
-    // Если операция скрыта и не принадлежит текущему пользователю
     return {
       id: transaction.id,
       amount: transaction.amount,
       type: transaction.type,
       date: transaction.date,
       is_private: true,
-      is_hidden: true, // флаг, что детали скрыты
+      is_hidden: true,
       user_id: transaction.user_id,
       user_name: transaction.User?.name,
       category_name: 'Скрытая операция',
       comment: 'Сюрприз',
     };
   }
-  // Полная информация
   return {
     id: transaction.id,
     amount: transaction.amount,
@@ -50,12 +49,11 @@ exports.getTransactions = async (req, res) => {
       type,
       categoryId,
       userId,
-      includePrivate = 'all', // 'all', 'only_visible', 'only_private'
+      includePrivate = 'all',
     } = req.query;
 
     const where = { family_id: familyId };
 
-    // Фильтр по дате
     if (startDate && endDate) {
       where.date = { [Op.between]: [startDate, endDate] };
     } else if (startDate) {
@@ -76,7 +74,6 @@ exports.getTransactions = async (req, res) => {
       where.user_id = userId;
     }
 
-    // Фильтр по приватности
     if (includePrivate === 'only_visible') {
       where.is_private = false;
     } else if (includePrivate === 'only_private') {
@@ -92,9 +89,7 @@ exports.getTransactions = async (req, res) => {
       order: [['date', 'DESC'], ['created_at', 'DESC']],
     });
 
-    // Преобразуем каждую операцию в зависимости от прав
     const result = transactions.map(t => prepareTransactionForUser(t, user.id));
-
     res.json(result);
   } catch (error) {
     console.error(error);
@@ -121,7 +116,6 @@ exports.getTransactionById = async (req, res) => {
     }
 
     const result = prepareTransactionForUser(transaction, user.id);
-    // Если операция скрыта и не принадлежит текущему пользователю, возвращаем только ограниченные данные
     if (result.is_hidden) {
       return res.json(result);
     }
@@ -143,7 +137,6 @@ exports.createTransaction = async (req, res) => {
 
     const { amount, type, category_id, date, comment, is_private } = req.body;
 
-    // Валидация
     if (!amount || amount <= 0) {
       return res.status(400).json({ message: 'Сумма должна быть положительным числом' });
     }
@@ -154,13 +147,12 @@ exports.createTransaction = async (req, res) => {
       return res.status(400).json({ message: 'Выберите категорию' });
     }
 
-    // Проверим, что категория существует и принадлежит семье или является системной
     const category = await Category.findOne({
       where: {
         id: category_id,
         [Op.or]: [
           { family_id: familyId },
-          { family_id: null, user_id: null }, // системная категория
+          { family_id: null, user_id: null },
           { user_id: user.id },
         ],
       },
@@ -169,7 +161,6 @@ exports.createTransaction = async (req, res) => {
       return res.status(400).json({ message: 'Категория не найдена или недоступна' });
     }
 
-    // Создаём операцию
     const transaction = await Transaction.create({
       user_id: user.id,
       family_id: familyId,
@@ -181,52 +172,49 @@ exports.createTransaction = async (req, res) => {
       is_private: is_private || false,
     });
 
-    // TODO: здесь будет обработка автозачисления на цели (если доход и включено автозачисление)
-    // Пока просто возвращаем созданную операцию
+    // Автозачисление на цели, если это доход
+    if (type === 'income') {
+      const userGoals = await Goal.findAll({
+        where: {
+          [Op.or]: [
+            { user_id: user.id, family_id: null },
+            { family_id: familyId }
+          ],
+          auto_contribute_enabled: true
+        }
+      });
 
-    // Загрузим связанные данные для ответа
+      for (const goal of userGoals) {
+        let contributionAmount = 0;
+        if (goal.auto_contribute_type === 'percentage') {
+          contributionAmount = (amount * goal.auto_contribute_value) / 100;
+        } else if (goal.auto_contribute_type === 'fixed') {
+          contributionAmount = goal.auto_contribute_value;
+        }
+
+        if (contributionAmount > 0) {
+          await GoalContribution.create({
+            goal_id: goal.id,
+            amount: contributionAmount,
+            date: date || new Date(),
+            transaction_id: transaction.id
+          });
+          await goal.update({
+            current_amount: parseFloat(goal.current_amount) + contributionAmount
+          });
+        }
+      }
+    }
+
+    // Пересчёт подушки безопасности
+    await safetyPillowController.recalculateAndSave(user.id, familyId);
+
     const created = await Transaction.findByPk(transaction.id, {
       include: [
         { model: User, attributes: ['id', 'name'] },
         { model: Category, attributes: ['id', 'name', 'type'] },
       ],
     });
-
-if (type === 'income') {
-  // Ищем все цели пользователя и семейные цели, у которых включено автозачисление
-  const userGoals = await Goal.findAll({
-    where: {
-      [Op.or]: [
-        { user_id: user.id, family_id: null },
-        { family_id: familyId }
-      ],
-      auto_contribute_enabled: true
-    }
-  });
-
-  for (const goal of userGoals) {
-    let contributionAmount = 0;
-    if (goal.auto_contribute_type === 'percentage') {
-      contributionAmount = (amount * goal.auto_contribute_value) / 100;
-    } else if (goal.auto_contribute_type === 'fixed') {
-      contributionAmount = goal.auto_contribute_value;
-    }
-
-    if (contributionAmount > 0) {
-      // Создаём запись в goal_contributions
-      await GoalContribution.create({
-        goal_id: goal.id,
-        amount: contributionAmount,
-        date: date || new Date(),
-        transaction_id: transaction.id
-      });
-      // Обновляем current_amount цели
-      await goal.update({
-        current_amount: parseFloat(goal.current_amount) + contributionAmount
-      });
-    }
-  }
-}
 
     res.status(201).json(prepareTransactionForUser(created, user.id));
   } catch (error) {
@@ -250,12 +238,10 @@ exports.updateTransaction = async (req, res) => {
       return res.status(404).json({ message: 'Операция не найдена' });
     }
 
-    // Проверим права: только автор или владелец семьи может редактировать
     if (transaction.user_id !== user.id && user.family?.owner_user_id !== user.id) {
       return res.status(403).json({ message: 'Нет прав на редактирование' });
     }
 
-    // Обновляем поля
     if (amount !== undefined) transaction.amount = amount;
     if (type !== undefined) transaction.type = type;
     if (category_id !== undefined) transaction.category_id = category_id;
@@ -264,6 +250,9 @@ exports.updateTransaction = async (req, res) => {
     if (is_private !== undefined) transaction.is_private = is_private;
 
     await transaction.save();
+
+    // Пересчёт подушки безопасности
+    await safetyPillowController.recalculateAndSave(user.id, user.family_id);
 
     const updated = await Transaction.findByPk(transaction.id, {
       include: [
@@ -293,12 +282,15 @@ exports.deleteTransaction = async (req, res) => {
       return res.status(404).json({ message: 'Операция не найдена' });
     }
 
-    // Права: только автор или владелец семьи
     if (transaction.user_id !== user.id && user.family?.owner_user_id !== user.id) {
       return res.status(403).json({ message: 'Нет прав на удаление' });
     }
 
     await transaction.destroy();
+
+    // Пересчёт подушки безопасности
+    await safetyPillowController.recalculateAndSave(user.id, user.family_id);
+
     res.json({ message: 'Операция удалена' });
   } catch (error) {
     console.error(error);
