@@ -83,8 +83,8 @@ exports.getTransactions = async (req, res) => {
     const transactions = await Transaction.findAll({
       where,
       include: [
-        { model: User, attributes: ['id', 'name'] },
-        { model: Category, attributes: ['id', 'name', 'type'] },
+        { model: User, as: 'User', attributes: ['id', 'name'] },
+        { model: Category, as: 'Category', attributes: ['id', 'name', 'type'] },
       ],
       order: [['date', 'DESC'], ['created_at', 'DESC']],
     });
@@ -106,8 +106,8 @@ exports.getTransactionById = async (req, res) => {
     const transaction = await Transaction.findOne({
       where: { id, family_id: user.family_id },
       include: [
-        { model: User, attributes: ['id', 'name'] },
-        { model: Category, attributes: ['id', 'name', 'type'] },
+        { model: User, as: 'User', attributes: ['id', 'name'] },
+        { model: Category, as: 'Category', attributes: ['id', 'name', 'type'] },
       ],
     });
 
@@ -211,8 +211,8 @@ exports.createTransaction = async (req, res) => {
 
     const created = await Transaction.findByPk(transaction.id, {
       include: [
-        { model: User, attributes: ['id', 'name'] },
-        { model: Category, attributes: ['id', 'name', 'type'] },
+        { model: User, as: 'User', attributes: ['id', 'name'] },
+        { model: Category, as: 'Category', attributes: ['id', 'name', 'type'] },
       ],
     });
 

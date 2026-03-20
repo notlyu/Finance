@@ -135,17 +135,11 @@ exports.getMe = async (req, res) => {
   try {
     const user = req.user;
     let family = null;
-    
-    try {
-      if (user.family_id) {
-        family = await Family.findByPk(user.family_id, {
-          include: [{ model: User, as: 'Members', attributes: ['id', 'name', 'email'] }],
-        });
-      }
-    } catch (err) {
-      console.error('Ошибка загрузки семьи:', err);
+    if (user.family_id) {
+      family = await Family.findByPk(user.family_id, {
+        include: [{ model: User, as: 'Members', attributes: ['id', 'name', 'email'] }], // ← теперь правильно
+      });
     }
-
     res.json({
       id: user.id,
       email: user.email,
@@ -155,7 +149,7 @@ exports.getMe = async (req, res) => {
         id: family.id,
         name: family.name,
         invite_code: family.invite_code,
-        members: family.members,
+        members: family.Members, // ← также обратите внимание на регистр при обращении
       } : null,
     });
   } catch (error) {
