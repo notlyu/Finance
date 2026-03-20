@@ -135,10 +135,15 @@ exports.getMe = async (req, res) => {
   try {
     const user = req.user;
     let family = null;
-    if (user.family_id) {
-      family = await Family.findByPk(user.family_id, {
-        include: [{ model: User, as: 'members', attributes: ['id', 'name', 'email'] }],
-      });
+    
+    try {
+      if (user.family_id) {
+        family = await Family.findByPk(user.family_id, {
+          include: [{ model: User, as: 'Members', attributes: ['id', 'name', 'email'] }],
+        });
+      }
+    } catch (err) {
+      console.error('Ошибка загрузки семьи:', err);
     }
 
     res.json({
