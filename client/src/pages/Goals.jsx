@@ -1,3 +1,198 @@
+import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import api from '../services/api';
+import Modal from '../components/Modal';
+
 export default function Goals() {
-  return <div className="p-4">Страница целей (в разработке)</div>;
+  const [goals, setGoals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const { register, handleSubmit, reset, setValue } = useForm();
+
+  const fetchGoals = async () => {
+    try {
+      const res = await api.get('/goals');
+      setGoals(res.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchGoals();
+  }, []);
+
+  const onSubmit = async (data) => {
+    try {
+      if (editingId) {
+        await api.put(`/goals/${editingId}`, data);
+      } else {
+        await api.post('/goals', data);
+      }
+      setModalOpen(false);
+      reset();
+      setEditingId(null);
+      fetchGoals();
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || 'Ошибка');
+    }
+  };
+
+  const openEditModal = (goal) => {
+    setEditingId(goal.id);
+    setValue('name', goal.name);
+    setValue('target_amount', goal.target_amount);
+    setValue('target_date', goal.target_date?.slice(0,10) || '');
+    setValue('interest_rate', goal.interest_rate || '');
+    setValue('current_amount', goal.current_amount);
+    setValue('auto_contribute_enabled', goal.auto_contribute_enabled);
+    setValue('auto_contribute_type', goal.auto_contribute_type);
+    setValue('auto_contribute_value', goal.auto_contribute_value);
+    setModalOpen(true);
+  };
+
+  const deleteGoal = async (id) => {
+    if (window.confirm('Удалить цель?')) {
+      try {
+        await api.delete(`/goals/${id}`);
+        fetchGoals();
+      } catch (err) {
+        console.error(err);
+        alert(err.response?.data?.message || 'Ошибка');
+      }
+    }
+  };
+
+  const contribute = async (id) => {
+    const amount = prompt('Сумма пополнения (руб):');
+    if (!amount) return;
+    try {
+      await api.post(`/goals/${id}/contribute`, { amount });
+      fetchGoals();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Ошибка');
+    }
+  };
+
+  if (loading) return <div className="text-center py-10">Загрузка...</div>;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-gray-900">Цели накоплений</h1>
+        <button
+          onClick={() => {
+            setEditingId(null);
+            reset({
+              auto_contribute_enabled: false,
+              auto_contribute_type: 'percentage',
+              auto_contribute_value: '',
+            });
+            setModalOpen(true);
+          }}
+          className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+        >
+          + Добавить цель
+        </button>
+      </div>
+
+      {/* Список целей */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {goals.map(goal => {
+          const progress = (Number(goal.current_amount) / Number(goal.target_amount)) * 100;
+          const remaining = Number(goal.target_amount) - Number(goal.current_amount);
+          return (
+            <div key={goal.id} className="bg-white rounded-lg shadow p-4 border border-gray-200">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-lg font-medium">{goal.name}</h3>
+                  <p className="text-sm text-gray-500">
+                    {goal.current_amount.toLocaleString()} / {goal.target_amount.toLocaleString()} ₽
+                  </p>
+                </div>
+                <div className="flex space-x-2">
+                  <button onClick={() => openEditModal(goal)} className="text-indigo-600">✏️</button>
+                  <button onClick={() => deleteGoal(goal.id)} className="text-red-600">🗑️</button>
+                </div>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                <div className="bg-green-600 h-2 rounded-full" style={{ width: `${Math.min(progress, 100)}%` }}></div>
+              </div>
+              <div className="mt-2 flex justify-between items-center text-sm">
+                <span>Осталось: {remaining.toLocaleString()} ₽</span>
+                {goal.target_date && (
+                  <span className="text-gray-500">Срок: {new Date(goal.target_date).toLocaleDateString()}</span>
+                )}
+              </div>
+              {goal.auto_contribute_enabled && (
+                <div className="mt-2 text-xs text-gray-500">
+                  Автозачисление: {goal.auto_contribute_type === 'percentage'
+                    ? `${goal.auto_contribute_value}% от дохода`
+                    : `${goal.auto_contribute_value} ₽ в месяц`}
+                </div>
+              )}
+              <button
+                onClick={() => contribute(goal.id)}
+                className="mt-3 w-full bg-indigo-100 text-indigo-700 py-1 rounded-md hover:bg-indigo-200 transition"
+              >
+                Пополнить
+              </button>
+            </div>
+          );
+        })}
+        {goals.length === 0 && <p className="text-gray-500 col-span-2 text-center">Нет целей. Добавьте первую!</p>}
+      </div>
+
+      {/* Модальное окно добавления/редактирования */}
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Редактировать цель' : 'Новая цель'}>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Название</label>
+            <input {...register('name', { required: true })} className="mt-1 block w-full border rounded p-2" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Целевая сумма (₽)</label>
+            <input type="number" step="0.01" {...register('target_amount', { required: true, min: 0.01 })} className="mt-1 block w-full border rounded p-2" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Срок (дата)</label>
+            <input type="date" {...register('target_date')} className="mt-1 block w-full border rounded p-2" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Годовая ставка (%)</label>
+            <input type="number" step="0.01" {...register('interest_rate')} className="mt-1 block w-full border rounded p-2" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Текущая сумма (₽)</label>
+            <input type="number" step="0.01" {...register('current_amount')} className="mt-1 block w-full border rounded p-2" />
+          </div>
+          <div className="flex items-center">
+            <input type="checkbox" {...register('auto_contribute_enabled')} className="h-4 w-4 text-indigo-600" />
+            <label className="ml-2 block text-sm text-gray-900">Автозачисление</label>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Тип</label>
+              <select {...register('auto_contribute_type')} className="mt-1 block w-full border rounded p-2">
+                <option value="percentage">Процент от дохода</option>
+                <option value="fixed">Фиксированная сумма</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Значение</label>
+              <input type="number" step="0.01" {...register('auto_contribute_value')} className="mt-1 block w-full border rounded p-2" />
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2 pt-4">
+            <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 border rounded-md">Отмена</button>
+            <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-md">Сохранить</button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
 }

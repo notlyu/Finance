@@ -256,8 +256,8 @@ exports.updateTransaction = async (req, res) => {
 
     const updated = await Transaction.findByPk(transaction.id, {
       include: [
-        { model: User, attributes: ['id', 'name'] },
-        { model: Category, attributes: ['id', 'name', 'type'] },
+        { model: User, as: 'User', attributes: ['id', 'name'] },
+        { model: Category, as: 'Category', attributes: ['id', 'name', 'type'] },
       ],
     });
 

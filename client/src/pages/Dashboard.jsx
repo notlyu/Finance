@@ -29,8 +29,8 @@ export default function Dashboard() {
         const oneMonthAgo = new Date();
         oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
         const recent = transRes.data.filter(t => new Date(t.date) >= oneMonthAgo);
-        const income = recent.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-        const expense = recent.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+        const income = recent.filter(t => t.type === 'income').reduce((sum, t) => sum + Number(t.amount), 0);
+        const expense = recent.filter(t => t.type === 'expense').reduce((sum, t) => sum + Number(t.amount), 0);
         setBalance({ income, expense, total: income - expense });
       } catch (err) {
         console.error(err);
