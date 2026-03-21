@@ -137,7 +137,7 @@ exports.getMe = async (req, res) => {
     let family = null;
     if (user.family_id) {
       family = await Family.findByPk(user.family_id, {
-        include: [{ model: User, as: 'Members', attributes: ['id', 'name', 'email'] }], // ← теперь правильно
+        include: [{ model: User, as: 'Members', attributes: ['id', 'name', 'email'] }],
       });
     }
     res.json({
@@ -152,6 +152,57 @@ exports.getMe = async (req, res) => {
         members: family.Members, // ← также обратите внимание на регистр при обращении
       } : null,
     });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+};
+
+exports.leaveFamily = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user.family_id) {
+      return res.status(400).json({ message: 'Вы не состоите в семье' });
+    }
+
+    const family = await Family.findByPk(user.family_id);
+    if (family.owner_user_id === user.id && (await family.countMembers()) === 1) {
+      // Если владелец и в семье только он, можно удалить семью или запретить выход
+      await family.destroy();
+      await user.update({ family_id: null });
+      return res.json({ message: 'Семья удалена, вы вышли из неё' });
+    }
+
+    // Проверим, не единственный ли владелец
+    if (family.owner_user_id === user.id) {
+      return res.status(400).json({ message: 'Вы владелец семьи. Сначала передайте права другому участнику.' });
+    }
+
+    await user.update({ family_id: null });
+    res.json({ message: 'Вы покинули семью' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+};
+
+exports.changePassword = async (req, res) => {
+  try {
+    const user = req.user;
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ message: 'Укажите старый и новый пароль' });
+    }
+
+    const valid = await bcrypt.compare(oldPassword, user.password_hash);
+    if (!valid) {
+      return res.status(401).json({ message: 'Неверный старый пароль' });
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await user.update({ password_hash: hashed });
+    res.json({ message: 'Пароль изменён' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Ошибка сервера' });

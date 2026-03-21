@@ -31,6 +31,8 @@ export default function Layout() {
     { name: 'Желания', path: '/wishes' },
     { name: 'Подушка', path: '/safety-pillow' },
     { name: 'Аналитика', path: '/analytics' }, 
+    { name: 'Семья', path: '/family' },
+    { name: 'Настройки', path: '/settings' },
   ];
 
   return (
