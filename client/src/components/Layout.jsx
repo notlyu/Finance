@@ -30,6 +30,7 @@ export default function Layout() {
     { name: 'Цели', path: '/goals' },
     { name: 'Желания', path: '/wishes' },
     { name: 'Подушка', path: '/safety-pillow' },
+    { name: 'Аналитика', path: '/analytics' }, 
   ];
 
   return (

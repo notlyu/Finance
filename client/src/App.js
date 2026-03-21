@@ -6,6 +6,7 @@ import Goals from './pages/Goals';
 import Wishes from './pages/Wishes';
 import SafetyPillow from './pages/SafetyPillow';
 import Layout from './components/Layout';
+import Analytics from './pages/Analytics';
 
 const PrivateRoute = ({ children }) => {
   const token = localStorage.getItem('token');
@@ -30,6 +31,7 @@ function App() {
           <Route path="goals" element={<Goals />} />
           <Route path="wishes" element={<Wishes />} />
           <Route path="safety-pillow" element={<SafetyPillow />} />
+          <Route path="analytics" element={<Analytics />} />
         </Route>
       </Routes>
     </BrowserRouter>

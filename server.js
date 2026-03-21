@@ -9,6 +9,7 @@ const goalRoutes = require('./routes/goalRoutes');
 const wishRoutes = require('./routes/wishRoutes');
 const safetyPillowRoutes = require('./routes/safetyPillowRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
+const reportRoutes = require('./routes/reportRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -21,6 +22,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/goals', goalRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/reports', reportRoutes);
 
 // Проверка подключения к БД
 sequelize.authenticate()
