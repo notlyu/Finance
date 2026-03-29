@@ -10,7 +10,8 @@ const wishRoutes = require('./routes/wishRoutes');
 const safetyPillowRoutes = require('./routes/safetyPillowRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const reportRoutes = require('./routes/reportRoutes');
-const errorHandler = require('./middleware/errorHandler');
+//const errorHandler = require('./middleware/errorHandler');
+//const transactionService = require('../services/transactionService'); 
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -24,7 +25,7 @@ app.use('/api/transactions', transactionRoutes);
 app.use('/api/goals', goalRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/reports', reportRoutes);
-app.use(errorHandler);
+//app.use(errorHandler);
 
 // Проверка подключения к БД
 sequelize.authenticate()

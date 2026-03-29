@@ -1,31 +1,56 @@
 const transactionService = require('../services/transactionService');
 
-exports.getTransactions = async (req, res) => {
-  try {
-    const { user } = req;
-    if (!user.family_id) return res.status(400).json({ message: 'Вы не состоите в семье' });
-    
-    const result = await transactionService.getTransactions(user.id, user.family_id, req.query);
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
+// Define your functions
+const getTransactions = async (req, res, next) => {
+    try {
+        const transactions = await transactionService.getTransactions(req.user.id, req.user.familyId);
+        res.json(transactions);
+    } catch (error) {
+        next(error);
+    }
 };
 
-exports.createTransaction = async (req, res) => {
-  try {
-    const { user } = req;
-    if (!user.family_id) return res.status(400).json({ message: 'Вы не состоите в семье' });
+const createTransaction = async (req, res, next) => {
+    try {
+        const transaction = await transactionService.createTransaction(req.user.id, req.user.familyId, req.body);
+        res.status(201).json(transaction);
+    } catch (error) {
+        next(error);
+    }
+};
 
-    // Simple Input Validation
-    const { amount, type, category_id } = req.body;
-    if (!amount || amount <= 0) return res.status(400).json({ message: 'Сумма обязательна' });
-    if (!['income', 'expense'].includes(type)) return res.status(400).json({ message: 'Неверный тип' });
-    if (!category_id) return res.status(400).json({ message: 'Выберите категорию' });
+const getTransactionById = async (req, res, next) => {
+    try {
+        const transaction = await transactionService.getTransactionById(req.params.id, req.user.familyId);
+        res.json(transaction);
+    } catch (error) {
+        next(error);
+    }
+};
 
-    const transaction = await transactionService.createTransaction(user.id, user.family_id, req.body);
-    res.status(201).json(transaction);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-  }
+const updateTransaction = async (req, res, next) => {
+    try {
+        const transaction = await transactionService.updateTransaction(req.params.id, req.user.familyId, req.body);
+        res.json(transaction);
+    } catch (error) {
+        next(error);
+    }
+};
+
+const deleteTransaction = async (req, res, next) => {
+    try {
+        await transactionService.deleteTransaction(req.params.id, req.user.familyId);
+        res.status(204).send();
+    } catch (error) {
+        next(error);
+    }
+};
+
+// CRITICAL: Export them as an object
+module.exports = {
+    getTransactions,
+    createTransaction,
+    getTransactionById,
+    updateTransaction,
+    deleteTransaction
 };
