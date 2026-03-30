@@ -1,6 +1,7 @@
-const { Transaction, Op } = require('../models'); // Ensure Op is imported if using Sequelize
+const { Transaction } = require('../models');
+const { Op } = require('sequelize');
 
-exports.getTransactions = async (userId, familyId, query) => {
+exports.getTransactions = async (userId, familyId, query = {}) => {
     const whereClause = { family_id: familyId };
 
     // Add filtering logic
@@ -12,6 +13,10 @@ exports.getTransactions = async (userId, familyId, query) => {
         whereClause.date = {
             [Op.between]: [query.startDate, query.endDate]
         };
+    } else if (query.startDate) {
+        whereClause.date = { [Op.gte]: query.startDate };
+    } else if (query.endDate) {
+        whereClause.date = { [Op.lte]: query.endDate };
     }
 
     return await Transaction.findAll({ 

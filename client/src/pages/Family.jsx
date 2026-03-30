@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
-import { useNavigate } from 'react-router-dom';
 
 export default function Family() {
   const [user, setUser] = useState(null);
   const [family, setFamily] = useState(null);
   const [loading, setLoading] = useState(true);
   const [inviteCode, setInviteCode] = useState('');
-  const navigate = useNavigate();
 
   const fetchData = async () => {
     try {
@@ -50,9 +48,9 @@ export default function Family() {
   if (!family) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-gray-900">Семья</h1>
-        <div className="bg-white rounded-lg shadow p-6 text-center">
-          <p className="text-gray-600 mb-4">Вы пока не состоите в семье.</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Семья</h1>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center">
+          <p className="text-gray-600 dark:text-gray-300 mb-4">Вы пока не состоите в семье.</p>
           <button
             onClick={async () => {
               const name = prompt('Введите название новой семьи');
@@ -92,18 +90,18 @@ export default function Family() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Семья</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Семья</h1>
 
       {/* Информация о семье */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <div className="flex justify-between items-start">
           <div>
-            <h2 className="text-xl font-semibold">{family.name}</h2>
-            <p className="text-sm text-gray-500 mt-1">Код приглашения: <strong>{inviteCode}</strong></p>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{family.name}</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Код приглашения: <strong>{inviteCode}</strong></p>
           </div>
           <button
             onClick={copyInviteCode}
-            className="text-indigo-600 hover:text-indigo-800 text-sm"
+            className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 text-sm"
           >
             Копировать код
           </button>
@@ -111,20 +109,20 @@ export default function Family() {
       </div>
 
       {/* Список участников */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-medium mb-4">Участники семьи</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h2 className="text-lg font-medium mb-4 text-gray-900 dark:text-white">Участники семьи</h2>
         <div className="space-y-2">
           {family.members?.map(member => (
-            <div key={member.id} className="flex justify-between items-center border-b pb-2">
+            <div key={member.id} className="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-2">
               <div>
-                <span className="font-medium">{member.name}</span>
-                <span className="text-sm text-gray-500 ml-2">{member.email}</span>
+                <span className="font-medium text-gray-900 dark:text-white">{member.name}</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">{member.email}</span>
               </div>
               <div className="text-sm">
                 {member.id === family.owner_user_id ? (
-                  <span className="text-indigo-600">Владелец</span>
+                  <span className="text-indigo-600 dark:text-indigo-400">Владелец</span>
                 ) : (
-                  <span className="text-gray-500">Участник</span>
+                  <span className="text-gray-500 dark:text-gray-400">Участник</span>
                 )}
               </div>
             </div>
@@ -133,12 +131,12 @@ export default function Family() {
       </div>
 
       {/* Действия */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-medium mb-4">Действия</h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h2 className="text-lg font-medium mb-4 text-gray-900 dark:text-white">Действия</h2>
         <div className="flex flex-wrap gap-4">
           <button
             onClick={copyInviteCode}
-            className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-200"
+            className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600"
           >
             Пригласить (скопировать код)
           </button>
@@ -153,7 +151,7 @@ export default function Family() {
           {isOwner && (
             <button
               onClick={() => alert('Функция передачи владения в разработке')}
-              className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-200"
+              className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600"
             >
               Передать владение
             </button>

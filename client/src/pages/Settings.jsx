@@ -7,7 +7,8 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState('profile'); // profile, categories, theme
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { register, handleSubmit, reset, setValue } = useForm();
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+  const { register, handleSubmit, reset } = useForm();
 
   // Смена пароля
   const [passwordMessage, setPasswordMessage] = useState('');
@@ -85,15 +86,8 @@ export default function Settings() {
   const toggleTheme = () => {
     const isDark = document.documentElement.classList.toggle('dark');
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    setIsDark(isDark);
   };
-
-  // Применить сохранённую тему при загрузке
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    }
-  }, []);
 
   if (loading) return <div className="text-center py-10">Загрузка...</div>;
 
@@ -248,7 +242,7 @@ export default function Settings() {
             onClick={toggleTheme}
             className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white px-4 py-2 rounded-md"
           >
-            {document.documentElement.classList.contains('dark') ? '🌞 Светлая тема' : '🌙 Тёмная тема'}
+            {isDark ? 'Светлая тема' : 'Тёмная тема'}
           </button>
         </div>
       )}

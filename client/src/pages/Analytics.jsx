@@ -12,6 +12,7 @@ import {
   ArcElement,
 } from 'chart.js';
 import api from '../services/api';
+import { formatMoney } from '../utils/format';
 
 ChartJS.register(
   CategoryScale,
@@ -30,6 +31,10 @@ export default function Analytics() {
   const [incomeByCat, setIncomeByCat] = useState([]);
   const [pillowHistory, setPillowHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const isDark = document.documentElement.classList.contains('dark');
+  const textColor = isDark ? '#E5E7EB' : '#111827';
+  const gridColor = isDark ? 'rgba(148,163,184,0.22)' : 'rgba(148,163,184,0.35)';
 
   useEffect(() => {
     const fetchData = async () => {
@@ -55,6 +60,64 @@ export default function Analytics() {
 
   if (loading) return <div className="text-center py-10">Загрузка...</div>;
 
+  const lineOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: {
+          color: textColor,
+          boxWidth: 12,
+          boxHeight: 12,
+          usePointStyle: true,
+          pointStyle: 'circle',
+        },
+      },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => `${ctx.dataset.label}: ${formatMoney(ctx.parsed.y)} ₽`,
+        },
+      },
+    },
+    scales: {
+      x: {
+        ticks: { color: textColor, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 },
+        grid: { color: gridColor },
+      },
+      y: {
+        ticks: {
+          color: textColor,
+          callback: (v) => `${formatMoney(v)} ₽`,
+        },
+        grid: { color: gridColor },
+      },
+    },
+  };
+
+  const pieOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: {
+          color: textColor,
+          boxWidth: 12,
+          boxHeight: 12,
+          usePointStyle: true,
+          pointStyle: 'circle',
+        },
+      },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => `${ctx.label}: ${formatMoney(ctx.parsed)} ₽`,
+        },
+      },
+    },
+  };
+
   const lineData = {
     labels: dynamics.labels,
     datasets: [
@@ -62,14 +125,20 @@ export default function Analytics() {
         label: 'Доходы',
         data: dynamics.income,
         borderColor: 'rgb(34, 197, 94)',
-        backgroundColor: 'rgba(34, 197, 94, 0.2)',
+        backgroundColor: 'rgba(34, 197, 94, 0.18)',
+        pointRadius: 2,
+        pointHoverRadius: 4,
+        borderWidth: 2,
         tension: 0.3,
       },
       {
         label: 'Расходы',
         data: dynamics.expense,
         borderColor: 'rgb(239, 68, 68)',
-        backgroundColor: 'rgba(239, 68, 68, 0.2)',
+        backgroundColor: 'rgba(239, 68, 68, 0.18)',
+        pointRadius: 2,
+        pointHoverRadius: 4,
+        borderWidth: 2,
         tension: 0.3,
       },
     ],
@@ -80,10 +149,19 @@ export default function Analytics() {
     datasets: [
       {
         label,
-        data: data.map(item => item.total),
+        data: data.map(item => Number(item.total)),
         backgroundColor: [
-          '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40',
+          '#4F46E5',
+          '#0EA5E9',
+          '#10B981',
+          '#F59E0B',
+          '#EF4444',
+          '#A855F7',
+          '#14B8A6',
+          '#F97316',
         ],
+        borderColor: isDark ? 'rgba(17,24,39,0.8)' : 'rgba(255,255,255,0.9)',
+        borderWidth: 1,
       },
     ],
   });
@@ -93,9 +171,12 @@ export default function Analytics() {
     datasets: [
       {
         label: 'Подушка безопасности',
-        data: pillowHistory.map(h => h.value).reverse(),
+        data: pillowHistory.map(h => Number(h.value)).reverse(),
         borderColor: 'rgb(99, 102, 241)',
-        backgroundColor: 'rgba(99, 102, 241, 0.2)',
+        backgroundColor: 'rgba(99, 102, 241, 0.18)',
+        pointRadius: 2,
+        pointHoverRadius: 4,
+        borderWidth: 2,
         tension: 0.3,
       },
     ],
@@ -131,7 +212,7 @@ export default function Analytics() {
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Аналитика</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Аналитика</h1>
         <button
           onClick={exportCSV}
           className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
@@ -141,38 +222,58 @@ export default function Analytics() {
       </div>
 
       {/* Динамика доходов и расходов */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <h2 className="text-lg font-medium mb-4">Динамика доходов и расходов (по месяцам)</h2>
-        <Line data={lineData} />
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <h2 className="text-lg font-medium mb-1 text-gray-900 dark:text-white">Динамика доходов и расходов (по месяцам)</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          Сравнение доходов и расходов по месяцам за последний год.
+        </p>
+        <div className="h-72 md:h-80">
+          <Line data={lineData} options={lineOptions} />
+        </div>
       </div>
 
       {/* Расходы по категориям */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow p-4">
-          <h2 className="text-lg font-medium mb-4">Расходы по категориям</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          <h2 className="text-lg font-medium mb-1 text-gray-900 dark:text-white">Расходы по категориям</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Куда уходят деньги за выбранный период отчёта.
+          </p>
           {expensesByCat.length > 0 ? (
-            <Pie data={pieData(expensesByCat, 'Расходы')} />
+            <div className="h-72 md:h-80">
+              <Pie data={pieData(expensesByCat, 'Расходы')} options={pieOptions} />
+            </div>
           ) : (
-            <p className="text-gray-500">Нет данных</p>
+            <p className="text-gray-500 dark:text-gray-400">Нет данных</p>
           )}
         </div>
 
         {/* Доходы по категориям */}
-        <div className="bg-white rounded-lg shadow p-4">
-          <h2 className="text-lg font-medium mb-4">Доходы по категориям</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          <h2 className="text-lg font-medium mb-1 text-gray-900 dark:text-white">Доходы по категориям</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Источники дохода по категориям.
+          </p>
           {incomeByCat.length > 0 ? (
-            <Pie data={pieData(incomeByCat, 'Доходы')} />
+            <div className="h-72 md:h-80">
+              <Pie data={pieData(incomeByCat, 'Доходы')} options={pieOptions} />
+            </div>
           ) : (
-            <p className="text-gray-500">Нет данных</p>
+            <p className="text-gray-500 dark:text-gray-400">Нет данных</p>
           )}
         </div>
       </div>
 
       {/* График подушки безопасности */}
       {pillowHistory.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-4">
-          <h2 className="text-lg font-medium mb-4">Динамика подушки безопасности</h2>
-          <Line data={pillowLineData} />
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          <h2 className="text-lg font-medium mb-1 text-gray-900 dark:text-white">Динамика подушки безопасности</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Как менялась “подушка” по пересчётам.
+          </p>
+          <div className="h-64 md:h-72">
+            <Line data={pillowLineData} options={lineOptions} />
+          </div>
         </div>
       )}
     </div>

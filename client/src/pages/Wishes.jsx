@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import api from '../services/api';
 import Modal from '../components/Modal';
+import { formatMoney } from '../utils/format';
 
 export default function Wishes() {
   const [wishes, setWishes] = useState([]);
@@ -89,7 +90,7 @@ export default function Wishes() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Список желаний</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Список желаний</h1>
         <button
           onClick={() => {
             setEditingId(null);
@@ -109,40 +110,44 @@ export default function Wishes() {
           const progress = (Number(wish.saved_amount) / Number(wish.cost)) * 100;
           const remaining = Number(wish.cost) - Number(wish.saved_amount);
           return (
-            <div key={wish.id} className={`bg-white rounded-lg shadow p-4 border ${isHidden ? 'border-gray-300 bg-gray-50' : 'border-gray-200'}`}>
+            <div key={wish.id} className={`rounded-lg shadow p-4 border ${
+              isHidden
+                ? 'border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40'
+                : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
+            }`}>
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="text-lg font-medium">
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                     {isHidden ? '🔒 Скрытое желание' : wish.name}
                     {!isHidden && wish.is_private && <span className="ml-2 text-xs text-gray-400">🔒</span>}
                   </h3>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
                     {isHidden
                       ? 'Скрыто от вас'
-                      : `${wish.saved_amount.toLocaleString()} / ${wish.cost.toLocaleString()} ₽`}
+                      : `${formatMoney(wish.saved_amount)} / ${formatMoney(wish.cost)} ₽`}
                   </p>
                 </div>
                 {!isHidden && (
                   <div className="flex space-x-2">
-                    <button onClick={() => openEditModal(wish)} className="text-indigo-600">✏️</button>
+                    <button onClick={() => openEditModal(wish)} className="text-indigo-600 dark:text-indigo-400">✏️</button>
                     <button onClick={() => deleteWish(wish.id)} className="text-red-600">🗑️</button>
                   </div>
                 )}
               </div>
               {!isHidden && (
                 <>
-                  <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
                     <div className="bg-purple-600 h-2 rounded-full" style={{ width: `${Math.min(progress, 100)}%` }}></div>
                   </div>
                   <div className="mt-2 flex justify-between items-center text-sm">
-                    <span>Осталось: {remaining.toLocaleString()} ₽</span>
-                    <span className="text-gray-500">
+                    <span className="text-gray-900 dark:text-gray-100">Осталось: {formatMoney(remaining)} ₽</span>
+                    <span className="text-gray-500 dark:text-gray-400">
                       Приоритет: {priorityLabels[wish.priority] || wish.priority}
                     </span>
                   </div>
                   <button
                     onClick={() => contribute(wish.id)}
-                    className="mt-3 w-full bg-purple-100 text-purple-700 py-1 rounded-md hover:bg-purple-200 transition"
+                    className="mt-3 w-full bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 py-1 rounded-md hover:bg-purple-200 dark:hover:bg-purple-500/25 transition"
                   >
                     Пополнить
                   </button>
@@ -151,23 +156,23 @@ export default function Wishes() {
             </div>
           );
         })}
-        {wishes.length === 0 && <p className="text-gray-500 col-span-2 text-center">Нет желаний. Добавьте первое!</p>}
+        {wishes.length === 0 && <p className="text-gray-500 dark:text-gray-400 col-span-2 text-center">Нет желаний. Добавьте первое!</p>}
       </div>
 
       {/* Модальное окно добавления/редактирования */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Редактировать желание' : 'Новое желание'}>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Название</label>
-            <input {...register('name', { required: true })} className="mt-1 block w-full border rounded p-2" />
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Название</label>
+            <input {...register('name', { required: true })} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Стоимость (₽)</label>
-            <input type="number" step="0.01" {...register('cost', { required: true, min: 0.01 })} className="mt-1 block w-full border rounded p-2" />
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Стоимость (₽)</label>
+            <input type="number" step="0.01" {...register('cost', { required: true, min: 0.01 })} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Приоритет</label>
-            <select {...register('priority')} className="mt-1 block w-full border rounded p-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Приоритет</label>
+            <select {...register('priority')} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
               <option value="1">1 – Высокий</option>
               <option value="2">2 – Выше среднего</option>
               <option value="3">3 – Средний</option>
@@ -176,23 +181,23 @@ export default function Wishes() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Статус</label>
-            <select {...register('status')} className="mt-1 block w-full border rounded p-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Статус</label>
+            <select {...register('status')} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
               <option value="active">Активно</option>
               <option value="completed">Выполнено</option>
               <option value="postponed">Отложено</option>
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Уже накоплено (₽)</label>
-            <input type="number" step="0.01" {...register('saved_amount')} className="mt-1 block w-full border rounded p-2" />
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Уже накоплено (₽)</label>
+            <input type="number" step="0.01" {...register('saved_amount')} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
           </div>
           <div className="flex items-center">
             <input type="checkbox" {...register('is_private')} className="h-4 w-4 text-indigo-600" />
-            <label className="ml-2 block text-sm text-gray-900">Скрыть от семьи (сюрприз)</label>
+            <label className="ml-2 block text-sm text-gray-900 dark:text-gray-100">Скрыть от семьи (сюрприз)</label>
           </div>
           <div className="flex justify-end space-x-2 pt-4">
-            <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 border rounded-md">Отмена</button>
+            <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">Отмена</button>
             <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-md">Сохранить</button>
           </div>
         </form>

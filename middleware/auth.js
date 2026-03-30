@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { User } = require('../models');
+const { User, Family } = require('../models');
 
 module.exports = async (req, res, next) => {
   try {
@@ -9,7 +9,9 @@ module.exports = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findByPk(decoded.id);
+    const user = await User.findByPk(decoded.id, {
+      include: userHasFamilyInclude(),
+    });
     if (!user) {
       return res.status(401).json({ message: 'Пользователь не найден' });
     }
@@ -21,3 +23,14 @@ module.exports = async (req, res, next) => {
     return res.status(401).json({ message: 'Неверный токен' });
   }
 };
+
+function userHasFamilyInclude() {
+  // Keep it optional: user may have family_id = null
+  return [
+    {
+      model: Family,
+      as: 'Family',
+      required: false,
+    },
+  ];
+}

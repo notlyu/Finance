@@ -1,6 +1,13 @@
 const { Transaction, Category } = require('../models');
 const { Op } = require('sequelize');
 
+function toMonthKeyFromDateOnly(dateOnly) {
+  // Transaction.date is DATEONLY and may come as string 'YYYY-MM-DD' (or Date depending on dialect/options).
+  const d = dateOnly instanceof Date ? dateOnly : new Date(`${dateOnly}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${d.getMonth() + 1}`;
+}
+
 // Динамика доходов и расходов по месяцам
 exports.getDynamics = async (req, res) => {
   try {
@@ -38,7 +45,8 @@ exports.getDynamics = async (req, res) => {
     }
 
     transactions.forEach(t => {
-      const key = `${t.date.getFullYear()}-${t.date.getMonth() + 1}`;
+      const key = toMonthKeyFromDateOnly(t.date);
+      if (!key) return;
       if (t.type === 'income') {
         incomeByMonth[key] += parseFloat(t.amount);
       } else {
