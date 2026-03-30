@@ -1,7 +1,10 @@
 const transactionService = require('../services/transactionService');
 
-// Define your functions
 const getTransactions = async (req, res, next) => {
+    // Проверка доступа внутри функции
+    if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
     try {
         const transactions = await transactionService.getTransactions(req.user.id, req.user.familyId);
         res.json(transactions);
@@ -11,6 +14,9 @@ const getTransactions = async (req, res, next) => {
 };
 
 const createTransaction = async (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
     try {
         const transaction = await transactionService.createTransaction(req.user.id, req.user.familyId, req.body);
         res.status(201).json(transaction);
@@ -20,6 +26,9 @@ const createTransaction = async (req, res, next) => {
 };
 
 const getTransactionById = async (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
     try {
         const transaction = await transactionService.getTransactionById(req.params.id, req.user.familyId);
         res.json(transaction);
@@ -29,6 +38,9 @@ const getTransactionById = async (req, res, next) => {
 };
 
 const updateTransaction = async (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
     try {
         const transaction = await transactionService.updateTransaction(req.params.id, req.user.familyId, req.body);
         res.json(transaction);
@@ -38,6 +50,9 @@ const updateTransaction = async (req, res, next) => {
 };
 
 const deleteTransaction = async (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
     try {
         await transactionService.deleteTransaction(req.params.id, req.user.familyId);
         res.status(204).send();
@@ -46,7 +61,6 @@ const deleteTransaction = async (req, res, next) => {
     }
 };
 
-// CRITICAL: Export them as an object
 module.exports = {
     getTransactions,
     createTransaction,

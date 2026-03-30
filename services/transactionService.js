@@ -1,11 +1,22 @@
-// services/transactionService.js
-const { Transaction, Goal } = require('../models');
+const { Transaction, Op } = require('../models'); // Ensure Op is imported if using Sequelize
 
 exports.getTransactions = async (userId, familyId, query) => {
-    // Basic implementation: adjust based on your filtering requirements
+    const whereClause = { family_id: familyId };
+
+    // Add filtering logic
+    if (query.type) whereClause.type = query.type;
+    if (query.categoryId) whereClause.category_id = query.categoryId;
+    
+    // Add date filtering if provided
+    if (query.startDate && query.endDate) {
+        whereClause.date = {
+            [Op.between]: [query.startDate, query.endDate]
+        };
+    }
+
     return await Transaction.findAll({ 
-        where: { family_id: familyId },
-        order: [['created_at', 'DESC']]
+        where: whereClause,
+        order: [['date', 'DESC']] // Changed to 'date' for consistency
     });
 };
 
