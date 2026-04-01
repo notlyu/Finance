@@ -6,6 +6,8 @@ export default function Family() {
   const [family, setFamily] = useState(null);
   const [loading, setLoading] = useState(true);
   const [inviteCode, setInviteCode] = useState('');
+  const [invites, setInvites] = useState([]);
+  const [invitesLoading, setInvitesLoading] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -17,6 +19,19 @@ export default function Family() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchInvites = async () => {
+    setInvitesLoading(true);
+    try {
+      const res = await api.get('/auth/family/invites');
+      setInvites(res.data);
+    } catch (err) {
+      console.error(err);
+      setInvites([]);
+    } finally {
+      setInvitesLoading(false);
     }
   };
 
@@ -107,6 +122,87 @@ export default function Family() {
           </button>
         </div>
       </div>
+
+      {/* Приглашения (новый flow) */}
+      {isOwner && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-medium text-gray-900 dark:text-white">Приглашения</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Создавайте временные коды приглашений (их можно отозвать).
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  try {
+                    await api.post('/auth/family/invites', { expiresInDays: 7 });
+                    await fetchInvites();
+                  } catch (err) {
+                    alert(err.response?.data?.message || 'Ошибка');
+                  }
+                }}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+              >
+                + Создать (7 дней)
+              </button>
+              <button
+                onClick={fetchInvites}
+                className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Обновить
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-2">
+            {invitesLoading ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">Загрузка…</p>
+            ) : invites.length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">Нет активных приглашений.</p>
+            ) : (
+              invites.map(inv => (
+                <div key={inv.id} className="flex items-center justify-between gap-3 border border-gray-200 dark:border-gray-700 rounded-md p-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      {inv.code}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Истекает: {inv.expires_at ? new Date(inv.expires_at).toLocaleString() : 'не истекает'}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(inv.code);
+                        alert('Код приглашения скопирован');
+                      }}
+                      className="px-3 py-1.5 rounded-md text-sm text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/15 hover:bg-indigo-100 dark:hover:bg-indigo-500/25"
+                    >
+                      Копировать
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!window.confirm('Отозвать это приглашение?')) return;
+                        try {
+                          await api.delete(`/auth/family/invites/${inv.id}`);
+                          await fetchInvites();
+                        } catch (err) {
+                          alert(err.response?.data?.message || 'Ошибка');
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-md text-sm text-red-700 bg-red-50 hover:bg-red-100"
+                    >
+                      Отозвать
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Список участников */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">

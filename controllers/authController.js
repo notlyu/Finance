@@ -1,11 +1,13 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { User, Family } = require('../models');
+const crypto = require('crypto');
+const { Op } = require('sequelize');
+const { User, Family, FamilyInvite } = require('../models');
 
-// Генерация случайного кода приглашения (6 символов)
-const generateInviteCode = () => {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
-};
+function generateSecureInviteCode(length = 10) {
+  // url-safe base64, trimmed and uppercased for readability
+  return crypto.randomBytes(Math.ceil(length)).toString('base64url').slice(0, length).toUpperCase();
+}
 
 // Регистрация
 exports.register = async (req, res) => {
@@ -84,7 +86,7 @@ exports.createFamily = async (req, res) => {
       return res.status(400).json({ message: 'Вы уже состоите в семье' });
     }
 
-    const inviteCode = generateInviteCode();
+    const inviteCode = generateSecureInviteCode(10);
 
     const family = await Family.create({
       name,
@@ -109,21 +111,126 @@ exports.createFamily = async (req, res) => {
 // Присоединение к семье по коду
 exports.joinFamily = async (req, res) => {
   try {
-    const { inviteCode } = req.body;
+    const inviteCode = String(req.body.inviteCode || req.body.code || '').trim().toUpperCase();
     const user = req.user;
 
     if (user.family_id) {
       return res.status(400).json({ message: 'Вы уже состоите в семье' });
     }
 
-    const family = await Family.findOne({ where: { invite_code: inviteCode } });
-    if (!family) {
-      return res.status(404).json({ message: 'Семья не найдена' });
+    if (!inviteCode) return res.status(400).json({ message: 'Укажите код приглашения' });
+
+    // 1) Prefer new flow: family_invites
+    const invite = await FamilyInvite.findOne({
+      where: {
+        code: inviteCode,
+        [Op.or]: [{ expires_at: null }, { expires_at: { [Op.gt]: new Date() } }],
+      },
+    });
+
+    let family = null;
+    if (invite) {
+      family = await Family.findByPk(invite.family_id);
+    } else {
+      // 2) Backward compatibility: families.invite_code
+      family = await Family.findOne({ where: { invite_code: inviteCode } });
     }
+    if (!family) return res.status(404).json({ message: 'Код не найден или истёк' });
 
     await user.update({ family_id: family.id });
 
     res.json({ message: 'Вы присоединились к семье', family_id: family.id });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+};
+
+// Создать приглашение в семью (новый flow)
+exports.createFamilyInvite = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user.family_id) return res.status(400).json({ message: 'Вы не состоите в семье' });
+
+    const family = await Family.findByPk(user.family_id);
+    if (!family) return res.status(404).json({ message: 'Семья не найдена' });
+
+    // Only owner can create invites (can be relaxed later)
+    if (family.owner_user_id !== user.id) {
+      return res.status(403).json({ message: 'Только владелец семьи может создавать приглашения' });
+    }
+
+    const days = Number(req.body.expiresInDays || 7);
+    const expiresAt = Number.isFinite(days) && days > 0 ? new Date(Date.now() + days * 24 * 60 * 60 * 1000) : null;
+
+    // Retry a few times to avoid unique collisions
+    let invite = null;
+    for (let i = 0; i < 5; i++) {
+      const code = generateSecureInviteCode(10);
+      try {
+        invite = await FamilyInvite.create({
+          family_id: family.id,
+          code,
+          created_by: user.id,
+          expires_at: expiresAt,
+        });
+        break;
+      } catch (e) {
+        if (e?.name !== 'SequelizeUniqueConstraintError') throw e;
+      }
+    }
+
+    if (!invite) return res.status(500).json({ message: 'Не удалось создать приглашение, попробуйте ещё раз' });
+
+    res.status(201).json({
+      id: invite.id,
+      code: invite.code,
+      expires_at: invite.expires_at,
+      created_at: invite.created_at,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+};
+
+exports.listFamilyInvites = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user.family_id) return res.status(400).json({ message: 'Вы не состоите в семье' });
+
+    const invites = await FamilyInvite.findAll({
+      where: {
+        family_id: user.family_id,
+        [Op.or]: [{ expires_at: null }, { expires_at: { [Op.gt]: new Date() } }],
+      },
+      order: [['created_at', 'DESC']],
+      attributes: ['id', 'code', 'created_by', 'expires_at', 'created_at'],
+    });
+    res.json(invites);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+};
+
+exports.revokeFamilyInvite = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user.family_id) return res.status(400).json({ message: 'Вы не состоите в семье' });
+
+    const family = await Family.findByPk(user.family_id);
+    if (!family) return res.status(404).json({ message: 'Семья не найдена' });
+    if (family.owner_user_id !== user.id) {
+      return res.status(403).json({ message: 'Только владелец семьи может отзывать приглашения' });
+    }
+
+    const { id } = req.params;
+    const invite = await FamilyInvite.findOne({ where: { id, family_id: user.family_id } });
+    if (!invite) return res.status(404).json({ message: 'Приглашение не найдено' });
+
+    await invite.destroy();
+    res.json({ message: 'Приглашение отозвано' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Ошибка сервера' });

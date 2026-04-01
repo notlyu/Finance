@@ -1,5 +1,5 @@
 const { Transaction, Category } = require('../models');
-const { Op } = require('sequelize');
+const { Op, fn, col } = require('sequelize');
 
 function toMonthKeyFromDateOnly(dateOnly) {
   // Transaction.date is DATEONLY and may come as string 'YYYY-MM-DD' (or Date depending on dialect/options).
@@ -17,44 +17,63 @@ exports.getDynamics = async (req, res) => {
       return res.status(400).json({ message: 'Вы не состоите в семье' });
     }
 
-    const { period = 'month' } = req.query; // month, quarter, year
-    // Для простоты реализуем только помесячно за последние 12 месяцев
-    const now = new Date();
-    const startDate = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+    const startDate = req.query.startDate ? String(req.query.startDate) : null;
+    const endDate = req.query.endDate ? String(req.query.endDate) : null;
 
-    const transactions = await Transaction.findAll({
+    let start = startDate;
+    let end = endDate;
+    if (!start || !end) {
+      const now = new Date();
+      const s = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+      const e = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      start = s.toISOString().slice(0, 10);
+      end = e.toISOString().slice(0, 10);
+    }
+
+    const rows = await Transaction.findAll({
       where: {
         family_id: familyId,
-        date: { [Op.gte]: startDate },
+        date: { [Op.gte]: start, [Op.lt]: end },
+        [Op.or]: [{ is_private: false }, { user_id: user.id }], // don't leak other users' private
       },
-      attributes: ['amount', 'type', 'date'],
-      order: [['date', 'ASC']],
+      attributes: [
+        [fn('DATE_FORMAT', col('date'), '%Y-%m'), 'month'],
+        'type',
+        [fn('SUM', col('amount')), 'total'],
+      ],
+      group: ['month', 'type'],
+      order: [[col('month'), 'ASC']],
+      raw: true,
     });
 
     const months = [];
     const incomeByMonth = {};
     const expenseByMonth = {};
 
-    for (let i = 0; i < 12; i++) {
-      const d = new Date(startDate);
-      d.setMonth(startDate.getMonth() + i);
-      const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
+    // Build month list inclusively from start to end-1month
+    const startD = new Date(`${start}T00:00:00`);
+    const endD = new Date(`${end}T00:00:00`);
+    const cursor = new Date(startD.getFullYear(), startD.getMonth(), 1);
+    const endCursor = new Date(endD.getFullYear(), endD.getMonth(), 1);
+    while (cursor < endCursor) {
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`;
       months.push(key);
       incomeByMonth[key] = 0;
       expenseByMonth[key] = 0;
+      cursor.setMonth(cursor.getMonth() + 1);
     }
 
-    transactions.forEach(t => {
-      const key = toMonthKeyFromDateOnly(t.date);
-      if (!key) return;
-      if (t.type === 'income') {
-        incomeByMonth[key] += parseFloat(t.amount);
-      } else {
-        expenseByMonth[key] += parseFloat(t.amount);
-      }
+    rows.forEach(r => {
+      const key = r.month;
+      if (!incomeByMonth.hasOwnProperty(key)) return;
+      const val = parseFloat(r.total || 0);
+      if (r.type === 'income') incomeByMonth[key] += val;
+      else expenseByMonth[key] += val;
     });
 
     res.json({
+      startDate: start,
+      endDate: end,
       labels: months.map(m => {
         const [year, month] = m.split('-');
         return `${month}.${year}`;

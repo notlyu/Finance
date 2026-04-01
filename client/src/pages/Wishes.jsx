@@ -3,12 +3,15 @@ import { useForm } from 'react-hook-form';
 import api from '../services/api';
 import Modal from '../components/Modal';
 import { formatMoney } from '../utils/format';
+import ContributeModal from '../components/ContributeModal';
 
 export default function Wishes() {
   const [wishes, setWishes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [contributeOpen, setContributeOpen] = useState(false);
+  const [contributeWish, setContributeWish] = useState(null);
   const { register, handleSubmit, reset, setValue } = useForm();
 
   const fetchWishes = async () => {
@@ -66,15 +69,9 @@ export default function Wishes() {
     }
   };
 
-  const contribute = async (id) => {
-    const amount = prompt('Сумма пополнения (руб):');
-    if (!amount) return;
-    try {
-      await api.post(`/wishes/${id}/contribute`, { amount });
-      fetchWishes();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Ошибка');
-    }
+  const openContribute = (wish) => {
+    setContributeWish(wish);
+    setContributeOpen(true);
   };
 
   const priorityLabels = {
@@ -146,7 +143,7 @@ export default function Wishes() {
                     </span>
                   </div>
                   <button
-                    onClick={() => contribute(wish.id)}
+                    onClick={() => openContribute(wish)}
                     className="mt-3 w-full bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 py-1 rounded-md hover:bg-purple-200 dark:hover:bg-purple-500/25 transition"
                   >
                     Пополнить
@@ -158,6 +155,33 @@ export default function Wishes() {
         })}
         {wishes.length === 0 && <p className="text-gray-500 dark:text-gray-400 col-span-2 text-center">Нет желаний. Добавьте первое!</p>}
       </div>
+
+      <ContributeModal
+        isOpen={contributeOpen}
+        onClose={() => {
+          setContributeOpen(false);
+          setContributeWish(null);
+        }}
+        title="Пополнить желание"
+        subjectName={contributeWish?.name}
+        onContribute={async ({ amount, category_id }) => {
+          if (!contributeWish?.id) return;
+          try {
+            await api.post(`/wishes/${contributeWish.id}/contribute`, {
+              amount,
+              createTransaction: true,
+              category_id,
+              comment: `Пополнение желания: ${contributeWish.name}`,
+            });
+            setContributeOpen(false);
+            setContributeWish(null);
+            fetchWishes();
+          } catch (err) {
+            console.error(err);
+            alert(err.response?.data?.message || 'Ошибка');
+          }
+        }}
+      />
 
       {/* Модальное окно добавления/редактирования */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Редактировать желание' : 'Новое желание'}>

@@ -1,4 +1,4 @@
-const { Wish, WishContribution, User, Family } = require('../models');
+const { Wish, WishContribution, User, Family, Transaction } = require('../models');
 const { Op } = require('sequelize');
 
 // Получить все желания пользователя (личные + семейные)
@@ -192,7 +192,7 @@ exports.contributeToWish = async (req, res) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    const { amount, date } = req.body;
+    const { amount, date, createTransaction, category_id, comment, is_private } = req.body;
 
     if (!amount || amount <= 0) {
       return res.status(400).json({ message: 'Сумма должна быть положительным числом' });
@@ -214,23 +214,49 @@ exports.contributeToWish = async (req, res) => {
       return res.status(403).json({ message: 'Нет прав на пополнение этого желания' });
     }
 
-    const contribution = await WishContribution.create({
-      wish_id: wish.id,
-      amount,
-      date: date || new Date(),
-      transaction_id: null
-    });
+    const result = await Wish.sequelize.transaction(async (t) => {
+      let transactionId = null;
+      if (createTransaction) {
+        if (!category_id) {
+          throw new Error('category_id обязателен для createTransaction');
+        }
+        const tx = await Transaction.create({
+          user_id: user.id,
+          family_id: user.family_id,
+          amount,
+          type: 'expense',
+          category_id,
+          date: date || new Date(),
+          comment: comment || `Пополнение желания: ${wish.name}`,
+          is_private: !!is_private,
+        }, { transaction: t });
+        transactionId = tx.id;
+      }
 
-    const newSavedAmount = parseFloat(wish.saved_amount) + parseFloat(amount);
-    await wish.update({ saved_amount: newSavedAmount });
+      const contribution = await WishContribution.create({
+        wish_id: wish.id,
+        amount,
+        date: date || new Date(),
+        transaction_id: transactionId,
+      }, { transaction: t });
+
+      const newSavedAmount = parseFloat(wish.saved_amount) + parseFloat(amount);
+      await wish.update({ saved_amount: newSavedAmount }, { transaction: t });
+
+      return { contribution, newSavedAmount, transactionId };
+    });
 
     res.status(201).json({
       message: 'Желание пополнено',
-      contribution,
-      saved_amount: newSavedAmount
+      contribution: result.contribution,
+      saved_amount: result.newSavedAmount,
+      transaction_id: result.transactionId
     });
   } catch (error) {
     console.error(error);
+    if (String(error.message || '').includes('category_id обязателен')) {
+      return res.status(400).json({ message: error.message });
+    }
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 };

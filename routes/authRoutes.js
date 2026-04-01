@@ -14,5 +14,8 @@ router.get('/me', authMiddleware, authController.getMe);
 router.post('/family/create', authMiddleware, authController.createFamily);
 router.post('/family/join', authMiddleware, authController.joinFamily);
 router.post('/family/leave', authMiddleware, authController.leaveFamily);
+router.post('/family/invites', authMiddleware, authController.createFamilyInvite);
+router.get('/family/invites', authMiddleware, authController.listFamilyInvites);
+router.delete('/family/invites/:id', authMiddleware, authController.revokeFamilyInvite);
 
 module.exports = router;

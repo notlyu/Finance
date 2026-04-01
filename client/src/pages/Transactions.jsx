@@ -8,6 +8,8 @@ export default function Transactions() {
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [page, setPage] = useState({ items: [], limit: 30, offset: 0, hasMore: false });
   const [filters, setFilters] = useState({
     startDate: '',
     endDate: '',
@@ -71,15 +73,43 @@ export default function Transactions() {
   const fetchData = async () => {
     try {
       const [transRes, catRes] = await Promise.all([
-        api.get('/transactions', { params: filters }),
+        api.get('/transactions', { params: { ...filters, paginate: true, limit: page.limit, offset: 0 } }),
         api.get('/categories')
       ]);
-      setTransactions(transRes.data);
+      const items = transRes.data?.items || [];
+      const meta = transRes.data?.meta || {};
+      setTransactions(items);
+      setPage(prev => ({
+        ...prev,
+        items,
+        offset: meta.offset ?? 0,
+        hasMore: !!meta.hasMore,
+      }));
       setCategories(catRes.data);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMore = async () => {
+    try {
+      const nextOffset = transactions.length;
+      const res = await api.get('/transactions', {
+        params: { ...filters, paginate: true, limit: page.limit, offset: nextOffset },
+      });
+      const items = res.data?.items || [];
+      const meta = res.data?.meta || {};
+      setTransactions(prev => [...prev, ...items]);
+      setPage(prev => ({
+        ...prev,
+        offset: meta.offset ?? nextOffset,
+        hasMore: !!meta.hasMore,
+      }));
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || 'Ошибка');
     }
   };
 
@@ -150,22 +180,31 @@ export default function Transactions() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Операции</h1>
-        <button
-          onClick={() => {
-            setEditingId(null);
-            reset({ type: 'expense', is_private: false });
-            setModalOpen(true);
-          }}
-          className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-        >
-          + Добавить операцию
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(v => !v)}
+            className="sm:hidden px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
+            Фильтры
+          </button>
+          <button
+            onClick={() => {
+              setEditingId(null);
+              reset({ type: 'expense', is_private: false });
+              setModalOpen(true);
+            }}
+            className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 w-full sm:w-auto"
+          >
+            + Добавить
+          </button>
+        </div>
       </div>
 
       {/* Блок фильтров */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+      <div className={`bg-white dark:bg-gray-800 p-4 rounded-lg shadow ${filtersOpen ? '' : 'hidden sm:block'}`}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Период</label>
@@ -259,7 +298,78 @@ export default function Transactions() {
       </div>
 
       {/* Список транзакций */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+      {/* Mobile cards */}
+      <div className="sm:hidden space-y-3">
+        {transactions.map(t => (
+          <div
+            key={t.id}
+            className={`rounded-lg border shadow-sm p-4 ${
+              t.is_hidden
+                ? 'bg-gray-50 dark:bg-gray-900/40 border-gray-200 dark:border-gray-700'
+                : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                    {t.category_name}
+                  </p>
+                  {t.is_private && !t.is_hidden && <span className="text-xs text-gray-400">🔒</span>}
+                  {t.is_hidden && <span className="text-xs text-gray-400">🔒 Скрыто</span>}
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  {new Date(t.date).toLocaleDateString()} • {t.user_name}
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className={`text-sm font-semibold ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                  {t.type === 'income' ? '+' : '-'}{formatMoney(t.amount)} ₽
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3 flex items-end justify-between gap-3">
+              <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
+                {t.comment || '—'}
+              </p>
+              {!t.is_hidden && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => openEditModal(t)}
+                    className="px-3 py-1.5 rounded-md text-sm text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/15 hover:bg-indigo-100 dark:hover:bg-indigo-500/25"
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    onClick={() => deleteTransaction(t.id)}
+                    className="px-3 py-1.5 rounded-md text-sm text-red-700 bg-red-50 hover:bg-red-100"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        {transactions.length === 0 && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center text-gray-500 dark:text-gray-400">
+            Нет операций
+          </div>
+        )}
+
+        {page.hasMore && (
+          <button
+            onClick={loadMore}
+            className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
+            Загрузить ещё
+          </button>
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden sm:block bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-900">
@@ -305,6 +415,17 @@ export default function Transactions() {
           </table>
         </div>
       </div>
+
+      {page.hasMore && (
+        <div className="hidden sm:flex justify-center">
+          <button
+            onClick={loadMore}
+            className="px-6 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
+            Загрузить ещё
+          </button>
+        </div>
+      )}
 
       {/* Модальное окно */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Редактировать операцию' : 'Добавить операцию'}>

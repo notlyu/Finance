@@ -3,12 +3,15 @@ import { useForm } from 'react-hook-form';
 import api from '../services/api';
 import Modal from '../components/Modal';
 import { formatMoney } from '../utils/format';
+import ContributeModal from '../components/ContributeModal';
 
 export default function Goals() {
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [contributeOpen, setContributeOpen] = useState(false);
+  const [contributeGoal, setContributeGoal] = useState(null);
   const { register, handleSubmit, reset, setValue } = useForm();
 
   const fetchGoals = async () => {
@@ -68,15 +71,9 @@ export default function Goals() {
     }
   };
 
-  const contribute = async (id) => {
-    const amount = prompt('Сумма пополнения (руб):');
-    if (!amount) return;
-    try {
-      await api.post(`/goals/${id}/contribute`, { amount });
-      fetchGoals();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Ошибка');
-    }
+  const openContribute = (goal) => {
+    setContributeGoal(goal);
+    setContributeOpen(true);
   };
 
   if (loading) return <div className="text-center py-10">Загрузка...</div>;
@@ -137,7 +134,7 @@ export default function Goals() {
                 </div>
               )}
               <button
-                onClick={() => contribute(goal.id)}
+                onClick={() => openContribute(goal)}
                 className="mt-3 w-full bg-indigo-100 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 py-1 rounded-md hover:bg-indigo-200 dark:hover:bg-indigo-500/25 transition"
               >
                 Пополнить
@@ -147,6 +144,33 @@ export default function Goals() {
         })}
         {goals.length === 0 && <p className="text-gray-500 dark:text-gray-400 col-span-2 text-center">Нет целей. Добавьте первую!</p>}
       </div>
+
+      <ContributeModal
+        isOpen={contributeOpen}
+        onClose={() => {
+          setContributeOpen(false);
+          setContributeGoal(null);
+        }}
+        title="Пополнить цель"
+        subjectName={contributeGoal?.name}
+        onContribute={async ({ amount, category_id }) => {
+          if (!contributeGoal?.id) return;
+          try {
+            await api.post(`/goals/${contributeGoal.id}/contribute`, {
+              amount,
+              createTransaction: true,
+              category_id,
+              comment: `Пополнение цели: ${contributeGoal.name}`,
+            });
+            setContributeOpen(false);
+            setContributeGoal(null);
+            fetchGoals();
+          } catch (err) {
+            console.error(err);
+            alert(err.response?.data?.message || 'Ошибка');
+          }
+        }}
+      />
 
       {/* Модальное окно добавления/редактирования */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Редактировать цель' : 'Новая цель'}>

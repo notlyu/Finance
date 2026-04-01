@@ -238,7 +238,7 @@ exports.contributeToGoal = async (req, res) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    const { amount, date } = req.body;
+    const { amount, date, createTransaction, category_id, comment, is_private } = req.body;
 
     if (!amount || amount <= 0) {
       return res.status(400).json({ message: 'Сумма должна быть положительным числом' });
@@ -258,25 +258,49 @@ exports.contributeToGoal = async (req, res) => {
       return res.status(404).json({ message: 'Цель не найдена' });
     }
 
-    // Создаём запись о взносе
-    const contribution = await GoalContribution.create({
-      goal_id: goal.id,
-      amount,
-      date: date || new Date(),
-      transaction_id: null // ручное пополнение без привязки к транзакции
-    });
+    const result = await Goal.sequelize.transaction(async (t) => {
+      let transactionId = null;
+      if (createTransaction) {
+        if (!category_id) {
+          throw new Error('category_id обязателен для createTransaction');
+        }
+        const tx = await Transaction.create({
+          user_id: user.id,
+          family_id: user.family_id,
+          amount,
+          type: 'expense',
+          category_id,
+          date: date || new Date(),
+          comment: comment || `Пополнение цели: ${goal.name}`,
+          is_private: !!is_private,
+        }, { transaction: t });
+        transactionId = tx.id;
+      }
 
-    // Обновляем текущую сумму цели
-    const newCurrentAmount = parseFloat(goal.current_amount) + parseFloat(amount);
-    await goal.update({ current_amount: newCurrentAmount });
+      const contribution = await GoalContribution.create({
+        goal_id: goal.id,
+        amount,
+        date: date || new Date(),
+        transaction_id: transactionId,
+      }, { transaction: t });
+
+      const newCurrentAmount = parseFloat(goal.current_amount) + parseFloat(amount);
+      await goal.update({ current_amount: newCurrentAmount }, { transaction: t });
+
+      return { contribution, newCurrentAmount, transactionId };
+    });
 
     res.status(201).json({
       message: 'Цель пополнена',
-      contribution,
-      current_amount: newCurrentAmount
+      contribution: result.contribution,
+      current_amount: result.newCurrentAmount,
+      transaction_id: result.transactionId
     });
   } catch (error) {
     console.error(error);
+    if (String(error.message || '').includes('category_id обязателен')) {
+      return res.status(400).json({ message: error.message });
+    }
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 };

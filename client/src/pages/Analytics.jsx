@@ -13,6 +13,7 @@ import {
 } from 'chart.js';
 import api from '../services/api';
 import { formatMoney } from '../utils/format';
+import * as XLSX from 'xlsx';
 
 ChartJS.register(
   CategoryScale,
@@ -31,18 +32,35 @@ export default function Analytics() {
   const [incomeByCat, setIncomeByCat] = useState([]);
   const [pillowHistory, setPillowHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [periodPreset, setPeriodPreset] = useState('12m'); // 3m,6m,12m,custom
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   const isDark = document.documentElement.classList.contains('dark');
   const textColor = isDark ? '#E5E7EB' : '#111827';
   const gridColor = isDark ? 'rgba(148,163,184,0.22)' : 'rgba(148,163,184,0.35)';
 
+  const resolvePeriod = () => {
+    const today = new Date();
+    const end = new Date(today.getFullYear(), today.getMonth() + 1, 1); // start of next month
+    if (periodPreset === 'custom' && startDate && endDate) {
+      return { start: startDate, end: endDate };
+    }
+    const monthsBack = periodPreset === '3m' ? 3 : periodPreset === '6m' ? 6 : 12;
+    const start = new Date(today.getFullYear(), today.getMonth() - (monthsBack - 1), 1);
+    return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+  };
+
+  const period = resolvePeriod();
+  const periodLabel = periodPreset === 'custom' ? `${period.start} – ${period.end}` : (periodPreset === '3m' ? '3 месяца' : periodPreset === '6m' ? '6 месяцев' : '12 месяцев');
+
   useEffect(() => {
     const fetchData = async () => {
       try {
         const [dynamicsRes, expensesRes, incomeRes, pillowRes] = await Promise.all([
-          api.get('/reports/dynamics'),
-          api.get('/reports/expenses-by-category'),
-          api.get('/reports/income-by-category'),
+          api.get('/reports/dynamics', { params: { startDate: period.start, endDate: period.end } }),
+          api.get('/reports/expenses-by-category', { params: { startDate: period.start, endDate: period.end } }),
+          api.get('/reports/income-by-category', { params: { startDate: period.start, endDate: period.end } }),
           api.get('/safety-pillow/history', { params: { limit: 12 } }),
         ]);
         setDynamics(dynamicsRes.data);
@@ -56,7 +74,7 @@ export default function Analytics() {
       }
     };
     fetchData();
-  }, []);
+  }, [periodPreset, startDate, endDate]);
 
   if (loading) return <div className="text-center py-10">Загрузка...</div>;
 
@@ -144,12 +162,24 @@ export default function Analytics() {
     ],
   };
 
-  const pieData = (data, label) => ({
-    labels: data.map(item => item.name),
+  const topN = (data, n = 6) => {
+    const sorted = [...data].sort((a, b) => Number(b.total) - Number(a.total));
+    const top = sorted.slice(0, n);
+    const rest = sorted.slice(n);
+    const restTotal = rest.reduce((s, x) => s + Number(x.total || 0), 0);
+    const out = [...top];
+    if (restTotal > 0) out.push({ name: 'Остальное', total: restTotal });
+    return out;
+  };
+
+  const pieData = (data, label) => {
+    const processed = topN(data, 6);
+    return {
+      labels: processed.map(item => item.name),
     datasets: [
       {
         label,
-        data: data.map(item => Number(item.total)),
+          data: processed.map(item => Number(item.total)),
         backgroundColor: [
           '#4F46E5',
           '#0EA5E9',
@@ -164,7 +194,8 @@ export default function Analytics() {
         borderWidth: 1,
       },
     ],
-  });
+    };
+  };
 
   const pillowLineData = {
     labels: pillowHistory.map(h => new Date(h.calculated_at).toLocaleDateString()).reverse(),
@@ -209,23 +240,107 @@ export default function Analytics() {
       .catch(err => console.error(err));
   };
 
+  const exportExcel = () => {
+    // Экспорт транзакций за последние 3 месяца в .xlsx
+    api
+      .get('/transactions', {
+        params: {
+          startDate: new Date(new Date().setMonth(new Date().getMonth() - 3)).toISOString().slice(0, 10),
+        },
+      })
+      .then((res) => {
+        const transactions = res.data;
+        const rows = transactions.map((t) => ({
+          Дата: t.date,
+          Категория: t.category_name || '',
+          Сумма: Math.trunc(Number(t.amount || 0)),
+          Тип: t.type === 'income' ? 'Доход' : 'Расход',
+          Комментарий: t.comment || '',
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
+
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([wbout], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', 'transactions.xlsx');
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      })
+      .catch((err) => console.error(err));
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Аналитика</h1>
-        <button
-          onClick={exportCSV}
-          className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-        >
-          📊 Экспорт CSV
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={exportCSV}
+            className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+          >
+            📊 CSV
+          </button>
+          <button
+            onClick={exportExcel}
+            className="bg-indigo-100 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-200 px-4 py-2 rounded-md hover:bg-indigo-200 dark:hover:bg-indigo-500/25"
+          >
+            ⬇️ Excel
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-medium text-gray-900 dark:text-white">Период отчёта</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
+          </div>
+          <div className="flex flex-wrap gap-2 items-center">
+            <select
+              value={periodPreset}
+              onChange={(e) => setPeriodPreset(e.target.value)}
+              className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            >
+              <option value="3m">Последние 3 месяца</option>
+              <option value="6m">Последние 6 месяцев</option>
+              <option value="12m">Последние 12 месяцев</option>
+              <option value="custom">Произвольный</option>
+            </select>
+            {periodPreset === 'custom' && (
+              <>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                />
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                />
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Динамика доходов и расходов */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
         <h2 className="text-lg font-medium mb-1 text-gray-900 dark:text-white">Динамика доходов и расходов (по месяцам)</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          Сравнение доходов и расходов по месяцам за последний год.
+          Сравнение доходов и расходов по месяцам за выбранный период.
         </p>
         <div className="h-72 md:h-80">
           <Line data={lineData} options={lineOptions} />

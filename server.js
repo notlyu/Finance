@@ -14,6 +14,10 @@ const wishRoutes = require('./routes/wishRoutes');
 const safetyPillowRoutes = require('./routes/safetyPillowRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const budgetRoutes = require('./routes/budgetRoutes');
+const recurringRoutes = require('./routes/recurringRoutes');
+const cron = require('node-cron');
+const { runRecurringOnce } = require('./jobs/recurringJob');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -50,6 +54,8 @@ app.use('/api/transactions', transactionRoutes);
 app.use('/api/goals', goalRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/budgets', budgetRoutes);
+app.use('/api/recurring', recurringRoutes);
 
 // Global error handler (must be after routes)
 app.use(errorHandler);
@@ -58,6 +64,17 @@ app.use(errorHandler);
 sequelize.authenticate()
   .then(() => console.log(' Подключение к MySQL успешно!'))
   .catch(err => console.error(' Ошибка подключения к MySQL:', err));
+
+// Daily recurring transactions job (03:05 server time)
+if (process.env.ENABLE_RECURRING_JOB !== 'false') {
+  cron.schedule('5 3 * * *', async () => {
+    try {
+      await runRecurringOnce();
+    } catch (e) {
+      console.error('Recurring job error:', e);
+    }
+  });
+}
 
 // Тестовый маршрут
 app.get('/', (req, res) => {

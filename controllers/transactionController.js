@@ -30,7 +30,7 @@ const getTransactionById = async (req, res, next) => {
         return res.status(401).json({ message: "Unauthorized" });
     }
     try {
-        const transaction = await transactionService.getTransactionById(req.params.id, req.user.family_id);
+        const transaction = await transactionService.getTransactionById(req.params.id, req.user.family_id, req.user.id);
         if (!transaction) {
             return res.status(404).json({ message: 'Transaction not found' });
         }
