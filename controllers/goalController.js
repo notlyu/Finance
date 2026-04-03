@@ -26,12 +26,19 @@ exports.getGoals = async (req, res) => {
       return res.status(400).json({ message: 'Вы не состоите в семье' });
     }
 
+    // Archive filtering support: default to non-archived goals
+    const archiveFilter = req.query.archived;
     const where = {
       [Op.or]: [
         { family_id: familyId },
         { user_id: user.id, family_id: null } // личные цели пользователя
       ]
     };
+    if (archiveFilter === 'true') {
+      where.archived = true;
+    } else if (archiveFilter === 'false') {
+      where.archived = false;
+    }
 
     const goals = await Goal.findAll({
       where,
@@ -42,7 +49,13 @@ exports.getGoals = async (req, res) => {
       order: [['created_at', 'DESC']]
     });
 
-    res.json(goals);
+    const mapped = goals.map(g => {
+      const obj = g.toJSON();
+      obj.achieved = !!obj.archived || (Number(obj.current_amount || 0) >= Number(obj.target_amount || 0));
+      obj.progress = (Number(obj.target_amount || 0) > 0) ? Math.min(100, Math.max(0, (Number(obj.current_amount || 0) / Number(obj.target_amount || 0)) * 100)) : 0;
+      return obj;
+    });
+    res.json(mapped);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Ошибка сервера' });
@@ -110,7 +123,8 @@ exports.getGoalById = async (req, res) => {
 
     res.json({
       ...goal.toJSON(),
-      forecast
+      forecast,
+      achieved: !!goal.archived || (Number(goal.current_amount || 0) >= Number(goal.target_amount || 0))
     });
   } catch (error) {
     console.error(error);
@@ -140,7 +154,7 @@ exports.createGoal = async (req, res) => {
     }
 
     // Проверка: если цель семейная, то family_id = familyId, иначе user_id = user.id, family_id = null
-    const goalData = {
+  const goalData = {
       name,
       target_amount,
       target_date: target_date || null,
@@ -150,6 +164,13 @@ exports.createGoal = async (req, res) => {
       auto_contribute_type: auto_contribute_type || null,
       auto_contribute_value: auto_contribute_value || null
     };
+
+    // If initial amount already meets target, archive immediately
+    if ((Number(target_amount) || 0) > 0 && (Number(current_amount) || 0) >= Number(target_amount)) {
+      goalData.archived = true;
+      goalData.archived_at = new Date();
+      goalData.status = 'completed';
+    }
 
     if (is_family_goal && familyId) {
       goalData.family_id = familyId;
@@ -281,11 +302,17 @@ exports.contributeToGoal = async (req, res) => {
         goal_id: goal.id,
         amount,
         date: date || new Date(),
+        type: 'contribution',
         transaction_id: transactionId,
+        automatic: false
       }, { transaction: t });
 
       const newCurrentAmount = parseFloat(goal.current_amount) + parseFloat(amount);
       await goal.update({ current_amount: newCurrentAmount }, { transaction: t });
+      // Archive if reached target
+      if (newCurrentAmount >= parseFloat(goal.target_amount)) {
+        await goal.update({ archived: true, archived_at: new Date(), status: 'completed' }, { transaction: t });
+      }
 
       return { contribution, newCurrentAmount, transactionId };
     });
@@ -346,6 +373,32 @@ exports.getForecast = async (req, res) => {
       futureAmount: Math.round(futureAmount * 100) / 100,
       targetAchieved: futureAmount >= goal.target_amount
     });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+};
+
+// Экспорт целей (CSV)
+exports.exportGoals = async (req, res) => {
+  try {
+    const user = req.user;
+    const familyId = user.family_id;
+    const where = {
+      [Op.or]: [
+        { family_id: familyId },
+        { user_id: user.id, family_id: null }
+      ]
+    };
+    const goals = await Goal.findAll({ where, include: [{ model: GoalContribution, as: 'Contributions' }] });
+
+    const header = ['id','name','target_amount','current_amount','interest_rate','auto_contribute_enabled','auto_contribute_type','auto_contribute_value'];
+    const rows = goals.map(g => [g.id, g.name, g.target_amount, g.current_amount, g.interest_rate, g.auto_contribute_enabled, g.auto_contribute_type, g.auto_contribute_value]);
+    const csv = [header.join(','), ...rows.map(r => r.map(v => String(v ?? '')).join(','))].join('\n');
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="goals.csv"');
+    res.send(csv);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Ошибка сервера' });

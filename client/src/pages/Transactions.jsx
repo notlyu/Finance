@@ -193,7 +193,8 @@ export default function Transactions() {
           <button
             onClick={() => {
               setEditingId(null);
-              reset({ type: 'expense', is_private: false });
+              const today = new Date().toISOString().slice(0, 10);
+              reset({ type: 'expense', is_private: false, date: today });
               setModalOpen(true);
             }}
             className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 w-full sm:w-auto"

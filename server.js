@@ -16,8 +16,11 @@ const categoryRoutes = require('./routes/categoryRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const budgetRoutes = require('./routes/budgetRoutes');
 const recurringRoutes = require('./routes/recurringRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const cron = require('node-cron');
 const { runRecurringOnce } = require('./jobs/recurringJob');
+const { runInterestMonthly } = require('./jobs/interestJob');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -56,6 +59,8 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/budgets', budgetRoutes);
 app.use('/api/recurring', recurringRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Global error handler (must be after routes)
 app.use(errorHandler);
@@ -72,6 +77,17 @@ if (process.env.ENABLE_RECURRING_JOB !== 'false') {
       await runRecurringOnce();
     } catch (e) {
       console.error('Recurring job error:', e);
+    }
+  });
+}
+
+// Monthly interest accrual for goals (runs on 00:00 on the 1st day of every month)
+if (process.env.ENABLE_INTEREST_JOB !== 'false') {
+  cron.schedule('0 0 1 * *', async () => {
+    try {
+      await runInterestMonthly();
+    } catch (e) {
+      console.error('Interest job error:', e);
     }
   });
 }

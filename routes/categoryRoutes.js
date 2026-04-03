@@ -16,7 +16,7 @@ router.get('/', async (req, res) => {
       return res.status(400).json({ message: 'Вы не состоите в семье' });
     }
 
-    const categories = await Category.findAll({
+    let categories = await Category.findAll({
       where: {
         [Op.or]: [
           { family_id: null, user_id: null, is_system: true }, // системные
@@ -27,7 +27,20 @@ router.get('/', async (req, res) => {
       order: [['type', 'ASC'], ['name', 'ASC']]
     });
 
-    res.json(categories);
+    // Дедупликация записей на стороне сервера по смысловому ключу.
+    // Цель: убрать возможные повторяющиеся варианты одной и той же категории, которые могут приходить из разных групп
+    // (system / family / personal) с одинаковыми названием и типом.
+    const seen = new Set();
+    const uniqueCategories = [];
+    for (const c of categories) {
+      const key = `${c.name}|${c.type}|${c.family_id ?? 'NULL'}|${c.user_id ?? 'NULL'}|${c.is_system ? 'SYS' : 'USR'}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueCategories.push(c);
+      }
+    }
+
+    res.json(uniqueCategories);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Ошибка сервера' });

@@ -9,5 +9,6 @@ router.use(authMiddleware);
 router.get('/dynamics', reportController.getDynamics);
 router.get('/expenses-by-category', reportController.getExpensesByCategory);
 router.get('/income-by-category', reportController.getIncomeByCategory);
+router.get('/export', reportController.exportReport);
 
 module.exports = router;

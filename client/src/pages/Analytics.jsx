@@ -33,8 +33,9 @@ export default function Analytics() {
   const [pillowHistory, setPillowHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [periodPreset, setPeriodPreset] = useState('12m'); // 3m,6m,12m,custom
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [startDate, setStartDate] = useState(todayStr);
+  const [endDate, setEndDate] = useState(todayStr);
 
   const isDark = document.documentElement.classList.contains('dark');
   const textColor = isDark ? '#E5E7EB' : '#111827';
@@ -214,20 +215,19 @@ export default function Analytics() {
   };
 
   const exportCSV = () => {
-    // Простой экспорт транзакций за последние 3 месяца
-    api.get('/transactions', { params: { startDate: new Date(new Date().setMonth(new Date().getMonth() - 3)).toISOString().slice(0,10) } })
+    const params = periodPreset === 'custom' && startDate && endDate
+      ? `?startDate=${startDate}&endDate=${endDate}`
+      : `?startDate=${period.start}&endDate=${period.end}`;
+    window.open(`/api/reports/export${params}`, '_blank');
+  };
+
+  const exportExcel = () => {
+    const params = periodPreset === 'custom' && startDate && endDate
+      ? `?startDate=${startDate}&endDate=${endDate}`
+      : `?startDate=${period.start}&endDate=${period.end}`;
+    api.get('/reports/export' + params, { responseType: 'blob' })
       .then(res => {
-        const transactions = res.data;
-        const headers = ['Дата', 'Категория', 'Сумма', 'Тип', 'Комментарий'];
-        const rows = transactions.map(t => [
-          t.date,
-          t.category_name,
-          t.amount,
-          t.type === 'income' ? 'Доход' : 'Расход',
-          t.comment || '',
-        ]);
-        const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         const url = URL.createObjectURL(blob);
         link.setAttribute('href', url);
@@ -238,45 +238,6 @@ export default function Analytics() {
         document.body.removeChild(link);
       })
       .catch(err => console.error(err));
-  };
-
-  const exportExcel = () => {
-    // Экспорт транзакций за последние 3 месяца в .xlsx
-    api
-      .get('/transactions', {
-        params: {
-          startDate: new Date(new Date().setMonth(new Date().getMonth() - 3)).toISOString().slice(0, 10),
-        },
-      })
-      .then((res) => {
-        const transactions = res.data;
-        const rows = transactions.map((t) => ({
-          Дата: t.date,
-          Категория: t.category_name || '',
-          Сумма: Math.trunc(Number(t.amount || 0)),
-          Тип: t.type === 'income' ? 'Доход' : 'Расход',
-          Комментарий: t.comment || '',
-        }));
-
-        const ws = XLSX.utils.json_to_sheet(rows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
-
-        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-        const blob = new Blob([wbout], {
-          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        });
-
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', 'transactions.xlsx');
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      })
-      .catch((err) => console.error(err));
   };
 
   return (

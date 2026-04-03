@@ -1,4 +1,4 @@
-const { Transaction, Category, User } = require('../models');
+const { Transaction, Category, User, Goal, GoalContribution } = require('../models');
 const { Op } = require('sequelize');
 
 exports.getTransactions = async (userId, familyId, query = {}) => {
@@ -115,11 +115,87 @@ exports.getTransactions = async (userId, familyId, query = {}) => {
 
 exports.createTransaction = async (userId, familyId, data) => {
     // Create the transaction record
-    return await Transaction.create({ 
+    // Ensure date is stored as YYYY-MM-DD string for DATEONLY column
+    let txDate;
+    if (data && data.date) {
+        txDate = data.date instanceof Date ? data.date.toISOString().slice(0, 10) : String(data.date).slice(0, 10);
+    } else {
+        const now = new Date();
+        txDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    }
+    const tx = await Transaction.create({ 
         ...data, 
         user_id: userId, 
-        family_id: familyId 
+        family_id: familyId,
+        date: txDate
     });
+
+  // Автопополнение целей на основе доходов
+  // Только для доходных операций
+  if (tx && tx.type === 'income') {
+        try {
+            // Найти все цели семейной/личной принадлежности с включенным автопополнением
+            const goals = await Goal.findAll({
+                where: {
+                    [Op.or]: [
+                        { family_id: familyId },
+                        { user_id: userId, family_id: null }
+                    ],
+                    auto_contribute_enabled: true
+                }
+            });
+
+            for (const goal of goals) {
+                // Пропустим, если цель уже достигла сумму или нет смысла пополнять
+                const remaining = parseFloat(goal.target_amount) - parseFloat(goal.current_amount || 0);
+                if (!remaining || remaining <= 0) continue;
+
+                let amountAuto = 0;
+                const percent = parseFloat(goal.auto_contribute_value);
+                if (goal.auto_contribute_type === 'percentage' && percent > 0) {
+                    amountAuto = parseFloat(tx.amount) * (percent / 100);
+                } else if (goal.auto_contribute_type === 'fixed' && percent > 0) {
+                    amountAuto = percent; // в этом случае auto_contribute_value хранит фикс. сумму
+                }
+                if (amountAuto > 0) {
+                    // Если уже есть автопополнение за этот income-transaction, пропустим
+                    const existing = await GoalContribution.findOne({
+                        where: {
+                            goal_id: goal.id,
+                            source_transaction_id: tx.id,
+                        }
+                    });
+                    if (existing) continue;
+
+                    // Создать запись вклада как automatic
+                    await GoalContribution.create({
+                        goal_id: goal.id,
+                        amount: amountAuto,
+                        date: tx.date,
+                        automatic: true,
+                        source_transaction_id: tx.id
+                    });
+
+                    // Обновить текущую сумму цели
+                    const newAmount = (parseFloat(goal.current_amount || 0) + amountAuto);
+                    await goal.update({ current_amount: newAmount });
+                }
+            }
+        } catch (err) {
+            // Не прерывать создание транзакции: автопополнение — опционально и не критично
+            console.error('Auto-contribute failed:', err);
+        }
+    }
+
+    // Обновляем подушку безопасности (если включено)
+    try {
+      const safety = require('./safetyPillowService');
+      await safety.recalculateAndSave(tx.user_id, tx.family_id);
+    } catch (e) {
+      // пропускаем ошибки
+    }
+
+    return tx;
 };
 
 exports.getTransactionById = async (id, familyId, userId) => {
@@ -167,12 +243,28 @@ exports.getTransactionById = async (id, familyId, userId) => {
 exports.updateTransaction = async (id, familyId, data) => {
     const transaction = await Transaction.findOne({ where: { id, family_id: familyId } });
     if (!transaction) throw new Error('Transaction not found');
-    return await transaction.update(data);
+    await transaction.update(data);
+    // Reload to get updated values
+    const updated = await Transaction.findOne({ where: { id, family_id: familyId } });
+    if (updated) {
+      // Recalculate auto contributions if this is income
+      if (updated.type === 'income') {
+        await recalculateAutoContribsFromIncome(id);
+      } else {
+        // If it's not income anymore, drop related auto contributions
+        await revertAutoContribsForIncome(id);
+      }
+    }
+    return updated;
 };
 
 exports.deleteTransaction = async (id, familyId) => {
     const transaction = await Transaction.findOne({ where: { id, family_id: familyId } });
     if (!transaction) throw new Error('Transaction not found');
+    // If this is an income, revert any auto-contributions linked to it
+    if (transaction.type === 'income') {
+      await revertAutoContribsForIncome(transaction.id);
+    }
     return await transaction.destroy();
 };
 
@@ -189,5 +281,55 @@ function parseIdList(value) {
 function clampInt(value, fallback, min, max) {
     const n = Number.parseInt(String(value ?? ''), 10);
     const v = Number.isFinite(n) ? n : fallback;
-    return Math.max(min, Math.min(max, v));
+  return Math.max(min, Math.min(max, v));
+}
+
+// Recalculate all auto-contributions tied to a specific income transaction
+async function recalculateAutoContribsFromIncome(transactionId) {
+  const tx = await Transaction.findOne({ where: { id: transactionId } });
+  if (!tx || tx.type !== 'income') return;
+
+  const contributions = await GoalContribution.findAll({
+    where: { source_transaction_id: transactionId },
+    include: [{ model: Goal, as: 'Goal' }]
+  });
+
+  for (const c of contributions) {
+    const goal = c.Goal;
+    if (!goal) continue;
+
+    const oldAmount = parseFloat(c.amount) || 0;
+    const remaining = (parseFloat(goal.target_amount) - parseFloat(goal.current_amount || 0));
+    let newAmountAuto = 0;
+    const t = goal.auto_contribute_type;
+    const v = parseFloat(goal.auto_contribute_value || 0);
+    if (t === 'percentage' && v > 0) {
+      newAmountAuto = parseFloat(tx.amount) * (v / 100);
+    } else if (t === 'fixed' && v > 0) {
+      newAmountAuto = v;
+    }
+    if (newAmountAuto > remaining) newAmountAuto = remaining > 0 ? remaining : 0;
+    if (newAmountAuto < 0) newAmountAuto = 0;
+
+    if (newAmountAuto !== oldAmount) {
+      await c.update({ amount: newAmountAuto, date: tx.date });
+      const delta = newAmountAuto - oldAmount;
+      await goal.update({ current_amount: (parseFloat(goal.current_amount || 0) + delta) });
+    }
+  }
+}
+
+// Remove all auto-contributions tied to a specific income transaction (e.g., on delete)
+async function revertAutoContribsForIncome(transactionId) {
+  const tx = await Transaction.findOne({ where: { id: transactionId } });
+  if (!tx) return;
+  const contributions = await GoalContribution.findAll({ where: { source_transaction_id: transactionId }, include: [{ model: Goal, as: 'Goal' }] });
+  for (const c of contributions) {
+    const goal = c.Goal;
+    const amount = parseFloat(c.amount) || 0;
+    if (goal) {
+      await goal.update({ current_amount: (parseFloat(goal.current_amount || 0) - amount) });
+    }
+    await c.destroy();
+  }
 }

@@ -10,6 +10,11 @@ module.exports = (sequelize, DataTypes) => {
     priority: { type: DataTypes.TINYINT.UNSIGNED, defaultValue: 3 },
     status: { type: DataTypes.ENUM('active', 'completed', 'postponed'), defaultValue: 'active' },
     saved_amount: { type: DataTypes.DECIMAL(12, 2), defaultValue: 0.0 },
+    // Archiving/completion state
+    archived: { type: DataTypes.BOOLEAN, defaultValue: false },
+    archived_at: { type: DataTypes.DATE, allowNull: true },
+    // optional category (will be set in creation if not provided)
+    category_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     is_private: { type: DataTypes.BOOLEAN, defaultValue: false },
     created_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
     updated_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
@@ -23,6 +28,7 @@ module.exports = (sequelize, DataTypes) => {
     Wish.belongsTo(models.User, { foreignKey: 'user_id', as: 'User' });
     Wish.belongsTo(models.Family, { foreignKey: 'family_id', as: 'Family' });
     Wish.hasMany(models.WishContribution, { foreignKey: 'wish_id', as: 'Contributions' });
+    Wish.belongsTo(models.Category, { foreignKey: 'category_id', as: 'Category' });
   };
 
   return Wish;

@@ -10,6 +10,9 @@ module.exports = (sequelize, DataTypes) => {
     target_date: { type: DataTypes.DATEONLY, allowNull: true },
     interest_rate: { type: DataTypes.DECIMAL(5, 2), allowNull: true },
     current_amount: { type: DataTypes.DECIMAL(12, 2), defaultValue: 0.0 },
+    // Archiving and completion state
+    archived: { type: DataTypes.BOOLEAN, defaultValue: false },
+    archived_at: { type: DataTypes.DATE, allowNull: true },
     auto_contribute_enabled: { type: DataTypes.BOOLEAN, defaultValue: false },
     auto_contribute_type: { type: DataTypes.ENUM('percentage', 'fixed'), allowNull: true },
     auto_contribute_value: { type: DataTypes.DECIMAL(12, 2), allowNull: true },

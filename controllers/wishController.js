@@ -1,5 +1,102 @@
-const { Wish, WishContribution, User, Family, Transaction } = require('../models');
+const { Wish, WishContribution, User, Family, Transaction, Category, Goal } = require('../models');
 const { Op } = require('sequelize');
+
+// Пополнение желания из свободных средств семьи
+exports.fundWish = async (req, res) => {
+  try {
+    const user = req.user;
+    const { id } = req.params;
+
+    const familyId = user.family_id;
+    if (!familyId) {
+      return res.status(400).json({ message: 'Вы не состоите в семье' });
+    }
+
+    const wish = await Wish.findOne({ where: { id, family_id: familyId } });
+    if (!wish) {
+      return res.status(404).json({ message: 'Желание не найдено' });
+    }
+
+    // Рассчитать доступные средства: баланс семьи минус зарезервированные средства в целях и желаниях
+    const incomeSum = await Transaction.sum('amount', { where: { family_id: familyId, type: 'income' } }) || 0;
+    const expenseSum = await Transaction.sum('amount', { where: { family_id: familyId, type: 'expense' } }) || 0;
+    const balance = Number(incomeSum) - Number(expenseSum);
+    // точнее: используем текущие суммы накоплений в целях/желаниях
+    const currentGoals = await Goal.sum('current_amount', { where: { family_id: familyId } }) || 0;
+    const currentWishes = await Wish.sum('saved_amount', { where: { family_id: familyId } }) || 0;
+    const reservedTotal = Number(currentGoals || 0) + Number(currentWishes || 0);
+    const available = balance - reservedTotal;
+
+    // Support fractional funding (split amounts) via fund_fraction in format a/b
+    let amount = parseFloat(req.body.amount);
+    const fundFractionRaw = req.body.fund_fraction;
+    if (fundFractionRaw) {
+      const frac = String(fundFractionRaw).split(',')[0].trim();
+      const parts = frac.split('/');
+      if (parts.length === 2) {
+        const a = parseFloat(parts[0]);
+        const b = parseFloat(parts[1]);
+        if (Number.isFinite(a) && Number.isFinite(b) && b > 0) {
+          const calc = (available * (a / b));
+          if (Number.isFinite(calc)) amount = Math.max(0, Math.min(calc, available));
+        }
+      }
+    }
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ message: 'Укажите корректную сумму для пополнения' });
+    }
+    const maxFund = available;
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ message: 'Укажите корректную сумму для пополнения' });
+    }
+    if (amount > maxFund) {
+      return res.status(400).json({ message: 'Недостаточно доступных средств' });
+    }
+
+    // Найти или создать категорию для пополнения желания
+    const [category, createdCat] = await Category.findOrCreate({
+      where: { name: 'Выделение средств на желания', family_id: familyId },
+      defaults: { name: 'Выделение средств на желания', family_id: familyId }
+    });
+
+    // Создать транзакцию расхода и вклад пожелания
+    // Можно указать конкретную категорию пополнения через category_id (по умолчанию используется созданная/существующая "Выделение средств на желания")
+    const tx = await Transaction.create({
+      user_id: user.id,
+      family_id: familyId,
+      amount,
+      type: 'expense',
+      category_id: category?.id,
+      date: new Date(),
+      comment: `Пополнение желания: ${wish.name}`,
+      is_private: false,
+    });
+
+    const contribution = await WishContribution.create({
+      wish_id: wish.id,
+      amount,
+      date: new Date(),
+      transaction_id: tx.id
+    });
+
+    const newSaved = parseFloat(wish.saved_amount) + amount;
+    await wish.update({ saved_amount: newSaved });
+    // Автоматически помимо пополнения может закрыть желание
+    if (newSaved >= parseFloat(wish.cost)) {
+      await wish.update({ status: 'completed', archived: true, archived_at: new Date() });
+    }
+
+    res.status(201).json({
+      message: 'Желание пополнено из доступных средств',
+      contribution,
+      saved_amount: newSaved,
+      transaction_id: tx.id
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+};
 
 // Получить все желания пользователя (личные + семейные)
 exports.getWishes = async (req, res) => {
@@ -17,6 +114,10 @@ exports.getWishes = async (req, res) => {
         { is_private: false }                // не скрытые желания других членов
       ]
     };
+    // By default hide archived wishes as part of active overview
+    if (String(req.query.showArchived || '') !== 'true') {
+      where.archived = false;
+    }
 
     const wishes = await Wish.findAll({
       where,
@@ -26,7 +127,7 @@ exports.getWishes = async (req, res) => {
       order: [['priority', 'ASC'], ['created_at', 'DESC']]
     });
 
-    // Скрываем приватные желания других пользователей
+    // Скрываем приватные желания других пользователей и добавляем прогресс
     const result = wishes.map(wish => {
       const isOwner = wish.user_id === user.id;
       if (!isOwner && wish.is_private) {
@@ -34,7 +135,7 @@ exports.getWishes = async (req, res) => {
           id: wish.id,
           is_private: true,
           is_hidden: true,
-          user_name: wish.User.name,
+          user_name: wish.User?.name,
           priority: wish.priority,
           status: wish.status,
           cost: wish.cost,
@@ -42,7 +143,17 @@ exports.getWishes = async (req, res) => {
           name: 'Скрытое желание'
         };
       }
-      return wish;
+      const w = wish.toJSON();
+      w.progress = (() => {
+        try {
+          const c = parseFloat(w.saved_amount) || 0;
+          const t = parseFloat(w.cost) || 1;
+          return Math.min(100, Math.max(0, (c / t) * 100));
+        } catch {
+          return null;
+        }
+      })();
+      return w;
     });
 
     res.json(result);
@@ -52,7 +163,7 @@ exports.getWishes = async (req, res) => {
   }
 };
 
-// Получить одно желание
+    // Получить одно желание
 exports.getWishById = async (req, res) => {
   try {
     const user = req.user;
@@ -84,11 +195,18 @@ exports.getWishById = async (req, res) => {
         status: wish.status,
         cost: wish.cost,
         saved_amount: wish.saved_amount,
+        progress: null,
         name: 'Скрытое желание'
       });
     }
 
-    res.json(wish);
+    const w = wish.toJSON();
+    w.progress = (() => {
+      try {
+        return Math.min(100, Math.max(0, (parseFloat(w.saved_amount) || 0) / (parseFloat(w.cost) || 1) * 100));
+      } catch { return null; }
+    })();
+    res.json(w);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Ошибка сервера' });
@@ -104,10 +222,20 @@ exports.createWish = async (req, res) => {
       return res.status(400).json({ message: 'Вы не состоите в семье' });
     }
 
-    const { name, cost, priority, status, saved_amount, is_private } = req.body;
+    const { name, cost, priority, status, saved_amount, is_private, category_id } = req.body;
+    // If category_id provided use it, otherwise fallback to "Без категории"
 
     if (!name || !cost) {
       return res.status(400).json({ message: 'Название и стоимость обязательны' });
+    }
+    // determine category id
+    let catId = category_id;
+    if (!catId) {
+      const [defaultCat] = await Category.findOrCreate({
+        where: { name: 'Без категории', family_id: familyId },
+        defaults: { name: 'Без категории', family_id: familyId }
+      });
+      catId = defaultCat.id;
     }
 
     const wish = await Wish.create({
@@ -119,9 +247,14 @@ exports.createWish = async (req, res) => {
       status: status || 'active',
       saved_amount: saved_amount || 0,
       is_private: is_private || false
+      , category_id: catId
     });
 
-    res.status(201).json(wish);
+    const w = wish.toJSON();
+    w.progress = (() => {
+      try { return Math.min(100, Math.max(0, (parseFloat(w.saved_amount) || 0) / (parseFloat(w.cost) || 1) * 100)); } catch { return null; }
+    })();
+    res.status(201).json(w);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Ошибка сервера' });
@@ -242,6 +375,10 @@ exports.contributeToWish = async (req, res) => {
 
       const newSavedAmount = parseFloat(wish.saved_amount) + parseFloat(amount);
       await wish.update({ saved_amount: newSavedAmount }, { transaction: t });
+      // Archive wish if completed via manual contribution
+      if (newSavedAmount >= parseFloat(wish.cost)) {
+        await wish.update({ archived: true, archived_at: new Date(), status: 'completed' }, { transaction: t });
+      }
 
       return { contribution, newSavedAmount, transactionId };
     });
@@ -257,6 +394,24 @@ exports.contributeToWish = async (req, res) => {
     if (String(error.message || '').includes('category_id обязателен')) {
       return res.status(400).json({ message: error.message });
     }
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+};
+// Экспорт желаний (CSV)
+exports.exportWishes = async (req, res) => {
+  try {
+    const user = req.user;
+    const familyId = user.family_id;
+    const where = { family_id: familyId };
+    const wishes = await Wish.findAll({ where, include: [{ model: User, as: 'User', attributes: ['name'] }] });
+    const header = ['id','name','cost','saved_amount','priority','status','is_private','user'];
+    const rows = wishes.map(w => [w.id, w.name, w.cost, w.saved_amount, w.priority, w.status, w.is_private, w.User?.name || '']);
+    const csv = [header.join(','), ...rows.map(r => r.map(v => String(v ?? '')).join(','))].join('\n');
+    res.setHeader('Content-Type','text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition','attachment; filename="wishes.csv"');
+    res.send(csv);
+  } catch (error) {
+    console.error(error);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 };
