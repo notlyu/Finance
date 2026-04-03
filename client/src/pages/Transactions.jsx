@@ -128,7 +128,29 @@ export default function Transactions() {
       if (editingId) {
         await api.put(`/transactions/${editingId}`, data);
       } else {
-        await api.post('/transactions', data);
+        const payload = { ...data };
+        if (!payload.date) {
+          payload.date = new Date().toISOString().slice(0, 10);
+        }
+        const res = await api.post('/transactions', payload);
+        // Show budget warning if exceeded
+        if (res.data.budgetWarning) {
+          const w = res.data.budgetWarning;
+          const confirmed = window.confirm(
+            `⚠️ Бюджет превышен!\n\n` +
+            `Категория: расходы\n` +
+            `Потрачено: ${w.spent} ₽\n` +
+            `После операции: ${w.newTotal} ₽\n` +
+            `Лимит: ${w.limit} ₽\n` +
+            `Превышение: ${w.overBy} ₽\n\n` +
+            `Продолжить?`
+          );
+          if (!confirmed) {
+            // Undo the transaction
+            await api.delete(`/transactions/${res.data.transaction.id}`);
+            return;
+          }
+        }
       }
       setModalOpen(false);
       reset();

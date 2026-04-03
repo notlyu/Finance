@@ -315,3 +315,62 @@ exports.changePassword = async (req, res) => {
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 };
+
+// Удалить участника семьи (только владелец)
+exports.removeFamilyMember = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user.family_id) return res.status(400).json({ message: 'Вы не состоите в семье' });
+
+    const family = await Family.findByPk(user.family_id);
+    if (!family) return res.status(404).json({ message: 'Семья не найдена' });
+    if (family.owner_user_id !== user.id) {
+      return res.status(403).json({ message: 'Только владелец семьи может удалять участников' });
+    }
+
+    const { memberId } = req.params;
+    const member = await User.findByPk(memberId);
+    if (!member || member.family_id !== family.id) {
+      return res.status(404).json({ message: 'Участник не найден в этой семье' });
+    }
+    if (member.id === family.owner_user_id) {
+      return res.status(400).json({ message: 'Нельзя удалить владельца семьи' });
+    }
+
+    await member.update({ family_id: null });
+    res.json({ message: `Участник ${member.name} удалён из семьи` });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+};
+
+// Передать владение семьёй (только владелец)
+exports.transferOwnership = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user.family_id) return res.status(400).json({ message: 'Вы не состоите в семье' });
+
+    const family = await Family.findByPk(user.family_id);
+    if (!family) return res.status(404).json({ message: 'Семья не найдена' });
+    if (family.owner_user_id !== user.id) {
+      return res.status(403).json({ message: 'Только владелец семьи может передать владение' });
+    }
+
+    const { newOwnerId } = req.body;
+    if (!newOwnerId || newOwnerId === user.id) {
+      return res.status(400).json({ message: 'Укажите другого участника для передачи владения' });
+    }
+
+    const newOwner = await User.findByPk(newOwnerId);
+    if (!newOwner || newOwner.family_id !== family.id) {
+      return res.status(404).json({ message: 'Участник не найден в этой семье' });
+    }
+
+    await family.update({ owner_user_id: newOwnerId });
+    res.json({ message: `Владение передано участнику ${newOwner.name}` });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+};

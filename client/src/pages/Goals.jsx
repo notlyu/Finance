@@ -1,24 +1,38 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import api from '../services/api';
 import Modal from '../components/Modal';
+import ForecastModal from '../components/ForecastModal';
 import { formatMoney } from '../utils/format';
-import ContributeModal from '../components/ContributeModal';
+import Button from '../components/ui/Button';
 
 export default function Goals() {
   const [goals, setGoals] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [contribModalOpen, setContribModalOpen] = useState(false);
+  const [contribGoal, setContribGoal] = useState(null);
+  const [contribAmount, setContribAmount] = useState('');
+  const [contribSelectedLabel, setContribSelectedLabel] = useState('');
+  const [contribAvailable, setContribAvailable] = useState(0);
   const [editingId, setEditingId] = useState(null);
-  const [contributeOpen, setContributeOpen] = useState(false);
-  const [contributeGoal, setContributeGoal] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(null);
+  const [forecastOpen, setForecastOpen] = useState(false);
+  const [forecastGoal, setForecastGoal] = useState(null);
   const { register, handleSubmit, reset, setValue } = useForm();
 
-  const fetchGoals = async () => {
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const fetchData = async () => {
     try {
-      const res = await api.get('/goals', { params: { archived: showArchived } });
-      setGoals(res.data);
+      const [gRes, cRes] = await Promise.all([
+        api.get('/goals', { params: { archived: showArchived } }),
+        api.get('/categories')
+      ]);
+      setGoals(gRes.data);
+      setCategories(cRes.data.filter(c => c.type === 'expense'));
     } catch (err) {
       console.error(err);
     } finally {
@@ -26,11 +40,12 @@ export default function Goals() {
     }
   };
 
-  useEffect(() => { fetchGoals(); }, [showArchived]);
+  useEffect(() => { fetchData(); }, [showArchived]);
 
   const onSubmit = async (data) => {
     try {
       const payload = { ...data };
+      if (data.category_id) payload.category_id = Number(data.category_id);
       if (payload.interest_rate) payload.interest_rate = Number(payload.interest_rate);
       if (payload.auto_contribute_value) payload.auto_contribute_value = Number(payload.auto_contribute_value);
       payload.current_amount = Number(payload.current_amount || 0);
@@ -43,7 +58,7 @@ export default function Goals() {
       setModalOpen(false);
       reset();
       setEditingId(null);
-      fetchGoals();
+      fetchData();
     } catch (err) {
       console.error(err);
       alert(err.response?.data?.message || 'Ошибка');
@@ -61,6 +76,7 @@ export default function Goals() {
     setValue('auto_contribute_type', goal.auto_contribute_type || 'percentage');
     setValue('auto_contribute_value', goal.auto_contribute_value || '');
     setValue('is_family_goal', !!goal.family_id);
+    setValue('category_id', goal.category_id);
     setModalOpen(true);
   };
 
@@ -68,7 +84,7 @@ export default function Goals() {
     if (window.confirm('Удалить цель?')) {
       try {
         await api.delete(`/goals/${id}`);
-        fetchGoals();
+        fetchData();
       } catch (err) {
         console.error(err);
         alert(err.response?.data?.message || 'Ошибка');
@@ -76,10 +92,62 @@ export default function Goals() {
     }
   };
 
-  const openContribute = (goal) => {
-    setContributeGoal(goal);
-    setContributeOpen(true);
+  const openContribModal = async (goal) => {
+    setContribGoal(goal);
+    setContribAmount('');
+    setContribSelectedLabel('');
+    setContribModalOpen(true);
+    try {
+      const res = await api.get('/dashboard');
+      setContribAvailable(res.data.availableFunds || 0);
+    } catch (err) {
+      console.error(err);
+      setContribAvailable(0);
+    }
   };
+
+  const openForecast = (goal) => {
+    setForecastGoal(goal);
+    setForecastOpen(true);
+  };
+
+  const handleContribute = async (amount) => {
+    if (!contribGoal || !amount || amount <= 0) return;
+    try {
+      // Найти категорию по умолчанию
+      const cat = categories.find(c => /накоп|сбереж|цел/i.test(c.name)) || categories[0];
+      const res = await api.post(`/goals/${contribGoal.id}/contribute`, {
+        amount,
+        createTransaction: true,
+        category_id: cat?.id,
+        comment: `Пополнение цели: ${contribGoal.name}`,
+      });
+      setContribModalOpen(false);
+      setContribGoal(null);
+      setContribSelectedLabel('');
+      fetchData();
+      const newAmount = res.data.current_amount;
+      if (newAmount >= Number(contribGoal.target_amount)) {
+        setShowCelebration(contribGoal.name);
+        setTimeout(() => setShowCelebration(null), 3000);
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || 'Ошибка');
+    }
+  };
+
+  // Процентные кнопки — считаем от остатка цели, проверяем хватает ли свободных средств
+  const contribOptions = useMemo(() => {
+    if (!contribGoal) return [];
+    const remaining = Math.max(0, Number(contribGoal.target_amount) - Number(contribGoal.current_amount));
+    const pcts = [10, 25, 50, 75, 90, 100];
+    return pcts.map(pct => {
+      const value = Math.round(remaining * (pct / 100) * 100) / 100;
+      const canAfford = value <= contribAvailable;
+      return { label: `${pct}%`, value, pct, canAfford };
+    }).filter(o => o.value > 0);
+  }, [contribGoal, contribAvailable]);
 
   if (loading) return <div className="text-center py-10">Загрузка...</div>;
 
@@ -88,16 +156,27 @@ export default function Goals() {
 
   return (
     <div className="space-y-6">
+      {/* Celebration overlay */}
+      {showCelebration && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 text-center animate-bounce">
+            <div className="text-6xl mb-2">🎉</div>
+            <h3 className="text-2xl font-bold text-green-600">Цель достигнута!</h3>
+            <p className="text-gray-600 dark:text-gray-300 mt-1">{showCelebration}</p>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Цели накоплений</h1>
         <div className="flex gap-2">
           {archivedGoals.length > 0 && (
             <button onClick={() => setShowArchived(!showArchived)} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
-              {showArchived ? 'Скрыть архив' : 'Показать архив'}
+              {showArchived ? 'Скрыть архив' : 'Архив'}
             </button>
           )}
           <button
-            onClick={() => { setEditingId(null); reset({ auto_contribute_enabled: false, auto_contribute_type: 'percentage', auto_contribute_value: '', is_family_goal: false }); setModalOpen(true); }}
+            onClick={() => { setEditingId(null); reset({ auto_contribute_enabled: false, auto_contribute_type: 'percentage', auto_contribute_value: '', is_family_goal: false, target_date: todayStr }); setModalOpen(true); }}
             className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
           >
             + Добавить цель
@@ -112,11 +191,15 @@ export default function Goals() {
           const remaining = Math.max(0, Number(goal.target_amount) - Number(goal.current_amount));
           const achieved = goal.achieved || (Number(goal.current_amount) >= Number(goal.target_amount));
           return (
-            <div key={goal.id} className={`rounded-lg shadow p-4 border ${achieved ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/10' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'}`}>
+            <div key={goal.id} className={`rounded-lg shadow p-4 border transition-all duration-300 ${
+              achieved
+                ? 'border-green-400 dark:border-green-600 bg-green-50 dark:bg-green-900/10'
+                : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
+            }`}>
               <div className="flex justify-between items-start">
                 <div className="flex-1">
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                    {achieved && <span className="text-green-500 animate-pulse">✓</span>}
+                  <h3 className={`text-lg font-medium flex items-center gap-2 ${achieved ? 'text-green-700 dark:text-green-400 line-through' : 'text-gray-900 dark:text-white'}`}>
+                    {achieved && <span className="text-green-500 text-lg animate-pulse">✓</span>}
                     {goal.name}
                   </h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -130,7 +213,7 @@ export default function Goals() {
               </div>
 
               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mt-3">
-                <div className={`h-2.5 rounded-full transition-all duration-500 ${achieved ? 'bg-green-500' : 'bg-green-600'}`} style={{ width: `${Math.min(progress, 100)}%` }}></div>
+                <div className={`h-2.5 rounded-full transition-all duration-700 ${achieved ? 'bg-green-500' : 'bg-green-600'}`} style={{ width: `${Math.min(progress, 100)}%` }}></div>
               </div>
 
               <div className="mt-2 flex justify-between items-center text-sm">
@@ -151,16 +234,22 @@ export default function Goals() {
               )}
 
               {achieved && (
-                <div className="mt-2 text-center text-sm text-green-600 dark:text-green-400 font-medium animate-pulse">
-                  ✓ Цель достигнута!
+                <div className="mt-2 text-center text-sm text-green-600 dark:text-green-400 font-semibold animate-pulse">
+                  🎉 Цель достигнута! Перемещена в архив
                 </div>
               )}
 
               <button
-                onClick={() => openContribute(goal)}
+                onClick={() => openContribModal(goal)}
                 className="mt-3 w-full bg-indigo-100 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 py-2 rounded-md hover:bg-indigo-200 dark:hover:bg-indigo-500/25 transition font-medium"
               >
                 Пополнить
+              </button>
+              <button
+                onClick={() => openForecast(goal)}
+                className="mt-2 w-full text-sm text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition py-1"
+              >
+                📊 Прогноз накоплений
               </button>
             </div>
           );
@@ -171,43 +260,125 @@ export default function Goals() {
       {/* Архив целей */}
       {showArchived && archivedGoals.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-3">📦 Архив целей</h2>
+          <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-3">📦 Архив выполненных</h2>
           <div className="space-y-2">
             {archivedGoals.map(g => (
-              <div key={g.id} className="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-2 opacity-60">
-                <div>
+              <div key={g.id} className="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-green-500">✓</span>
                   <span className="line-through text-gray-500 dark:text-gray-400">{g.name}</span>
-                  <span className="ml-2 text-xs text-green-600">✓</span>
                 </div>
-                <span className="text-sm text-gray-500 dark:text-gray-400">{formatMoney(g.current_amount)} / {formatMoney(g.target_amount)} ₽</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{formatMoney(g.current_amount)} / {formatMoney(g.target_amount)} ₽</span>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await api.put(`/goals/${g.id}`, { archived: false });
+                        fetchData();
+                      } catch (err) { console.error(err); }
+                    }}
+                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                  >
+                    Вернуть
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      <ContributeModal
-        isOpen={contributeOpen}
-        onClose={() => { setContributeOpen(false); setContributeGoal(null); }}
-        title="Пополнить цель"
-        subjectName={contributeGoal?.name}
-        onContribute={async ({ amount, category_id }) => {
-          if (!contributeGoal?.id) return;
-          try {
-            await api.post(`/goals/${contributeGoal.id}/contribute`, {
-              amount,
-              createTransaction: true,
-              category_id,
-              comment: `Пополнение цели: ${contributeGoal.name}`,
-            });
-            setContributeOpen(false);
-            setContributeGoal(null);
-            fetchGoals();
-          } catch (err) {
-            console.error(err);
-            alert(err.response?.data?.message || 'Ошибка');
-          }
-        }}
+      {/* Модальное окно пополнения цели */}
+      <Modal isOpen={contribModalOpen} onClose={() => { setContribModalOpen(false); setContribGoal(null); }} title="Пополнить цель">
+        {contribGoal && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Цель: <span className="font-medium text-gray-900 dark:text-gray-100">{contribGoal.name}</span>
+            </p>
+
+            {/* Свободные средства */}
+            <div className={`rounded-md p-3 text-sm border ${contribAvailable > 0 ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800'}`}>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-300">Свободные средства семьи:</span>
+                <span className={`font-bold text-lg ${contribAvailable > 0 ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>{formatMoney(contribAvailable)} ₽</span>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 dark:bg-gray-900/40 rounded-md p-3 text-sm space-y-1">
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-300">Целевая сумма:</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">{formatMoney(contribGoal.target_amount)} ₽</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-300">Накоплено:</span>
+                <span className="font-medium text-green-600">{formatMoney(contribGoal.current_amount)} ₽</span>
+              </div>
+              <div className="flex justify-between border-t border-gray-200 dark:border-gray-700 pt-1">
+                <span className="text-gray-600 dark:text-gray-300">Осталось:</span>
+                <span className="font-medium text-red-600">{formatMoney(Math.max(0, Number(contribGoal.target_amount) - Number(contribGoal.current_amount)))} ₽</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Сумма пополнения (₽)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={contribAmount}
+                onChange={e => setContribAmount(e.target.value)}
+                className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-lg font-medium"
+                placeholder="Введите сумму"
+              />
+            </div>
+
+            <div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">% от свободных средств:</p>
+              <div className="grid grid-cols-3 gap-2">
+                {contribOptions.map(o => (
+                  <button
+                    key={o.label}
+                    onClick={() => {
+                      if (!o.canAfford) return;
+                      setContribAmount(String(o.value));
+                      setContribSelectedLabel(o.label);
+                    }}
+                    disabled={!o.canAfford}
+                    className={`relative px-3 py-3 rounded-xl transition border-2 text-center ${
+                      !o.canAfford
+                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 border-gray-200 dark:border-gray-700 cursor-not-allowed'
+                        : o.pct === 100
+                          ? contribSelectedLabel === o.label
+                            ? 'bg-green-600 text-white border-green-600 shadow-lg shadow-green-200 dark:shadow-green-900/30'
+                            : 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/40'
+                          : contribSelectedLabel === o.label
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-200 dark:shadow-indigo-900/30'
+                            : 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-500/20'
+                    }`}
+                  >
+                    <div className="text-sm font-semibold">{o.label}</div>
+                    <div className={`text-xs mt-0.5 ${o.pct === 100 ? 'text-green-100' : 'opacity-70'}`}>{formatMoney(o.value)} ₽</div>
+                    {!o.canAfford && <div className="text-[10px] text-red-400 mt-0.5">нет средств</div>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" onClick={() => { setContribModalOpen(false); setContribGoal(null); }}>Отмена</Button>
+              <Button variant="primary" disabled={!contribAmount || Number(contribAmount) <= 0} onClick={() => handleContribute(Number(contribAmount))}>
+                Пополнить
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Прогнозный калькулятор */}
+      <ForecastModal
+        goal={forecastGoal}
+        isOpen={forecastOpen}
+        onClose={() => { setForecastOpen(false); setForecastGoal(null); }}
       />
 
       {/* Модальное окно добавления/редактирования */}
@@ -222,8 +393,15 @@ export default function Goals() {
             <input type="number" step="0.01" {...register('target_amount', { required: true, min: 0.01 })} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
           </div>
           <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Категория цели</label>
+            <select {...register('category_id')} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+              <option value="">Без категории</option>
+              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Срок (дата)</label>
-            <input type="date" {...register('target_date')} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
+            <input type="date" {...register('target_date')} defaultValue={todayStr} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Годовая ставка (%)</label>

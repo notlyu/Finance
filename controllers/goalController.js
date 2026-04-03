@@ -310,12 +310,20 @@ exports.contributeToGoal = async (req, res) => {
       const newCurrentAmount = parseFloat(goal.current_amount) + parseFloat(amount);
       await goal.update({ current_amount: newCurrentAmount }, { transaction: t });
       // Archive if reached target
-      if (newCurrentAmount >= parseFloat(goal.target_amount)) {
+      const reached = newCurrentAmount >= parseFloat(goal.target_amount);
+      if (reached) {
         await goal.update({ archived: true, archived_at: new Date(), status: 'completed' }, { transaction: t });
       }
 
-      return { contribution, newCurrentAmount, transactionId };
+      return { contribution, newCurrentAmount, transactionId, reached };
     });
+
+    // Send notification if goal reached
+    if (result.reached) {
+      const { notifyGoalReached } = require('../services/notificationService');
+      const updatedGoal = await Goal.findByPk(goal.id);
+      notifyGoalReached(updatedGoal).catch(console.error);
+    }
 
     res.status(201).json({
       message: 'Цель пополнена',

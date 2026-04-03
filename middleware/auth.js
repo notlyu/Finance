@@ -3,7 +3,7 @@ const { User, Family } = require('../models');
 
 module.exports = async (req, res, next) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1]; // Bearer <token>
+    const token = req.headers.authorization?.split(' ')[1] || req.query?.token; // Bearer <token> or query param
     if (!token) {
       return res.status(401).json({ message: 'Не авторизован' });
     }

@@ -17,5 +17,7 @@ router.post('/family/leave', authMiddleware, authController.leaveFamily);
 router.post('/family/invites', authMiddleware, authController.createFamilyInvite);
 router.get('/family/invites', authMiddleware, authController.listFamilyInvites);
 router.delete('/family/invites/:id', authMiddleware, authController.revokeFamilyInvite);
+router.delete('/family/members/:memberId', authMiddleware, authController.removeFamilyMember);
+router.post('/family/transfer-ownership', authMiddleware, authController.transferOwnership);
 
 module.exports = router;

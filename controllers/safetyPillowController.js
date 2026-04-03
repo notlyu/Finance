@@ -1,5 +1,5 @@
-const { Transaction, Goal, Wish, SafetyPillowSetting, SafetyPillowHistory } = require('../models');
-const { Op } = require('sequelize');
+const { SafetyPillowSetting, SafetyPillowHistory } = require('../models');
+const pillowService = require('../services/safetyPillowService');
 
 // Получить настройки подушки пользователя
 exports.getSettings = async (req, res) => {
@@ -21,18 +21,18 @@ exports.getSettings = async (req, res) => {
   }
 };
 
-// Обновить настройки подушки
+// Обновить настройки подушки (1-24 месяца)
 exports.updateSettings = async (req, res) => {
   try {
     const user = req.user;
     const { months } = req.body;
-    if (!months || months < 1 || months > 12) {
-      return res.status(400).json({ message: 'Количество месяцев должно быть от 1 до 12' });
+    if (!months || months < 1 || months > 24) {
+      return res.status(400).json({ message: 'Количество месяцев должно быть от 1 до 24' });
     }
 
     const [settings, created] = await SafetyPillowSetting.upsert({
       user_id: user.id,
-      months
+      months: parseInt(months)
     });
     res.json(settings);
   } catch (error) {
@@ -41,61 +41,7 @@ exports.updateSettings = async (req, res) => {
   }
 };
 
-// Рассчитать текущую подушку безопасности
-async function calculateSafetyPillow(userId, familyId) {
-  // 1. Среднемесячные расходы за последние 3 месяца
-  const threeMonthsAgo = new Date();
-  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-  const expenses = await Transaction.findAll({
-    where: {
-      family_id: familyId,
-      type: 'expense',
-      date: { [Op.gte]: threeMonthsAgo }
-    },
-    attributes: ['amount']
-  });
-  const totalExpenses = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0);
-  const monthlyAverage = totalExpenses / 3;
-
-  // 2. Свободные средства: сумма всех доходов минус расходы
-  const allTransactions = await Transaction.findAll({
-    where: { family_id: familyId },
-    attributes: ['type', 'amount']
-  });
-  let freeFunds = 0;
-  for (const t of allTransactions) {
-    if (t.type === 'income') freeFunds += parseFloat(t.amount);
-    else freeFunds -= parseFloat(t.amount);
-  }
-
-  // 3. Накопления на целях и желаниях
-  const goals = await Goal.findAll({
-    where: { family_id: familyId },
-    attributes: ['current_amount']
-  });
-  const wishes = await Wish.findAll({
-    where: { family_id: familyId },
-    attributes: ['saved_amount']
-  });
-  const totalGoals = goals.reduce((sum, g) => sum + parseFloat(g.current_amount), 0);
-  const totalWishes = wishes.reduce((sum, w) => sum + parseFloat(w.saved_amount), 0);
-
-  const totalFunds = freeFunds + totalGoals + totalWishes;
-
-  // 4. Настройки пользователя
-  const settings = await SafetyPillowSetting.findOne({ where: { user_id: userId } });
-  const months = settings ? settings.months : 3;
-  const target = monthlyAverage * months;
-
-  return {
-    current: totalFunds,
-    target,
-    monthlyAverage,
-    progress: target > 0 ? (totalFunds / target) * 100 : 0
-  };
-}
-
-// Получить текущую подушку
+// Получить текущую подушку с уровнями и рекомендациями
 exports.getSafetyPillow = async (req, res) => {
   try {
     const user = req.user;
@@ -104,7 +50,7 @@ exports.getSafetyPillow = async (req, res) => {
       return res.status(400).json({ message: 'Вы не состоите в семье' });
     }
 
-    const result = await calculateSafetyPillow(user.id, familyId);
+    const result = await pillowService.calculateSafetyPillow(user.id, familyId);
     res.json(result);
   } catch (error) {
     console.error(error);
@@ -115,10 +61,10 @@ exports.getSafetyPillow = async (req, res) => {
 // Пересчитать и сохранить историю (вызывается после каждой операции)
 exports.recalculateAndSave = async (userId, familyId) => {
   try {
-    const result = await calculateSafetyPillow(userId, familyId);
+    const result = await pillowService.calculateSafetyPillow(userId, familyId);
     await SafetyPillowHistory.create({
       user_id: userId,
-      value: result.current,
+      value: result.liquidFunds,
       target_value: result.target,
       calculated_at: new Date()
     });

@@ -1,5 +1,6 @@
 const { Transaction, Category, User } = require('../models');
 const { Op, fn, col } = require('sequelize');
+const ExcelJS = require('exceljs');
 
 function toMonthKeyFromDateOnly(dateOnly) {
   // Transaction.date is DATEONLY and may come as string 'YYYY-MM-DD' (or Date depending on dialect/options).
@@ -35,12 +36,15 @@ exports.getDynamics = async (req, res) => {
     // Use end as exclusive boundary by adding one day
     const endExclusive = new Date(end);
     endExclusive.setDate(endExclusive.getDate() + 1);
+    const memberId = req.query.memberId ? Number(req.query.memberId) : null;
+    const txWhere = {
+      family_id: familyId,
+      date: { [Op.gte]: start, [Op.lt]: endExclusive.toISOString().slice(0, 10) },
+      [Op.or]: [{ is_private: false }, { user_id: user.id }],
+    };
+    if (memberId) txWhere.user_id = memberId;
     const rows = await Transaction.findAll({
-      where: {
-        family_id: familyId,
-        date: { [Op.gte]: start, [Op.lt]: endExclusive.toISOString().slice(0, 10) },
-        [Op.or]: [{ is_private: false }, { user_id: user.id }], // don't leak other users' private
-      },
+      where: txWhere,
       attributes: [
         [fn('DATE_FORMAT', col('date'), '%Y-%m'), 'month'],
         'type',
@@ -106,7 +110,9 @@ exports.getExpensesByCategory = async (req, res) => {
     }
 
     const { startDate, endDate } = req.query;
+    const memberId = req.query.memberId ? Number(req.query.memberId) : null;
     const where = { family_id: familyId, type: 'expense' };
+    if (memberId) where.user_id = memberId;
     if (startDate && endDate) {
       where.date = { [Op.between]: [startDate, endDate] };
     } else if (startDate) {
@@ -145,7 +151,9 @@ exports.getIncomeByCategory = async (req, res) => {
     }
 
     const { startDate, endDate } = req.query;
+    const memberId = req.query.memberId ? Number(req.query.memberId) : null;
     const where = { family_id: familyId, type: 'income' };
+    if (memberId) where.user_id = memberId;
     if (startDate && endDate) {
       where.date = { [Op.between]: [startDate, endDate] };
     } else if (startDate) {
@@ -212,6 +220,73 @@ exports.exportReport = async (req, res) => {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="transactions.csv"');
     res.send(csv);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+};
+
+// Экспорт отчёта в Excel (.xlsx)
+exports.exportExcel = async (req, res) => {
+  try {
+    const user = req.user;
+    const familyId = user.family_id;
+    if (!familyId) {
+      return res.status(400).json({ message: 'Вы не состоите в семье' });
+    }
+    const { startDate, endDate } = req.query;
+    const where = { family_id: familyId };
+    if (startDate && endDate) {
+      where.date = { [Op.between]: [startDate, endDate] };
+    } else if (startDate) {
+      where.date = { [Op.gte]: startDate };
+    } else if (endDate) {
+      where.date = { [Op.lte]: endDate };
+    }
+
+    const transactions = await Transaction.findAll({ where, include: [
+      { model: Category, as: 'Category', attributes: ['name'] },
+      { model: User, as: 'User', attributes: ['name'] }
+    ], order: [['date','DESC']] });
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Операции');
+
+    sheet.columns = [
+      { header: 'Дата', key: 'date', width: 12 },
+      { header: 'Тип', key: 'type', width: 10 },
+      { header: 'Категория', key: 'category', width: 20 },
+      { header: 'Сумма (₽)', key: 'amount', width: 15 },
+      { header: 'Автор', key: 'user', width: 15 },
+      { header: 'Комментарий', key: 'comment', width: 30 },
+      { header: 'Приватность', key: 'is_private', width: 12 },
+    ];
+
+    // Style header
+    sheet.getRow(1).font = { bold: true, size: 11 };
+    sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+    sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+
+    transactions.forEach(t => {
+      const isHidden = t.is_private && t.user_id !== user.id;
+      sheet.addRow({
+        date: t.date,
+        type: t.type === 'income' ? 'Доход' : 'Расход',
+        category: isHidden ? '🔒 Сюрприз' : (t.Category?.name || ''),
+        amount: isHidden ? 0 : Number(t.amount),
+        user: t.User?.name || '',
+        comment: isHidden ? '' : (t.comment || ''),
+        is_private: t.is_private ? 'Да' : 'Нет',
+      });
+    });
+
+    // Format amount column
+    sheet.getColumn('amount').numFmt = '#,##0.00';
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="transactions.xlsx"');
+    res.send(buffer);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Ошибка сервера' });

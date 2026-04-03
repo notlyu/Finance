@@ -1,27 +1,36 @@
 import { useState, useEffect } from 'react';
+import { useOutletContext, Link } from 'react-router-dom';
 import api from '../services/api';
-import { Link } from 'react-router-dom';
 import { formatMoney } from '../utils/format';
 
 export default function Dashboard() {
+  const { selectedMember } = useOutletContext() || {};
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get('/dashboard')
+    const params = selectedMember?.id ? { memberId: selectedMember.id } : {};
+    api.get('/dashboard', { params })
       .then(res => setData(res.data))
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedMember]);
 
   if (loading) return <div className="text-center py-10">Загрузка...</div>;
   if (!data) return <div className="text-center py-10 text-red-500">Ошибка загрузки данных</div>;
 
-  const { month, totalBalance, reservedTotal, availableFunds, lastTransactions, activeGoals } = data;
+  const { month, totalBalance, reservedTotal, availableFunds, lastTransactions, activeGoals, viewingMemberId } = data;
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Главная</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Главная</h1>
+        {viewingMemberId && (
+          <span className="px-3 py-1 text-sm bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full">
+            Просмотр: {selectedMember?.name}
+          </span>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">

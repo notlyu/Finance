@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { Line, Pie } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -11,7 +12,7 @@ import {
   Legend,
   ArcElement,
 } from 'chart.js';
-import api from '../services/api';
+import api, { API_BASE } from '../services/api';
 import { formatMoney } from '../utils/format';
 import * as XLSX from 'xlsx';
 
@@ -27,6 +28,7 @@ ChartJS.register(
 );
 
 export default function Analytics() {
+  const { selectedMember } = useOutletContext() || {};
   const [dynamics, setDynamics] = useState({ labels: [], income: [], expense: [] });
   const [expensesByCat, setExpensesByCat] = useState([]);
   const [incomeByCat, setIncomeByCat] = useState([]);
@@ -58,10 +60,13 @@ export default function Analytics() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const apiParams = { startDate: period.start, endDate: period.end };
+        if (selectedMember?.id) apiParams.memberId = selectedMember.id;
+
         const [dynamicsRes, expensesRes, incomeRes, pillowRes] = await Promise.all([
-          api.get('/reports/dynamics', { params: { startDate: period.start, endDate: period.end } }),
-          api.get('/reports/expenses-by-category', { params: { startDate: period.start, endDate: period.end } }),
-          api.get('/reports/income-by-category', { params: { startDate: period.start, endDate: period.end } }),
+          api.get('/reports/dynamics', { params: apiParams }),
+          api.get('/reports/expenses-by-category', { params: apiParams }),
+          api.get('/reports/income-by-category', { params: apiParams }),
           api.get('/safety-pillow/history', { params: { limit: 12 } }),
         ]);
         setDynamics(dynamicsRes.data);
@@ -75,7 +80,7 @@ export default function Analytics() {
       }
     };
     fetchData();
-  }, [periodPreset, startDate, endDate]);
+  }, [periodPreset, startDate, endDate, selectedMember]);
 
   if (loading) return <div className="text-center py-10">Загрузка...</div>;
 
@@ -214,30 +219,24 @@ export default function Analytics() {
     ],
   };
 
-  const exportCSV = () => {
+  const buildExportParams = () => {
     const params = periodPreset === 'custom' && startDate && endDate
       ? `?startDate=${startDate}&endDate=${endDate}`
       : `?startDate=${period.start}&endDate=${period.end}`;
-    window.open(`/api/reports/export${params}`, '_blank');
+    if (selectedMember?.id) {
+      return params.includes('?') ? `${params}&memberId=${selectedMember.id}` : `?memberId=${selectedMember.id}`;
+    }
+    return params;
+  };
+
+  const exportCSV = () => {
+    const token = localStorage.getItem('token');
+    window.open(`${API_BASE}/reports/export${buildExportParams()}&token=${token}`, '_blank');
   };
 
   const exportExcel = () => {
-    const params = periodPreset === 'custom' && startDate && endDate
-      ? `?startDate=${startDate}&endDate=${endDate}`
-      : `?startDate=${period.start}&endDate=${period.end}`;
-    api.get('/reports/export' + params, { responseType: 'blob' })
-      .then(res => {
-        const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', 'transactions.csv');
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      })
-      .catch(err => console.error(err));
+    const token = localStorage.getItem('token');
+    window.open(`${API_BASE}/reports/export/excel${buildExportParams()}&token=${token}`, '_blank');
   };
 
   return (

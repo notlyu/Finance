@@ -18,8 +18,12 @@ const createTransaction = async (req, res, next) => {
         return res.status(401).json({ message: "Unauthorized" });
     }
     try {
-        const transaction = await transactionService.createTransaction(req.user.id, req.user.family_id, req.body);
-        res.status(201).json(transaction);
+        const result = await transactionService.createTransaction(req.user.id, req.user.family_id, req.body);
+        const response = { transaction: result.tx };
+        if (result.budgetWarning) {
+            response.budgetWarning = result.budgetWarning;
+        }
+        res.status(201).json(response);
     } catch (error) {
         next(error);
     }

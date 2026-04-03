@@ -1,8 +1,13 @@
-const { Transaction, Category, User, Goal, GoalContribution } = require('../models');
+const { Transaction, Category, User, Goal, GoalContribution, Budget } = require('../models');
 const { Op } = require('sequelize');
 
 exports.getTransactions = async (userId, familyId, query = {}) => {
     const whereClause = { family_id: familyId };
+
+    // Filter by specific member if requested
+    if (query.memberId && query.memberId !== userId) {
+        whereClause.user_id = query.memberId;
+    }
 
     // Filters
     if (query.type) whereClause.type = query.type;
@@ -114,7 +119,6 @@ exports.getTransactions = async (userId, familyId, query = {}) => {
 };
 
 exports.createTransaction = async (userId, familyId, data) => {
-    // Create the transaction record
     // Ensure date is stored as YYYY-MM-DD string for DATEONLY column
     let txDate;
     if (data && data.date) {
@@ -123,6 +127,44 @@ exports.createTransaction = async (userId, familyId, data) => {
         const now = new Date();
         txDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     }
+
+    // Budget check for expense transactions
+    let budgetWarning = null;
+    if (data.type === 'expense' && data.category_id) {
+        try {
+            const month = txDate.slice(0, 7); // "YYYY-MM"
+            const budget = await Budget.findOne({
+                where: { family_id: familyId, category_id: data.category_id, type: 'expense', month }
+            });
+            if (budget) {
+                const monthStart = `${month}-01`;
+                const nextMonth = new Date(`${month}-15`);
+                nextMonth.setMonth(nextMonth.getMonth() + 1);
+                const monthEnd = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`;
+
+                const spent = await Transaction.sum('amount', {
+                    where: { family_id: familyId, category_id: data.category_id, type: 'expense', date: { [Op.gte]: monthStart, [Op.lt]: monthEnd } }
+                }) || 0;
+
+                const newTotal = Number(spent) + Number(data.amount);
+                const limit = Number(budget.limit_amount);
+                if (newTotal > limit) {
+                    budgetWarning = {
+                        exceeded: true,
+                        category_id: data.category_id,
+                        spent: Number(spent),
+                        newTotal,
+                        limit,
+                        overBy: newTotal - limit,
+                    };
+                }
+            }
+        } catch (err) {
+            // Budget check is non-blocking
+            console.error('Budget check failed:', err);
+        }
+    }
+
     const tx = await Transaction.create({ 
         ...data, 
         user_id: userId, 
@@ -195,7 +237,7 @@ exports.createTransaction = async (userId, familyId, data) => {
       // пропускаем ошибки
     }
 
-    return tx;
+    return { tx, budgetWarning };
 };
 
 exports.getTransactionById = async (id, familyId, userId) => {

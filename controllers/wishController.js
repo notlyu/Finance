@@ -17,84 +17,68 @@ exports.fundWish = async (req, res) => {
       return res.status(404).json({ message: 'Желание не найдено' });
     }
 
-    // Рассчитать доступные средства: баланс семьи минус зарезервированные средства в целях и желаниях
+    // Рассчитать доступные средства
     const incomeSum = await Transaction.sum('amount', { where: { family_id: familyId, type: 'income' } }) || 0;
     const expenseSum = await Transaction.sum('amount', { where: { family_id: familyId, type: 'expense' } }) || 0;
     const balance = Number(incomeSum) - Number(expenseSum);
-    // точнее: используем текущие суммы накоплений в целях/желаниях
     const currentGoals = await Goal.sum('current_amount', { where: { family_id: familyId } }) || 0;
     const currentWishes = await Wish.sum('saved_amount', { where: { family_id: familyId } }) || 0;
     const reservedTotal = Number(currentGoals || 0) + Number(currentWishes || 0);
     const available = balance - reservedTotal;
 
-    // Support fractional funding (split amounts) via fund_fraction in format a/b
     let amount = parseFloat(req.body.amount);
-    const fundFractionRaw = req.body.fund_fraction;
-    if (fundFractionRaw) {
-      const frac = String(fundFractionRaw).split(',')[0].trim();
-      const parts = frac.split('/');
-      if (parts.length === 2) {
-        const a = parseFloat(parts[0]);
-        const b = parseFloat(parts[1]);
-        if (Number.isFinite(a) && Number.isFinite(b) && b > 0) {
-          const calc = (available * (a / b));
-          if (Number.isFinite(calc)) amount = Math.max(0, Math.min(calc, available));
-        }
-      }
-    }
-    if (!amount || amount <= 0) {
+    if (!amount || amount <= 0 || isNaN(amount)) {
       return res.status(400).json({ message: 'Укажите корректную сумму для пополнения' });
-    }
-    const maxFund = available;
-    if (!amount || amount <= 0) {
-      return res.status(400).json({ message: 'Укажите корректную сумму для пополнения' });
-    }
-    if (amount > maxFund) {
-      return res.status(400).json({ message: 'Недостаточно доступных средств' });
     }
 
-    // Найти или создать категорию для пополнения желания
-    const [category, createdCat] = await Category.findOrCreate({
+    // Найти или создать категорию (обязательно указываем type: 'expense')
+    const [category] = await Category.findOrCreate({
       where: { name: 'Выделение средств на желания', family_id: familyId },
-      defaults: { name: 'Выделение средств на желания', family_id: familyId }
+      defaults: { name: 'Выделение средств на желания', family_id: familyId, type: 'expense' }
     });
 
-    // Создать транзакцию расхода и вклад пожелания
-    // Можно указать конкретную категорию пополнения через category_id (по умолчанию используется созданная/существующая "Выделение средств на желания")
+    // Дата как строка YYYY-MM-DD для DATEONLY
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    // Создать транзакцию расхода
     const tx = await Transaction.create({
       user_id: user.id,
       family_id: familyId,
       amount,
       type: 'expense',
-      category_id: category?.id,
-      date: new Date(),
+      category_id: category.id,
+      date: dateStr,
       comment: `Пополнение желания: ${wish.name}`,
       is_private: false,
     });
 
-    const contribution = await WishContribution.create({
+    // Создать запись пополнения желания
+    await WishContribution.create({
       wish_id: wish.id,
       amount,
-      date: new Date(),
+      date: dateStr,
       transaction_id: tx.id
     });
 
+    // Обновить сумму желания
     const newSaved = parseFloat(wish.saved_amount) + amount;
     await wish.update({ saved_amount: newSaved });
-    // Автоматически помимо пополнения может закрыть желание
+
+    // Автоархивация при выполнении
     if (newSaved >= parseFloat(wish.cost)) {
       await wish.update({ status: 'completed', archived: true, archived_at: new Date() });
     }
 
     res.status(201).json({
-      message: 'Желание пополнено из доступных средств',
-      contribution,
+      message: 'Желание пополнено',
       saved_amount: newSaved,
-      transaction_id: tx.id
+      transaction_id: tx.id,
+      availableFunds: available
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    console.error('fundWish error:', error);
+    res.status(500).json({ message: error.message || 'Ошибка сервера' });
   }
 };
 

@@ -4,7 +4,7 @@ import api from '../services/api';
 
 export default function Settings() {
   const [user, setUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('profile'); // profile, categories, theme
+  const [activeTab, setActiveTab] = useState('profile');
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
@@ -17,6 +17,15 @@ export default function Settings() {
   // Категории
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryType, setNewCategoryType] = useState('expense');
+
+  // Настройки уведомлений
+  const [notifSettings, setNotifSettings] = useState({
+    remind_upcoming: true,
+    notify_goal_reached: true,
+    notify_budget_exceeded: true,
+    notify_wish_completed: true,
+  });
+  const [notifSaved, setNotifSaved] = useState(false);
 
   const fetchUser = async () => {
     try {
@@ -38,9 +47,24 @@ export default function Settings() {
     }
   };
 
+  const fetchNotifSettings = async () => {
+    try {
+      const res = await api.get('/notifications/settings');
+      setNotifSettings({
+        remind_upcoming: res.data.remind_upcoming ?? true,
+        notify_goal_reached: res.data.notify_goal_reached ?? true,
+        notify_budget_exceeded: res.data.notify_budget_exceeded ?? true,
+        notify_wish_completed: res.data.notify_wish_completed ?? true,
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     fetchUser();
     fetchCategories();
+    fetchNotifSettings();
   }, []);
 
   const onChangePassword = async (data) => {
@@ -89,6 +113,16 @@ export default function Settings() {
     setIsDark(isDark);
   };
 
+  const saveNotifSettings = async () => {
+    try {
+      await api.put('/notifications/settings', notifSettings);
+      setNotifSaved(true);
+      setTimeout(() => setNotifSaved(false), 2000);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   if (loading) return <div className="text-center py-10">Загрузка...</div>;
 
   return (
@@ -96,38 +130,26 @@ export default function Settings() {
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Настройки</h1>
 
       {/* Вкладки */}
-      <div className="border-b border-gray-200 dark:border-gray-700">
-        <nav className="flex space-x-4">
-          <button
-            onClick={() => setActiveTab('profile')}
-            className={`py-2 px-4 text-sm font-medium ${
-              activeTab === 'profile'
-                ? 'border-b-2 border-indigo-500 text-indigo-600 dark:text-indigo-400'
-                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
-            }`}
-          >
-            Профиль
-          </button>
-          <button
-            onClick={() => setActiveTab('categories')}
-            className={`py-2 px-4 text-sm font-medium ${
-              activeTab === 'categories'
-                ? 'border-b-2 border-indigo-500 text-indigo-600 dark:text-indigo-400'
-                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
-            }`}
-          >
-            Категории
-          </button>
-          <button
-            onClick={() => setActiveTab('theme')}
-            className={`py-2 px-4 text-sm font-medium ${
-              activeTab === 'theme'
-                ? 'border-b-2 border-indigo-500 text-indigo-600 dark:text-indigo-400'
-                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
-            }`}
-          >
-            Оформление
-          </button>
+      <div className="border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+        <nav className="flex space-x-4 min-w-max">
+          {[
+            { key: 'profile', label: 'Профиль' },
+            { key: 'notifications', label: 'Уведомления' },
+            { key: 'categories', label: 'Категории' },
+            { key: 'theme', label: 'Оформление' },
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`py-2 px-4 text-sm font-medium whitespace-nowrap ${
+                activeTab === tab.key
+                  ? 'border-b-2 border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </nav>
       </div>
 
@@ -150,29 +172,52 @@ export default function Settings() {
           <form onSubmit={handleSubmit(onChangePassword)} className="space-y-4 max-w-md">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Старый пароль</label>
-              <input
-                type="password"
-                {...register('oldPassword', { required: true })}
-                className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm p-2 dark:bg-gray-700 dark:text-white"
-              />
+              <input type="password" {...register('oldPassword', { required: true })} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm p-2 dark:bg-gray-700 dark:text-white" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Новый пароль</label>
-              <input
-                type="password"
-                {...register('newPassword', { required: true, minLength: 6 })}
-                className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm p-2 dark:bg-gray-700 dark:text-white"
-              />
+              <input type="password" {...register('newPassword', { required: true, minLength: 6 })} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm p-2 dark:bg-gray-700 dark:text-white" />
             </div>
             {passwordMessage && <div className="text-green-600 text-sm">{passwordMessage}</div>}
             {passwordError && <div className="text-red-600 text-sm">{passwordError}</div>}
-            <button
-              type="submit"
-              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-            >
-              Изменить пароль
-            </button>
+            <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">Изменить пароль</button>
           </form>
+        </div>
+      )}
+
+      {/* Уведомления */}
+      {activeTab === 'notifications' && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h2 className="text-lg font-medium mb-4 dark:text-white">Настройки уведомлений</h2>
+          <div className="space-y-4 max-w-lg">
+            {[
+              { key: 'notify_goal_reached', label: '🎯 Уведомлять о достижении цели', desc: 'Когда сумма накоплений достигает целевой' },
+              { key: 'notify_wish_completed', label: '✨ Уведомлять о выполнении желания', desc: 'Когда желание полностью оплачено' },
+              { key: 'notify_budget_exceeded', label: '⚠️ Уведомлять о превышении бюджета', desc: 'Когда расходы по категории превышают лимит' },
+              { key: 'remind_upcoming', label: '📅 Напоминать о регулярных платежах', desc: 'Предстоящие регулярные операции' },
+            ].map(item => (
+              <div key={item.key} className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                <label className="flex items-start gap-3 flex-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notifSettings[item.key]}
+                    onChange={e => setNotifSettings(prev => ({ ...prev, [item.key]: e.target.checked }))}
+                    className="mt-1 h-4 w-4 text-indigo-600 rounded border-gray-300"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{item.label}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{item.desc}</p>
+                  </div>
+                </label>
+              </div>
+            ))}
+            <div className="flex items-center gap-3 pt-2">
+              <button onClick={saveNotifSettings} className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 text-sm">
+                Сохранить
+              </button>
+              {notifSaved && <span className="text-green-600 text-sm">✓ Сохранено</span>}
+            </div>
+          </div>
         </div>
       )}
 
@@ -183,30 +228,16 @@ export default function Settings() {
           <div className="mb-6 flex flex-wrap gap-4 items-end">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Название</label>
-              <input
-                type="text"
-                value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm p-2 dark:bg-gray-700 dark:text-white"
-              />
+              <input type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm p-2 dark:bg-gray-700 dark:text-white" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Тип</label>
-              <select
-                value={newCategoryType}
-                onChange={(e) => setNewCategoryType(e.target.value)}
-                className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm p-2 dark:bg-gray-700 dark:text-white"
-              >
+              <select value={newCategoryType} onChange={(e) => setNewCategoryType(e.target.value)} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm p-2 dark:bg-gray-700 dark:text-white">
                 <option value="expense">Расход</option>
                 <option value="income">Доход</option>
               </select>
             </div>
-            <button
-              onClick={onCreateCategory}
-              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-            >
-              Добавить
-            </button>
+            <button onClick={onCreateCategory} className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">Добавить</button>
           </div>
 
           <h3 className="text-md font-medium mt-6 mb-2 dark:text-white">Системные категории</h3>
@@ -238,10 +269,7 @@ export default function Settings() {
       {activeTab === 'theme' && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h2 className="text-lg font-medium mb-4 dark:text-white">Тема оформления</h2>
-          <button
-            onClick={toggleTheme}
-            className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white px-4 py-2 rounded-md"
-          >
+          <button onClick={toggleTheme} className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white px-4 py-2 rounded-md">
             {isDark ? 'Светлая тема' : 'Тёмная тема'}
           </button>
         </div>
