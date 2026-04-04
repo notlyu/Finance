@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+
+<html class="light" lang="ru"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary": "#960014",
+                    "on-primary-container": "#dad7ff",
+                    "surface-tint": "#4d44e3",
+                    "primary": "#3525cd",
+                    "on-tertiary": "#ffffff",
+                    "tertiary-fixed": "#ffdad7",
+                    "outline-variant": "#c7c4d8",
+                    "on-surface": "#0b1c30",
+                    "inverse-on-surface": "#eaf1ff",
+                    "surface": "#f8f9ff",
+                    "on-background": "#0b1c30",
+                    "on-primary-fixed-variant": "#3323cc",
+                    "tertiary-fixed-dim": "#ffb3ad",
+                    "on-tertiary-fixed-variant": "#930013",
+                    "surface-bright": "#f8f9ff",
+                    "surface-dim": "#cbdbf5",
+                    "on-tertiary-container": "#ffd0cc",
+                    "surface-variant": "#d3e4fe",
+                    "secondary-fixed": "#6ffbbe",
+                    "primary-fixed": "#e2dfff",
+                    "tertiary-container": "#bc1d25",
+                    "surface-container-highest": "#d3e4fe",
+                    "surface-container": "#e5eeff",
+                    "secondary-fixed-dim": "#4edea3",
+                    "on-primary": "#ffffff",
+                    "error-container": "#ffdad6",
+                    "inverse-surface": "#213145",
+                    "on-secondary": "#ffffff",
+                    "on-primary-fixed": "#0f0069",
+                    "error": "#ba1a1a",
+                    "on-surface-variant": "#464555",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-container-high": "#dce9ff",
+                    "primary-container": "#4f46e5",
+                    "outline": "#777587",
+                    "secondary-container": "#6cf8bb",
+                    "on-tertiary-fixed": "#410004",
+                    "background": "#f8f9ff",
+                    "on-secondary-fixed": "#002113",
+                    "on-secondary-fixed-variant": "#005236",
+                    "secondary": "#006c49",
+                    "primary-fixed-dim": "#c3c0ff",
+                    "on-secondary-container": "#00714d",
+                    "inverse-primary": "#c3c0ff",
+                    "on-error-container": "#93000a",
+                    "surface-container-low": "#eff4ff",
+                    "on-error": "#ffffff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "1rem",
+                    "xl": "1.5rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Manrope"],
+                    "body": ["Inter"],
+                    "label": ["Inter"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-manrope { font-family: 'Manrope', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .tonal-layering { background-color: #eff4ff; }
+        .tonal-shift-no-border { border-bottom-width: 0; }
+        .no-line { border: none !important; }
+        .scale-98:active { transform: scale(0.98); }
+    </style>
+</head>
+<body class="bg-surface text-on-surface">
+<!-- SideNavBar -->
+<aside class="hidden md:flex flex-col fixed left-0 top-0 h-full py-8 px-4 h-screen w-64 border-r-0 tonal-layering bg-slate-100 dark:bg-slate-900 z-50">
+<div class="mb-10 px-4 flex flex-col gap-1">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center text-white">
+<span class="material-symbols-outlined" data-icon="account_balance_wallet">account_balance_wallet</span>
+</div>
+<div>
+<h1 class="text-2xl font-bold tracking-tight text-[#3525cd] dark:text-indigo-400 font-manrope">Казначей</h1>
+<p class="text-xs text-slate-500 font-medium">Семейный бюджет</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 space-y-2">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:text-indigo-600 hover:bg-white/80 dark:hover:bg-slate-800 transition-all duration-300 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-medium">Обзор</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:text-indigo-600 hover:bg-white/80 dark:hover:bg-slate-800 transition-all duration-300 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+<span class="font-medium">Транзакции</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:text-indigo-600 hover:bg-white/80 dark:hover:bg-slate-800 transition-all duration-300 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="category">category</span>
+<span class="font-medium">Категории</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:text-indigo-600 hover:bg-white/80 dark:hover:bg-slate-800 transition-all duration-300 rounded-xl" href="#">
+<span class="material-symbols-outlined" data-icon="family_restroom">family_restroom</span>
+<span class="font-medium">Семья</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-[#3525cd] dark:text-indigo-300 font-bold border-r-4 border-[#3525cd] bg-indigo-50/50 dark:bg-indigo-900/20 transition-all duration-300 rounded-l-xl" href="#">
+<span class="material-symbols-outlined" data-icon="settings" style="font-variation-settings: 'FILL' 1;">settings</span>
+<span class="font-medium">Настройки</span>
+</a>
+</nav>
+<div class="mt-auto px-4">
+<button class="w-full bg-primary-container text-white py-3 px-4 rounded-xl font-semibold scale-98 active:opacity-80 transition-transform shadow-lg shadow-primary/20 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+<span>Добавить расход</span>
+</button>
+</div>
+</aside>
+<!-- TopAppBar -->
+<header class="flex justify-between items-center w-full px-6 py-4 md:pl-72 bg-[#f8f9ff]/80 dark:bg-slate-950/80 backdrop-blur-md fixed top-0 left-0 z-40 shadow-sm dark:shadow-none">
+<div>
+<h2 class="font-manrope font-bold text-xl text-slate-900 dark:text-white">Настройки</h2>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden sm:block">
+<input class="bg-surface-container border-none rounded-full px-5 py-2 text-sm focus:ring-2 focus:ring-primary/20 w-64 text-on-surface" placeholder="Поиск настроек..." type="text"/>
+</div>
+<div class="flex items-center gap-3">
+<button class="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-indigo-500 transition-colors duration-200">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-indigo-500 transition-colors duration-200">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+</button>
+<img alt="Профиль" class="w-10 h-10 rounded-full object-cover border-2 border-primary-container/20" data-alt="Close up portrait of a professional woman with a friendly smile, clean corporate style, soft daylight, blurred office interior background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC5afEPQ5BL--Njr0fHQ5G8Aehv9DAJwRFbdkT5E9gPven7f8VxIHNw1vjulhKX_AD9JiUL8D3je6KmvRYxUtsmwPClOIaE7syq_GM0qGbXhz_xmBK5-qnc0lYWZqR8PkrSdl2M-uEQ-MwwhsLt-49hbOcmbs6IS2eVM7VVnVxwZqf2wBNAiIW8WtcPY43GSyR_NoQtziQkpvkOTNsmzM5I6p4JwTVZff6FpyLo-jiLsRmzjlLNYLvE3x9PlXkYr9QOQGzndFbG_2Y"/>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="pt-24 pb-12 px-6 md:pl-72 min-h-screen">
+<div class="max-w-4xl mx-auto">
+<!-- Header Section -->
+<div class="mb-10">
+<h3 class="font-manrope text-3xl font-extrabold text-slate-900 mb-2">Уведомления</h3>
+<p class="text-slate-500 body-lg">Настройте, когда и как вы хотите получать обновления о ваших финансах.</p>
+</div>
+<!-- Bento-style Grid for Settings Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+<!-- Card 1: Goal achievement -->
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow group cursor-pointer border border-transparent hover:border-primary/10">
+<div class="flex items-start justify-between mb-4">
+<div class="w-12 h-12 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="military_tech">military_tech</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+<h4 class="font-manrope text-lg font-bold text-slate-900 mb-1 group-hover:text-primary transition-colors">Goal achievement</h4>
+<p class="text-sm text-slate-500 leading-relaxed">Получайте уведомления, когда вы достигаете своих финансовых целей или этапов накопления.</p>
+</div>
+<!-- Card 2: Wish fulfillment -->
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow group cursor-pointer border border-transparent hover:border-primary/10">
+<div class="flex items-start justify-between mb-4">
+<div class="w-12 h-12 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="star">star</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+<h4 class="font-manrope text-lg font-bold text-slate-900 mb-1 group-hover:text-primary transition-colors">Wish fulfillment</h4>
+<p class="text-sm text-slate-500 leading-relaxed">Мгновенное оповещение, когда в бюджете появляется свободная сумма для покупки из списка желаний.</p>
+</div>
+<!-- Card 3: Budget exceeded -->
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow group cursor-pointer border border-transparent hover:border-primary/10">
+<div class="flex items-start justify-between mb-4">
+<div class="w-12 h-12 rounded-lg bg-red-50 text-red-600 flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="warning">warning</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+<h4 class="font-manrope text-lg font-bold text-slate-900 mb-1 group-hover:text-primary transition-colors">Budget exceeded</h4>
+<p class="text-sm text-slate-500 leading-relaxed">Срочные оповещения, если расходы по какой-либо категории превышают установленный лимит.</p>
+</div>
+<!-- Card 4: Recurring payments -->
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow group cursor-pointer border border-transparent hover:border-primary/10">
+<div class="flex items-start justify-between mb-4">
+<div class="w-12 h-12 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="event_repeat">event_repeat</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+<h4 class="font-manrope text-lg font-bold text-slate-900 mb-1 group-hover:text-primary transition-colors">Recurring payments</h4>
+<p class="text-sm text-slate-500 leading-relaxed">Напоминания о предстоящих регулярных списаниях, подписках и обязательных платежах.</p>
+</div>
+</div>
+<!-- Save Section -->
+<div class="flex items-center justify-between p-8 bg-primary/5 rounded-2xl border border-primary/10">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="info">info</span>
+</div>
+<p class="text-sm text-slate-600 max-w-xs">Изменения вступят в силу немедленно после сохранения.</p>
+</div>
+<button class="bg-gradient-to-r from-primary to-primary-container text-white font-bold py-4 px-10 rounded-xl shadow-xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
+<span>Сохранить настройки</span>
+<span class="material-symbols-outlined" data-icon="check_circle" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</button>
+</div>
+<!-- Aesthetic Illustration/Secondary Bento Item -->
+<div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="md:col-span-2 bg-slate-900 rounded-xl overflow-hidden relative h-64 shadow-2xl">
+<div class="absolute inset-0 bg-gradient-to-br from-indigo-900/40 to-transparent z-10"></div>
+<img class="w-full h-full object-cover opacity-60 grayscale hover:grayscale-0 transition-all duration-700" data-alt="Abstract cinematic 3D render of glass glowing financial charts and graphs flowing through a digital dark space with deep indigo lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAj0WS4jfKWxpNASyis8_ek28EtS4Q6SauR_jxg1RysOG3MKn7ZAkpnUS0ITj-G6zTRpYEJiF6ZAAXQ5avsMrUDnrDDdd6saLsmfQB5DXi3zKRKI9IkzxKnH6FpLWvBqnn9ebt6ydZ5Qvurp-WG0YRFPvx6tK9qnKAocSwbzj6pWHpCSdO7mFahmgEyc6zRc3yYtXkbLgmzFD2IvAIOn26_e1Hsz4hlAdbFePg9YbkA2NixoLp3paVgFcop4k_Vycu08TKYy9OjDh0"/>
+<div class="absolute bottom-6 left-8 z-20">
+<h5 class="text-white font-manrope text-xl font-bold">Интеллектуальный анализ</h5>
+<p class="text-slate-300 text-sm">Мы анализируем ваши паттерны, чтобы уведомлять только о важном.</p>
+</div>
+</div>
+<div class="bg-surface-container-high rounded-xl p-6 flex flex-col justify-center items-center text-center">
+<div class="w-16 h-16 rounded-full bg-white shadow-inner flex items-center justify-center mb-4">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="security">security</span>
+</div>
+<h5 class="font-manrope font-bold text-slate-900">Безопасность</h5>
+<p class="text-xs text-slate-500 mt-2">Все уведомления шифруются и доставляются по защищенным каналам.</p>
+</div>
+</div>
+</div>
+</main>
+<!-- Mobile Navigation Suppressed as per Task (Settings page is sub-focused journey) -->
+</body></html>

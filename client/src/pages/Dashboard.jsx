@@ -16,108 +16,221 @@ export default function Dashboard() {
       .finally(() => setLoading(false));
   }, [selectedMember]);
 
-  if (loading) return <div className="text-center py-10">Загрузка...</div>;
-  if (!data) return <div className="text-center py-10 text-red-500">Ошибка загрузки данных</div>;
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+        <p className="text-on-surface-variant text-sm font-medium">Загрузка...</p>
+      </div>
+    </div>
+  );
 
-  const { month, totalBalance, reservedTotal, availableFunds, lastTransactions, activeGoals, viewingMemberId } = data;
+  if (!data) return (
+    <div className="bg-error-container rounded-3xl p-6 flex items-center gap-3">
+      <span className="material-symbols-outlined text-error" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
+      <p className="text-on-error-container text-sm">Ошибка загрузки данных</p>
+    </div>
+  );
+
+  const { month, totalBalance, reservedTotal, availableFunds, lastTransactions, activeGoals } = data;
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Главная</h1>
-        {viewingMemberId && (
-          <span className="px-3 py-1 text-sm bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full">
-            Просмотр: {selectedMember?.name}
-          </span>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Доходы за месяц</p>
-          <p className="text-2xl font-bold text-green-600">{formatMoney(month.income)} ₽</p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Расходы за месяц</p>
-          <p className="text-2xl font-bold text-red-600">{formatMoney(month.expenses)} ₽</p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Свободные средства</p>
-          <p className={`text-2xl font-bold ${availableFunds >= 0 ? 'text-indigo-600' : 'text-red-600'}`}>
-            {formatMoney(availableFunds)} ₽
-          </p>
-        </div>
-      </div>
-
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-        <div className="grid grid-cols-3 gap-4 text-center">
-          <div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Общий баланс</p>
-            <p className={`text-xl font-bold ${totalBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatMoney(totalBalance)} ₽</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Зарезервировано</p>
-            <p className="text-xl font-bold text-yellow-600">{formatMoney(reservedTotal)} ₽</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Разница за месяц</p>
-            <p className={`text-xl font-bold ${month.diff >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatMoney(month.diff)} ₽</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-        <div className="flex justify-between items-center mb-3">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Последние операции</h2>
-          <Link to="/transactions" className="text-sm text-indigo-600 dark:text-indigo-400">Все операции →</Link>
-        </div>
-        <div className="space-y-2">
-          {lastTransactions && lastTransactions.length > 0 ? lastTransactions.map(t => (
-            <div key={t.id} className="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-2">
-              <div>
-                <p className="font-medium text-gray-900 dark:text-white">
-                  {t.is_hidden ? '🔒 Сюрприз' : (t.Category?.name || t.category_name || 'Без категории')}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(t.date).toLocaleDateString()}</p>
-              </div>
-              <p className={t.type === 'income' ? 'text-green-600' : 'text-red-600'}>
-                {t.type === 'income' ? '+' : '-'}{formatMoney(t.is_hidden ? 0 : t.amount)} ₽
-              </p>
+    <div className="space-y-8">
+      {/* Section Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between mb-2 gap-4">
+        <div>
+          <h2 className="text-3xl font-extrabold tracking-tight text-on-surface font-headline">Главная</h2>
+          {selectedMember && (
+            <div className="mt-2 inline-flex items-center px-3 py-1 bg-surface-container-high text-primary rounded-full text-xs font-semibold">
+              <span className="material-symbols-outlined text-sm mr-1">visibility</span>
+              Просмотр: {selectedMember.name}
             </div>
-          )) : <p className="text-gray-500 dark:text-gray-400">Нет операций</p>}
+          )}
+        </div>
+        <div className="hidden md:block">
+          <Link
+            to="/transactions"
+            className="btn-primary px-6 py-2.5 flex items-center gap-2 text-sm"
+          >
+            <span className="material-symbols-outlined text-sm">add</span>
+            Добавить операцию
+          </Link>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-        <div className="flex justify-between items-center mb-3">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white">Цели накоплений</h2>
-          <Link to="/goals" className="text-sm text-indigo-600 dark:text-indigo-400">Все цели →</Link>
+      {/* Metric Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
+        {/* Decorative blur */}
+        <div className="absolute -top-12 -right-12 w-64 h-64 bg-primary/5 rounded-full blur-3xl -z-10 pointer-events-none"></div>
+        <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-secondary/5 rounded-full blur-3xl -z-10 pointer-events-none"></div>
+        {/* Income */}
+        <div className="bg-surface-container-lowest p-6 rounded-2xl shadow-card relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-secondary/5 -mr-8 -mt-8 rounded-full transition-transform group-hover:scale-110"></div>
+          <p className="text-on-surface-variant text-sm font-medium mb-1">Доходы за месяц</p>
+          <h3 className="text-2xl font-bold text-secondary font-headline">+{formatMoney(month.income)} ₽</h3>
+          <div className="mt-4 flex items-center gap-1 text-[10px] font-bold text-secondary uppercase tracking-wider">
+            <span className="material-symbols-outlined text-xs">trending_up</span>
+            За текущий месяц
+          </div>
         </div>
-        <div className="space-y-3">
-          {activeGoals && activeGoals.length > 0 ? activeGoals.map(g => {
-            const progress = g.progress || ((Number(g.current_amount) / Number(g.target_amount)) * 100);
-            const achieved = g.achieved || (Number(g.current_amount) >= Number(g.target_amount));
-            return (
-              <div key={g.id}>
-                <div className="flex justify-between text-sm text-gray-900 dark:text-gray-100">
-                  <span className="flex items-center gap-1">
-                    {achieved && <span className="text-green-500">✓</span>}
-                    {g.name}
-                  </span>
-                  <span>{formatMoney(g.current_amount)} / {formatMoney(g.target_amount)} ₽ ({Math.round(progress)}%)</span>
+
+        {/* Expenses */}
+        <div className="bg-surface-container-lowest p-6 rounded-2xl shadow-card relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-error/5 -mr-8 -mt-8 rounded-full transition-transform group-hover:scale-110"></div>
+          <p className="text-on-surface-variant text-sm font-medium mb-1">Расходы за месяц</p>
+          <h3 className="text-2xl font-bold text-error font-headline">-{formatMoney(month.expenses)} ₽</h3>
+          <div className="mt-4 flex items-center gap-1 text-[10px] font-bold text-error uppercase tracking-wider">
+            <span className="material-symbols-outlined text-xs">trending_down</span>
+            За текущий месяц
+          </div>
+        </div>
+
+        {/* Available */}
+        <div className="bg-gradient-to-br from-primary to-primary-container text-white p-6 rounded-2xl shadow-button relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-on-primary/10 -mr-8 -mt-8 rounded-full transition-transform group-hover:scale-110"></div>
+          <p className="text-white/70 text-sm font-medium mb-1">Свободные средства</p>
+          <h3 className="text-2xl font-bold font-headline">{formatMoney(availableFunds)} ₽</h3>
+          <div className="mt-4 flex items-center gap-1 text-[10px] font-bold text-white/80 uppercase tracking-wider">
+            <span className="material-symbols-outlined text-xs">account_balance_wallet</span>
+            Доступно к тратам
+          </div>
+        </div>
+      </div>
+
+      {/* Secondary Metrics */}
+      <div className="bg-surface-container p-6 rounded-3xl">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="space-y-1">
+            <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Общий баланс</p>
+            <h4 className={`text-2xl font-bold font-headline ${totalBalance >= 0 ? 'text-on-surface' : 'text-error'}`}>
+              {formatMoney(totalBalance)} ₽
+            </h4>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Зарезервировано</p>
+            <h4 className="text-2xl font-bold font-headline text-on-surface">{formatMoney(reservedTotal)} ₽</h4>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Разница за месяц</p>
+            <h4 className={`text-2xl font-bold font-headline ${month.diff >= 0 ? 'text-secondary' : 'text-error'}`}>
+              {month.diff >= 0 ? '+' : ''}{formatMoney(month.diff)} ₽
+            </h4>
+          </div>
+        </div>
+      </div>
+
+      {/* Bento Grid: Transactions + Goals */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Recent Transactions */}
+        <div className="lg:col-span-8 bg-surface-container-lowest p-8 rounded-3xl shadow-card">
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-xl font-bold font-headline">Последние операции</h3>
+            <Link to="/transactions" className="text-primary text-sm font-bold flex items-center gap-1 hover:gap-2 transition-all">
+              Все операции
+              <span className="material-symbols-outlined text-sm">arrow_forward</span>
+            </Link>
+          </div>
+
+          <div className="space-y-6">
+            {lastTransactions && lastTransactions.length > 0 ? lastTransactions.map(t => (
+              <div key={t.id} className="flex items-center justify-between group cursor-pointer">
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
+                    t.is_hidden
+                      ? 'bg-surface-container-high text-slate-400'
+                      : t.type === 'income'
+                        ? 'bg-secondary/10 text-secondary'
+                        : 'bg-surface-container-high text-primary group-hover:bg-primary-container group-hover:text-white'
+                  }`}>
+                    <span className="material-symbols-outlined">
+                      {t.is_hidden ? 'lock' : t.type === 'income' ? 'payments' : 'shopping_cart'}
+                    </span>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-on-surface text-sm">
+                      {t.is_hidden ? '🔒 Сюрприз' : (t.Category?.name || t.category_name || 'Без категории')}
+                    </h4>
+                    <p className="text-xs text-on-surface-variant">{new Date(t.date).toLocaleDateString('ru-RU')} • {t.User?.name || ''}</p>
+                  </div>
                 </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-1">
-                  <div className={`h-2 rounded-full transition-all duration-500 ${achieved ? 'bg-green-500' : 'bg-green-600'}`} style={{ width: `${Math.min(progress, 100)}%` }}></div>
+                <div className="text-right">
+                  <span className={`font-bold ${t.type === 'income' ? 'text-secondary' : 'text-on-surface'}`}>
+                    {t.type === 'income' ? '+' : '-'}{t.is_hidden ? '••••' : formatMoney(t.amount)} ₽
+                  </span>
                 </div>
               </div>
-            );
-          }) : <p className="text-gray-500 dark:text-gray-400">Нет активных целей</p>}
+            )) : (
+              <div className="text-center py-8">
+                <span className="material-symbols-outlined text-4xl text-outline mb-2">receipt_long</span>
+                <p className="text-on-surface-variant text-sm">Нет операций</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Goals + Empty State */}
+        <div className="lg:col-span-4 space-y-6">
+          {/* Goals */}
+          <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-xl font-bold font-headline">Цели</h3>
+              <Link to="/goals" className="text-primary text-sm font-bold flex items-center gap-1">
+                Все цели
+                <span className="material-symbols-outlined text-sm">arrow_forward</span>
+              </Link>
+            </div>
+
+            <div className="space-y-6">
+              {activeGoals && activeGoals.length > 0 ? activeGoals.map(g => {
+                const progress = g.progress || ((Number(g.current_amount) / Number(g.target_amount)) * 100);
+                const achieved = g.achieved || (Number(g.current_amount) >= Number(g.target_amount));
+                return (
+                  <div key={g.id}>
+                    <div className="flex justify-between mb-2">
+                      <span className="text-sm font-bold text-on-surface flex items-center gap-1">
+                        {achieved && <span className="text-secondary text-sm">✓</span>}
+                        {g.name}
+                      </span>
+                      <span className={`text-xs font-bold ${achieved ? 'text-secondary' : 'text-primary'}`}>
+                        {Math.round(progress)}%
+                      </span>
+                    </div>
+                    <div className="h-2 w-full bg-surface-container rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full transition-all duration-700 ${achieved ? 'bg-secondary' : 'bg-primary'}`} style={{ width: `${Math.min(progress, 100)}%` }}></div>
+                    </div>
+                    <p className="mt-2 text-[10px] font-bold text-on-surface-variant uppercase">
+                      {formatMoney(g.current_amount)} / {formatMoney(g.target_amount)} ₽
+                    </p>
+                  </div>
+                );
+              }) : (
+                <div className="text-center py-4">
+                  <span className="material-symbols-outlined text-3xl text-outline mb-2">track_changes</span>
+                  <p className="text-on-surface-variant text-xs">Нет активных целей</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Empty State / CTA */}
+          <div className="bg-surface-container-lowest p-8 rounded-3xl border-2 border-dashed border-outline-variant/30 flex flex-col items-center justify-center text-center">
+            <div className="w-16 h-16 bg-surface-container rounded-2xl flex items-center justify-center mb-4 text-outline">
+              <span className="material-symbols-outlined text-3xl">event_busy</span>
+            </div>
+            <h4 className="text-sm font-bold text-on-surface mb-1">Нет ближайших списаний</h4>
+            <p className="text-xs text-on-surface-variant max-w-[200px]">Все счета оплачены. Наслаждайтесь финансовым спокойствием.</p>
+          </div>
         </div>
       </div>
 
-      <div className="flex justify-center">
-        <Link to="/transactions" className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-8 rounded-lg shadow-lg transition-colors">
-          + Добавить операцию
+      {/* Mobile CTA */}
+      <div className="md:hidden mt-8">
+        <Link
+          to="/transactions"
+          className="w-full btn-primary py-4 rounded-2xl font-bold flex items-center justify-center gap-2"
+        >
+          <span className="material-symbols-outlined">add_circle</span>
+          Добавить операцию
         </Link>
       </div>
     </div>

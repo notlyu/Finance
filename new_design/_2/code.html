@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+
+<html class="light" lang="ru"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Финансы — Главная</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Manrope:wght@500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary": "#960014",
+                        "on-secondary-fixed-variant": "#005236",
+                        "inverse-primary": "#c3c0ff",
+                        "inverse-surface": "#213145",
+                        "outline-variant": "#c7c4d8",
+                        "on-error-container": "#93000a",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-low": "#eff4ff",
+                        "on-tertiary-fixed": "#410004",
+                        "on-tertiary-fixed-variant": "#930013",
+                        "on-primary": "#ffffff",
+                        "surface-variant": "#d3e4fe",
+                        "surface-container-high": "#dce9ff",
+                        "tertiary-container": "#bc1d25",
+                        "outline": "#777587",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed": "#0f0069",
+                        "secondary": "#006c49",
+                        "on-primary-fixed-variant": "#3323cc",
+                        "error": "#ba1a1a",
+                        "primary-container": "#4f46e5",
+                        "on-secondary-container": "#00714d",
+                        "primary-fixed-dim": "#c3c0ff",
+                        "secondary-fixed-dim": "#4edea3",
+                        "tertiary-fixed": "#ffdad7",
+                        "on-tertiary-container": "#ffd0cc",
+                        "on-secondary-fixed": "#002113",
+                        "surface-dim": "#cbdbf5",
+                        "on-background": "#0b1c30",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-container": "#6cf8bb",
+                        "primary": "#3525cd",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-surface": "#0b1c30",
+                        "on-surface-variant": "#464555",
+                        "surface-container": "#e5eeff",
+                        "surface": "#f8f9ff",
+                        "on-error": "#ffffff",
+                        "primary-fixed": "#e2dfff",
+                        "tertiary-fixed-dim": "#ffb3ad",
+                        "inverse-on-surface": "#eaf1ff",
+                        "error-container": "#ffdad6",
+                        "surface-tint": "#4d44e3",
+                        "secondary-fixed": "#6ffbbe",
+                        "background": "#f8f9ff",
+                        "on-primary-container": "#dad7ff",
+                        "surface-bright": "#f8f9ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, .font-headline { font-family: 'Manrope', sans-serif; }
+        .glass-panel {
+            backdrop-filter: blur(12px);
+            background: rgba(255, 255, 255, 0.8);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface selection:bg-primary-container selection:text-white">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 bottom-0 z-40 flex flex-col p-4 bg-slate-50 dark:bg-slate-900 w-64 h-full border-r-0 hidden md:flex">
+<div class="mb-8 px-2">
+<h1 class="text-xl font-bold tracking-tight text-indigo-700 dark:text-indigo-300">Финансы</h1>
+<p class="text-xs text-slate-500 font-medium uppercase tracking-widest mt-1">Семейный капитал</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-indigo-700 dark:text-indigo-300 font-bold bg-white dark:bg-slate-800 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="font-manrope text-sm font-medium tracking-tight">Главная</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="font-manrope text-sm font-medium tracking-tight">Операции</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">track_changes</span>
+<span class="font-manrope text-sm font-medium tracking-tight">Цели</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">favorite</span>
+<span class="font-manrope text-sm font-medium tracking-tight">Желания</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">savings</span>
+<span class="font-manrope text-sm font-medium tracking-tight">Подушка</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-manrope text-sm font-medium tracking-tight">Аналитика</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span class="font-manrope text-sm font-medium tracking-tight">Бюджеты</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">event_repeat</span>
+<span class="font-manrope text-sm font-medium tracking-tight">Регулярные</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">groups</span>
+<span class="font-manrope text-sm font-medium tracking-tight">Семья</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-manrope text-sm font-medium tracking-tight">Настройки</span>
+</a>
+</nav>
+<div class="mt-auto border-t border-slate-200 dark:border-slate-800 pt-4 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-900 transition-colors" href="#">
+<span class="material-symbols-outlined">account_circle</span>
+<span class="font-manrope text-sm font-medium tracking-tight">Профиль</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-900 transition-colors" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-manrope text-sm font-medium tracking-tight">Выйти</span>
+</a>
+</div>
+</aside>
+<!-- TopAppBar -->
+<header class="fixed top-0 right-0 left-0 md:left-64 z-30 flex justify-between items-center px-6 py-3 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md shadow-sm dark:shadow-none">
+<div class="flex items-center gap-4">
+<span class="md:hidden text-lg font-bold text-indigo-600">Финансы</span>
+<div class="hidden md:flex items-center gap-2">
+<div class="w-8 h-8 rounded-full overflow-hidden bg-surface-container">
+<img alt="Family member profile" data-alt="close-up portrait of a professional man in a minimal workspace with soft natural lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDURtpnxfFeFV9jjRaNpRi8EIL5rJOAU4hqvMa59mMDR8puBLY-D6X7Bph_Z5rzzT-F90agVUJpV9pkD6hiIQcor66VypYG_KVRwjims7vhksO7d81mI85N80EDpJIs9UPRwaV77pqOb6nY4VrwowfOaxEcOO85ZXtvGSJV3d_036xFpYNfPxnxk2sdgrEBUIOkUhkiidTqhWYdMYTMZgXH9ROWUT1-xr2U4SoMqoWuyfyiwbzZ16tHZLgPqAKcq6WlaTeHIqXOdqU"/>
+</div>
+<div class="flex flex-col">
+<span class="text-xs font-bold text-on-surface leading-none">Алексей</span>
+<span class="text-[10px] text-on-surface-variant uppercase tracking-tighter">Владелец</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="w-10 h-10 flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 active:scale-95 transition-all">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 active:scale-95 transition-all">
+<span class="material-symbols-outlined">dark_mode</span>
+</button>
+<div class="h-8 w-[1px] bg-outline-variant mx-2 opacity-30"></div>
+<img alt="Текущий пользователь" class="w-8 h-8 rounded-full ring-2 ring-primary/10" data-alt="minimalist user avatar placeholder with elegant blue gradient background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAKS4xR03D-qAs2BAZWcIg7eddq4Du-yZ7t0FrmA1lRrUTYwXlr8NTIw-DXsnTi56Dxijv10rNtBqlahW-5WUWlM9gHV4Q6lQwMNB6iYXJwbVqu14UqTknmFdDPCRV6eIvqUUk5fHtBin1NN63DUqRB5FYeptiR6whM3UbuCxIwuu2P1hdbh50TA92XE7r7ZZehPyhoVQuMaoX682vD5nKZlPF5oqoMZU-ZKtFoYmuJV83mvB36M2sFKiwZcnVHClU8C3uRy2aaUbc"/>
+</div>
+</header>
+<!-- Main Content -->
+<main class="md:ml-64 pt-20 pb-24 md:pb-12 px-4 md:px-10">
+<!-- Section Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+<div>
+<h2 class="text-3xl font-extrabold tracking-tight text-on-surface font-headline">Главная</h2>
+<div class="mt-2 inline-flex items-center px-3 py-1 bg-surface-container-high text-primary rounded-full text-xs font-semibold">
+<span class="material-symbols-outlined text-sm mr-1">visibility</span>
+                    Просмотр: Алексей
+                </div>
+</div>
+<div class="hidden md:block">
+<button class="bg-primary hover:bg-primary-container text-white px-6 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-95">
+<span class="material-symbols-outlined">add</span>
+                    Добавить операцию
+                </button>
+</div>
+</div>
+<!-- Metric Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+<div class="bg-surface-container-lowest p-6 rounded-2xl shadow-sm border-none relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-24 h-24 bg-secondary/5 -mr-8 -mt-8 rounded-full transition-transform group-hover:scale-110"></div>
+<p class="text-on-surface-variant text-sm font-medium mb-1">Доходы</p>
+<h3 class="text-2xl font-bold text-secondary font-headline">+450,000 ₽</h3>
+<div class="mt-4 flex items-center gap-1 text-[10px] font-bold text-secondary uppercase tracking-wider">
+<span class="material-symbols-outlined text-xs">trending_up</span>
+                    +12% за месяц
+                </div>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-2xl shadow-sm border-none relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-24 h-24 bg-error/5 -mr-8 -mt-8 rounded-full transition-transform group-hover:scale-110"></div>
+<p class="text-on-surface-variant text-sm font-medium mb-1">Расходы</p>
+<h3 class="text-2xl font-bold text-error font-headline">-320,000 ₽</h3>
+<div class="mt-4 flex items-center gap-1 text-[10px] font-bold text-error uppercase tracking-wider">
+<span class="material-symbols-outlined text-xs">trending_down</span>
+                    На 5% выше нормы
+                </div>
+</div>
+<div class="bg-primary text-white p-6 rounded-2xl shadow-xl shadow-primary/20 border-none relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-24 h-24 bg-white/10 -mr-8 -mt-8 rounded-full transition-transform group-hover:scale-110"></div>
+<p class="text-white/70 text-sm font-medium mb-1">Свободно</p>
+<h3 class="text-2xl font-bold font-headline">130,000 ₽</h3>
+<div class="mt-4 flex items-center gap-1 text-[10px] font-bold text-white/80 uppercase tracking-wider">
+<span class="material-symbols-outlined text-xs">account_balance_wallet</span>
+                    Доступно к тратам
+                </div>
+</div>
+</div>
+<!-- Bento Grid Section -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
+<!-- Secondary Metrics Card -->
+<div class="lg:col-span-12 bg-surface-container p-6 rounded-3xl">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<div class="space-y-1 border-r border-outline-variant/30 pr-8">
+<p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Общий баланс</p>
+<h4 class="text-2xl font-bold text-on-surface">1,240,000 ₽</h4>
+</div>
+<div class="space-y-1 border-r border-outline-variant/30 pr-8">
+<p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Зарезервировано</p>
+<h4 class="text-2xl font-bold text-on-surface">400,000 ₽</h4>
+</div>
+<div class="space-y-1">
+<p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Разница</p>
+<h4 class="text-2xl font-bold text-secondary">+130,000 ₽</h4>
+</div>
+</div>
+</div>
+<!-- Recent Operations -->
+<div class="lg:col-span-8 bg-surface-container-lowest p-8 rounded-3xl shadow-sm">
+<div class="flex items-center justify-between mb-8">
+<h3 class="text-xl font-bold font-headline">Последние операции</h3>
+<a class="text-primary text-sm font-bold flex items-center gap-1 hover:gap-2 transition-all" href="#">
+                        Все операции
+                        <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</a>
+</div>
+<div class="space-y-6">
+<!-- Operation 1 -->
+<div class="flex items-center justify-between group cursor-pointer">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-surface-container-high flex items-center justify-center text-primary transition-colors group-hover:bg-primary-container group-hover:text-white">
+<span class="material-symbols-outlined">shopping_cart</span>
+</div>
+<div>
+<h4 class="font-bold text-on-surface text-sm">Супермаркет «Азбука»</h4>
+<p class="text-xs text-on-surface-variant">Сегодня, 14:20 • Алексей</p>
+</div>
+</div>
+<div class="text-right">
+<span class="font-bold text-on-surface">-4,200 ₽</span>
+</div>
+</div>
+<!-- Operation 2 -->
+<div class="flex items-center justify-between group cursor-pointer">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined">payments</span>
+</div>
+<div>
+<h4 class="font-bold text-on-surface text-sm">Перевод от клиента</h4>
+<p class="text-xs text-on-surface-variant">Вчера, 18:45 • Алексей</p>
+</div>
+</div>
+<div class="text-right">
+<span class="font-bold text-secondary">+85,000 ₽</span>
+</div>
+</div>
+<!-- Operation 3 (Hidden) -->
+<div class="flex items-center justify-between group cursor-pointer">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-surface-container-high flex items-center justify-center text-slate-400">
+<span class="material-symbols-outlined">lock</span>
+</div>
+<div>
+<h4 class="font-bold text-on-surface text-sm">🔒 Сюрприз</h4>
+<p class="text-xs text-on-surface-variant">12 Октября • Мария</p>
+</div>
+</div>
+<div class="text-right">
+<span class="inline-block px-3 py-1 bg-surface-container-high rounded-lg blur-[3px] font-bold text-on-surface">•••• ₽</span>
+</div>
+</div>
+<!-- Operation 4 -->
+<div class="flex items-center justify-between group cursor-pointer">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">restaurant</span>
+</div>
+<div>
+<h4 class="font-bold text-on-surface text-sm">Ресторан «Bistro»</h4>
+<p class="text-xs text-on-surface-variant">11 Октября • Алексей</p>
+</div>
+</div>
+<div class="text-right">
+<span class="font-bold text-on-surface">-3,500 ₽</span>
+</div>
+</div>
+<!-- Operation 5 -->
+<div class="flex items-center justify-between group cursor-pointer">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">commute</span>
+</div>
+<div>
+<h4 class="font-bold text-on-surface text-sm">Яндекс Такси</h4>
+<p class="text-xs text-on-surface-variant">10 Октября • Алексей</p>
+</div>
+</div>
+<div class="text-right">
+<span class="font-bold text-on-surface">-850 ₽</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Savings Goals & Empty State -->
+<div class="lg:col-span-4 space-y-6">
+<!-- Goals -->
+<div class="bg-surface-container-lowest p-8 rounded-3xl shadow-sm h-full">
+<div class="flex items-center justify-between mb-8">
+<h3 class="text-xl font-bold font-headline">Цели</h3>
+<a class="text-primary text-sm font-bold flex items-center gap-1" href="#">
+                            Все цели
+                            <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</a>
+</div>
+<div class="space-y-6">
+<!-- Goal 1 -->
+<div>
+<div class="flex justify-between mb-2">
+<span class="text-sm font-bold text-on-surface">Новый дом</span>
+<span class="text-xs font-bold text-primary">80%</span>
+</div>
+<div class="h-2 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full w-[80%]"></div>
+</div>
+<p class="mt-2 text-[10px] font-bold text-on-surface-variant uppercase">800,000 / 1,000,000 ₽</p>
+</div>
+<!-- Goal 2 -->
+<div>
+<div class="flex justify-between mb-2">
+<span class="text-sm font-bold text-on-surface">Отпуск 2024</span>
+<span class="text-xs font-bold text-secondary">45%</span>
+</div>
+<div class="h-2 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-secondary rounded-full w-[45%]"></div>
+</div>
+<p class="mt-2 text-[10px] font-bold text-on-surface-variant uppercase">90,000 / 200,000 ₽</p>
+</div>
+<!-- Goal 3 -->
+<div>
+<div class="flex justify-between mb-2">
+<span class="text-sm font-bold text-on-surface">Образование</span>
+<span class="text-xs font-bold text-primary-container">12%</span>
+</div>
+<div class="h-2 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary-container rounded-full w-[12%]"></div>
+</div>
+<p class="mt-2 text-[10px] font-bold text-on-surface-variant uppercase">60,000 / 500,000 ₽</p>
+</div>
+</div>
+</div>
+<!-- Empty State Block -->
+<div class="bg-surface-container-lowest p-8 rounded-3xl border-2 border-dashed border-outline-variant/30 flex flex-col items-center justify-center text-center">
+<div class="w-16 h-16 bg-surface-container rounded-2xl flex items-center justify-center mb-4 text-outline">
+<span class="material-symbols-outlined text-3xl">event_busy</span>
+</div>
+<h4 class="text-sm font-bold text-on-surface mb-1">Нет ближайших списаний</h4>
+<p class="text-xs text-on-surface-variant max-w-[200px]">Все счета оплачены. Наслаждайтесь финансовым спокойствием.</p>
+</div>
+</div>
+</div>
+<!-- Center CTA for Mobile Flow -->
+<div class="md:hidden mt-8">
+<button class="w-full bg-primary text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-xl shadow-primary/20">
+<span class="material-symbols-outlined">add_circle</span>
+                Добавить операцию
+            </button>
+</div>
+</main>
+<!-- BottomNavBar (Mobile only) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 md:hidden bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl shadow-[0_-10px_30px_rgba(0,0,0,0.05)] rounded-t-3xl">
+<a class="flex flex-col items-center justify-center text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl px-3 py-1 transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider">Главная</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider">Операции</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">track_changes</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider">Цели</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider">Аналитика</span>
+</a>
+<button class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 transition-all duration-300 ease-in-out">
+<span class="material-symbols-outlined">menu</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider">Меню</span>
+</button>
+</nav>
+</body></html>

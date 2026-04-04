@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+
+<html class="light" lang="ru"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Финансы — Управление семьей</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-primary-container": "#dad7ff",
+                      "on-primary-fixed-variant": "#3323cc",
+                      "surface-container-high": "#dce9ff",
+                      "on-surface-variant": "#464555",
+                      "background": "#f8f9ff",
+                      "on-error": "#ffffff",
+                      "tertiary-fixed-dim": "#ffb3ad",
+                      "primary-fixed-dim": "#c3c0ff",
+                      "secondary": "#006c49",
+                      "secondary-fixed": "#6ffbbe",
+                      "surface-container": "#e5eeff",
+                      "secondary-fixed-dim": "#4edea3",
+                      "on-secondary-fixed": "#002113",
+                      "inverse-primary": "#c3c0ff",
+                      "surface": "#f8f9ff",
+                      "surface-container-lowest": "#ffffff",
+                      "on-tertiary-fixed": "#410004",
+                      "on-tertiary-container": "#ffd0cc",
+                      "surface-bright": "#f8f9ff",
+                      "secondary-container": "#6cf8bb",
+                      "primary": "#3525cd",
+                      "on-secondary-container": "#00714d",
+                      "primary-fixed": "#e2dfff",
+                      "inverse-on-surface": "#eaf1ff",
+                      "error": "#ba1a1a",
+                      "on-primary": "#ffffff",
+                      "primary-container": "#4f46e5",
+                      "outline-variant": "#c7c4d8",
+                      "on-tertiary-fixed-variant": "#930013",
+                      "tertiary": "#960014",
+                      "surface-container-highest": "#d3e4fe",
+                      "error-container": "#ffdad6",
+                      "surface-variant": "#d3e4fe",
+                      "on-error-container": "#93000a",
+                      "tertiary-container": "#bc1d25",
+                      "surface-container-low": "#eff4ff",
+                      "surface-tint": "#4d44e3",
+                      "on-secondary-fixed-variant": "#005236",
+                      "on-secondary": "#ffffff",
+                      "surface-dim": "#cbdbf5",
+                      "on-surface": "#0b1c30",
+                      "on-primary-fixed": "#0f0069",
+                      "on-background": "#0b1c30",
+                      "inverse-surface": "#213145",
+                      "tertiary-fixed": "#ffdad7",
+                      "outline": "#777587",
+                      "on-tertiary": "#ffffff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "fontFamily": {
+                      "headline": ["Manrope"],
+                      "body": ["Inter"],
+                      "label": ["Inter"]
+              }
+            },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .font-manrope { font-family: 'Manrope', sans-serif; }
+        .font-inter { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-background font-body text-on-surface antialiased">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 bottom-0 z-40 flex flex-col p-4 w-64 h-full bg-slate-50 dark:bg-slate-900 font-manrope text-sm font-medium tracking-tight hidden md:flex">
+<div class="flex items-center gap-3 mb-8 px-2">
+<img alt="Family member profile" class="w-10 h-10 rounded-full object-cover" data-alt="Close-up portrait of a friendly woman with a warm smile, soft natural lighting, professional photography style" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCrmeHat2daTf9sw5jXCKdhnA3qEA0LyxUckimOEWHnfI3_SxDvO-cZ-G2rjLnRZ82rVY6GPKm5ZjZEIFR9L6XhMXDKydvlTA1XM91wovWb-JSSiOJL33kAM9ZS9grCFGfgE6MaBi8Pp6sJpPfiu5dfITgMLJkLFy24X5b8Jlo1Mv2FI4zOA0AdQ15QgEkLp6cJJvwMlsKmzwpU2FWZEcuntY2ktWDPQleUSpAMvxxiR8NGt7ewfTiOXUf5t3srNvy-wxbqQS6pgZ4"/>
+<div>
+<h1 class="text-xl font-bold tracking-tight text-indigo-700 dark:text-indigo-300">Финансы</h1>
+<p class="text-[10px] text-slate-500 uppercase tracking-widest">Семейный капитал</p>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">dashboard</span> Главная
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">receipt_long</span> Операции
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">track_changes</span> Цели
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">favorite</span> Желания
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">savings</span> Подушка
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">analytics</span> Аналитика
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">account_balance_wallet</span> Бюджеты
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">event_repeat</span> Регулярные
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-indigo-700 dark:text-indigo-300 font-bold bg-white dark:bg-slate-800 rounded-lg" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">groups</span> Семья
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">settings</span> Настройки
+            </a>
+</nav>
+<div class="mt-auto space-y-1 pt-4 border-t border-slate-100 dark:border-slate-800">
+<button class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl transition-all active:scale-95 mb-4 shadow-lg shadow-indigo-200">
+<span class="material-symbols-outlined text-sm">add</span> Добавить операцию
+            </button>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">account_circle</span> Профиль
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">logout</span> Выйти
+            </a>
+</div>
+</aside>
+<!-- TopAppBar -->
+<header class="fixed top-0 right-0 left-0 md:left-64 z-30 flex justify-between items-center px-6 py-3 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md shadow-sm dark:shadow-none">
+<div class="flex items-center gap-4">
+<button class="md:hidden p-2 text-slate-600">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<h2 class="font-manrope text-lg font-semibold text-slate-900 dark:text-white">Семья</h2>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-slate-400 hover:opacity-70 transition-opacity active:scale-95">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-slate-400 hover:opacity-70 transition-opacity active:scale-95">
+<span class="material-symbols-outlined">dark_mode</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden bg-slate-200 ring-2 ring-indigo-50">
+<img alt="Текущий пользователь" data-alt="Portrait of a modern professional woman against a clean studio background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBwu0u6jh4Z4EFpJKYwKz8Uzcc7NKDLGoHkha2dJKSmXRuQ9b8P0qo7lgSI1eJeLaLrTGEv5_0ukDuDn9jfxM14_K2XMjbeldQ0y9UQrZZspYty1o-Jx8vCNA0lRrm5G9SHeke7y9moAovl0PR60Kd1akSEJfWySR0uIQ_QPmTFygsaT8FLX6vaoKGCePyIINaCvr-o10zM1YisJGvyjYvzV5p74rPtS6yrUdZIP5Vv1ULEVmtzwpF2d-0M795jeVzc_h-WCkDUj1A"/>
+</div>
+</div>
+</header>
+<!-- Main Content -->
+<main class="md:ml-64 pt-20 pb-24 md:pb-8 px-6 lg:px-12">
+<div class="max-w-6xl mx-auto space-y-12">
+<!-- Hero / Family Card (Bento-style layout) -->
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<div class="lg:col-span-2 relative overflow-hidden bg-gradient-to-br from-primary to-primary-container p-8 rounded-[2rem] text-white shadow-xl shadow-indigo-100">
+<div class="relative z-10">
+<span class="inline-block px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[10px] font-bold tracking-widest uppercase mb-4">Активная семья</span>
+<h3 class="text-4xl font-manrope font-extrabold mb-2 tracking-tight">Семья Ивановых</h3>
+<p class="text-white/80 text-sm mb-8 max-w-sm">Общий бюджет и цели синхронизированы между всеми участниками.</p>
+<div class="flex items-center gap-4 bg-white/10 backdrop-blur-md border border-white/10 p-4 rounded-2xl w-full max-w-md">
+<div class="flex-1">
+<p class="text-[10px] uppercase tracking-wider text-white/60 mb-1">Код приглашения</p>
+<p class="font-mono text-xl tracking-[0.2em] font-bold">FAM-829-QX1</p>
+</div>
+<button class="p-3 bg-white text-primary rounded-xl hover:bg-indigo-50 transition-colors active:scale-90">
+<span class="material-symbols-outlined">content_copy</span>
+</button>
+</div>
+</div>
+<!-- Decorative Element -->
+<div class="absolute -bottom-12 -right-12 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
+</div>
+<div class="bg-surface-container-low p-8 rounded-[2rem] flex flex-col justify-between border border-transparent">
+<div>
+<h4 class="font-manrope text-xl font-bold mb-4 text-on-surface">Статус подписки</h4>
+<p class="text-sm text-on-surface-variant leading-relaxed">Ваша семья использует тариф <span class="font-bold text-secondary">Premium Family</span>. Доступно еще 3 места для участников.</p>
+</div>
+<button class="mt-6 py-3 px-6 bg-secondary-container text-on-secondary-container font-semibold rounded-xl hover:opacity-90 transition-opacity">
+                        Улучшить план
+                    </button>
+</div>
+</section>
+<!-- Member List & Invitation Management -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-12">
+<!-- Member List (Left side, wider) -->
+<div class="lg:col-span-2">
+<div class="flex items-center justify-between mb-8">
+<h3 class="font-manrope text-2xl font-bold tracking-tight">Участники</h3>
+<span class="text-sm font-medium text-slate-400">3 человека</span>
+</div>
+<div class="space-y-3">
+<!-- Member Item -->
+<div class="group flex items-center gap-4 p-4 bg-surface-container-lowest rounded-2xl transition-all hover:bg-white hover:shadow-md">
+<img alt="Avatar" class="w-12 h-12 rounded-full object-cover ring-2 ring-primary/10" data-alt="Close-up portrait of a woman with blond hair, warm lighting, blurred background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCm6V3mEAYzaYdMCs6LG9_RQ1qwo1UJ5KgDfH9R_WDIZq8JsNaIg_1OI68PWFI6H6G0tYu7f8VYYeRehqY9slmYOkO-iUjhTe9U-My2lqubucqLGlK4fKopWJ_fAdOXKuFVXzb51a4aHmsuRaQPaPM8e342_PHyvcAt-MvRY_gUCAklIFGH1OSyy3Am2G4aY324XIUeAnPufpPRPOPPH4svuaRi_Gt59ZKpLBB3EJ-F6EusvZb8y6qJPeHmL4ZSMFi-BaFUls8KuvA"/>
+<div class="flex-1">
+<p class="font-semibold text-slate-900">Елена Иванова</p>
+<p class="text-xs text-slate-500">elena.i@example.com</p>
+</div>
+<span class="px-3 py-1 bg-indigo-50 text-indigo-600 text-[10px] font-bold uppercase tracking-widest rounded-full">Владелец</span>
+<div class="w-10"></div> <!-- Placeholder to match button space -->
+</div>
+<!-- Member Item -->
+<div class="group flex items-center gap-4 p-4 bg-surface-container-low rounded-2xl transition-all hover:bg-white hover:shadow-md">
+<img alt="Avatar" class="w-12 h-12 rounded-full object-cover" data-alt="Young man with short brown hair, outdoor sunlight, casual attire, high quality photography" src="https://lh3.googleusercontent.com/aida-public/AB6AXuADrYGczSAs9kxFpyHAE-wHceuBoa-izDNqUHt7cyhKr9P6yCmh8FXoEOdN40GSzQesQ_iKWDLBQrFtPklOFQCb42SeEYP7iLVWaJnQtMVgTsgT4Xqg81LfNfj7Ob0jzKuC8ueKfC0U-MK4SqG2h8T63XC9xmWRFJirsC-yo5gZbdvydaI4pRIcweeQwRSK6tQJQufVoycAaNHcS38QUCJ53aNKr4yMquvFYkL_7xZpRikJAVT9JsfAC9TIDUBWjlitvOvOhDN0QPQ"/>
+<div class="flex-1">
+<p class="font-semibold text-slate-900">Александр Иванов</p>
+<p class="text-xs text-slate-500">alex.ivanov@mail.ru</p>
+</div>
+<span class="px-3 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-widest rounded-full">Участник</span>
+<button class="p-2 text-slate-300 hover:text-error transition-colors opacity-0 group-hover:opacity-100 active:scale-90">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+<!-- Member Item -->
+<div class="group flex items-center gap-4 p-4 bg-surface-container-low rounded-2xl transition-all hover:bg-white hover:shadow-md">
+<img alt="Avatar" class="w-12 h-12 rounded-full object-cover" data-alt="Portrait of a teenage girl with a happy expression, soft evening light, blurred park background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuChdj32i-LxXMOifDd107_KaUFFYMCB72_REAQVTobwrGxS7Wnf5Ddz1H0ggrbwJ04LJwDubb8zpxEFekyW-IxZVZ4XgAX0XANk2Cl8GLpBQ_6fvhORNxF7KB694t6o3neSlyIkNXli6w02uGgwgRbcoRoDxAZjb9FqbsjEsAxOPInFULy6VwUBisZuLYhCIgyBMvONKM6Hwu1tNoVzvYDyUZzkzDqgnFtbT1yQXGZ1Nomh6e0K6CvEtMdB9ybvolda87tWYF7F5pg"/>
+<div class="flex-1">
+<p class="font-semibold text-slate-900">Мария Иванова</p>
+<p class="text-xs text-slate-500">masha2010@mail.ru</p>
+</div>
+<span class="px-3 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold uppercase tracking-widest rounded-full">Участник</span>
+<button class="p-2 text-slate-300 hover:text-error transition-colors opacity-0 group-hover:opacity-100 active:scale-90">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Invitation Management (Right side, narrow) -->
+<div>
+<div class="flex items-center justify-between mb-8">
+<h3 class="font-manrope text-xl font-bold tracking-tight">Приглашения</h3>
+<button class="flex items-center gap-1 text-primary hover:opacity-70 transition-opacity text-sm font-bold">
+<span class="material-symbols-outlined text-sm">add</span> Создать
+                        </button>
+</div>
+<div class="space-y-4">
+<!-- Invite Code Card -->
+<div class="p-5 bg-white rounded-2xl shadow-sm border border-slate-50">
+<div class="flex items-center justify-between mb-3">
+<span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Код активен</span>
+<span class="text-[10px] font-medium text-slate-400">До 12 Окт</span>
+</div>
+<p class="font-mono text-lg font-bold text-slate-800 mb-4">INV-PRM-992</p>
+<div class="flex gap-2">
+<button class="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg hover:bg-indigo-100 transition-colors">
+<span class="material-symbols-outlined text-base">content_copy</span> Копировать
+                                </button>
+<button class="p-2 text-slate-400 hover:text-error hover:bg-error-container/20 rounded-lg transition-all">
+<span class="material-symbols-outlined text-base">cancel</span>
+</button>
+</div>
+</div>
+<!-- Invite Code Card -->
+<div class="p-5 bg-white rounded-2xl shadow-sm border border-slate-50">
+<div class="flex items-center justify-between mb-3">
+<span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Код активен</span>
+<span class="text-[10px] font-medium text-slate-400">До 15 Окт</span>
+</div>
+<p class="font-mono text-lg font-bold text-slate-800 mb-4">INV-KID-441</p>
+<div class="flex gap-2">
+<button class="flex-1 flex items-center justify-center gap-2 py-2 px-3 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg hover:bg-indigo-100 transition-colors">
+<span class="material-symbols-outlined text-base">content_copy</span> Копировать
+                                </button>
+<button class="p-2 text-slate-400 hover:text-error hover:bg-error-container/20 rounded-lg transition-all">
+<span class="material-symbols-outlined text-base">cancel</span>
+</button>
+</div>
+</div>
+<!-- Info box -->
+<div class="p-4 bg-secondary/5 rounded-2xl flex gap-3">
+<span class="material-symbols-outlined text-secondary text-xl">info</span>
+<p class="text-xs text-on-secondary-fixed-variant leading-relaxed">Коды приглашения действительны в течение 7 дней. После активации код автоматически аннулируется.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl shadow-[0_-10px_30px_rgba(0,0,0,0.05)] rounded-t-3xl border-t border-slate-100 dark:border-slate-800 md:hidden">
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider mt-1">Главная</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider mt-1">Операции</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">track_changes</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider mt-1">Цели</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider mt-1">Аналитика</span>
+</a>
+<a class="flex flex-col items-center justify-center text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl px-3 py-1 transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">groups</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider mt-1">Меню</span>
+</a>
+</nav>
+</body></html>

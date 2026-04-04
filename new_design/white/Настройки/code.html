@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+
+<html class="light" lang="ru"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Manrope:wght@500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-container": "#dad7ff",
+                        "on-primary-fixed-variant": "#3323cc",
+                        "surface-container-high": "#dce9ff",
+                        "on-surface-variant": "#464555",
+                        "background": "#f8f9ff",
+                        "on-error": "#ffffff",
+                        "tertiary-fixed-dim": "#ffb3ad",
+                        "primary-fixed-dim": "#c3c0ff",
+                        "secondary": "#006c49",
+                        "secondary-fixed": "#6ffbbe",
+                        "surface-container": "#e5eeff",
+                        "secondary-fixed-dim": "#4edea3",
+                        "on-secondary-fixed": "#002113",
+                        "inverse-primary": "#c3c0ff",
+                        "surface": "#f8f9ff",
+                        "surface-container-lowest": "#ffffff",
+                        "on-tertiary-fixed": "#410004",
+                        "on-tertiary-container": "#ffd0cc",
+                        "surface-bright": "#f8f9ff",
+                        "secondary-container": "#6cf8bb",
+                        "primary": "#3525cd",
+                        "on-secondary-container": "#00714d",
+                        "primary-fixed": "#e2dfff",
+                        "inverse-on-surface": "#eaf1ff",
+                        "error": "#ba1a1a",
+                        "on-error": "#ffffff",
+                        "primary-container": "#4f46e5",
+                        "outline-variant": "#c7c4d8",
+                        "on-tertiary-fixed-variant": "#930013",
+                        "tertiary": "#960014",
+                        "surface-container-highest": "#d3e4fe",
+                        "error-container": "#ffdad6",
+                        "on-error-container": "#93000a",
+                        "tertiary-container": "#bc1d25",
+                        "surface-container-low": "#eff4ff",
+                        "surface-tint": "#4d44e3",
+                        "on-secondary-fixed-variant": "#005236",
+                        "on-secondary": "#ffffff",
+                        "surface-dim": "#cbdbf5",
+                        "on-surface": "#0b1c30",
+                        "on-primary-fixed": "#0f0069",
+                        "on-background": "#0b1c30",
+                        "inverse-surface": "#213145",
+                        "tertiary-fixed": "#ffdad7",
+                        "outline": "#777587",
+                        "on-tertiary": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f9ff;
+        }
+        h1, h2, h3 {
+            font-family: 'Manrope', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 bottom-0 z-40 flex flex-col p-4 w-64 h-full bg-slate-50 dark:bg-slate-900 border-r-0 font-manrope text-sm font-medium tracking-tight">
+<div class="flex items-center gap-3 px-2 mb-8">
+<div class="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center text-white">
+<span class="material-symbols-outlined" data-icon="account_balance">account_balance</span>
+</div>
+<div>
+<div class="text-xl font-bold tracking-tight text-indigo-700 dark:text-indigo-300">Финансы</div>
+<div class="text-[10px] text-slate-500 uppercase tracking-widest">Семейный капитал</div>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span>Главная</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">receipt_long</span>
+<span>Операции</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">track_changes</span>
+<span>Цели</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">favorite</span>
+<span>Желания</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">savings</span>
+<span>Подушка</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span>Аналитика</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span>Бюджеты</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">event_repeat</span>
+<span>Регулярные</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined">groups</span>
+<span>Семья</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-indigo-700 dark:text-indigo-300 font-bold bg-white dark:bg-slate-800 rounded-lg" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span>Настройки</span>
+</a>
+</nav>
+<div class="mt-auto space-y-1 pt-4 border-t border-slate-200 dark:border-slate-800">
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 hover:text-slate-900 transition-colors" href="#">
+<span class="material-symbols-outlined">account_circle</span>
+<span>Профиль</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 hover:text-slate-900 transition-colors" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span>Выйти</span>
+</a>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="md:ml-64 min-h-screen pb-24 md:pb-0">
+<!-- TopAppBar -->
+<header class="fixed top-0 right-0 left-0 md:left-64 z-30 flex justify-between items-center px-6 py-3 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md shadow-sm dark:shadow-none">
+<h1 class="font-manrope text-lg font-semibold text-slate-900 dark:text-white">Настройки</h1>
+<div class="flex items-center gap-4">
+<button class="p-2 text-slate-500 hover:opacity-70 transition-opacity active:scale-95 duration-200">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-slate-500 hover:opacity-70 transition-opacity active:scale-95 duration-200">
+<span class="material-symbols-outlined">dark_mode</span>
+</button>
+<img alt="Profile" class="w-8 h-8 rounded-full border-2 border-indigo-100" data-alt="Close-up portrait of a professional man with a friendly expression in a brightly lit modern office setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAdA6ns064gxO1UT2W0rw0GLaSE8uu_b0ym5KXq87z0CYxVgbYepJe1ccxSEjRcyxZHZ6pvNzbSGTSc5yY2Fy8ggAT6IL6A6D09SdMGMxLSJsefSJQtID2nB6dfezKGRl4GKBJnfAFtIYGdUOddbNB3ZcVu8Qlt8PeWfF_YoH3yxZif98nESS1iCZgMc4z2JrUqkukY4dWd_p1FHFAdjwWIXHmMCK_TRH2sVKOCAy8NWJc8eiICofkFfKPFlhyoadjAMmj0dz7udV0"/>
+</div>
+</header>
+<!-- Content Area -->
+<div class="pt-20 px-6 pb-12 max-w-6xl mx-auto">
+<!-- Secondary Navigation (Tabs) -->
+<div class="flex gap-8 mb-8 overflow-x-auto pb-2 scrollbar-hide border-b border-surface-container">
+<button class="pb-4 text-primary font-semibold border-b-2 border-primary whitespace-nowrap">Профиль</button>
+<button class="pb-4 text-outline hover:text-on-surface transition-colors whitespace-nowrap">Уведомления</button>
+<button class="pb-4 text-outline hover:text-on-surface transition-colors whitespace-nowrap">Категории</button>
+<button class="pb-4 text-outline hover:text-on-surface transition-colors whitespace-nowrap">Оформление</button>
+</div>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+<!-- Profile Section -->
+<div class="lg:col-span-8 space-y-6">
+<div class="bg-surface-container-lowest p-8 rounded-xl shadow-sm">
+<h2 class="text-xl font-headline font-bold mb-6">Личные данные</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-1">
+<label class="text-xs font-label font-semibold text-outline uppercase tracking-wider">Имя пользователя</label>
+<div class="bg-surface-container-low px-4 py-3 rounded-lg text-on-surface font-medium border border-outline-variant/20">
+                                    Александр Константинопольский
+                                </div>
+</div>
+<div class="space-y-1">
+<label class="text-xs font-label font-semibold text-outline uppercase tracking-wider">Электронная почта</label>
+<div class="bg-surface-container-low px-4 py-3 rounded-lg text-on-surface font-medium border border-outline-variant/20">
+                                    alex.k@finance.ru
+                                </div>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-8 rounded-xl shadow-sm">
+<h2 class="text-xl font-headline font-bold mb-6">Безопасность</h2>
+<form class="space-y-4">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div class="space-y-2">
+<label class="text-sm font-label text-on-surface">Текущий пароль</label>
+<input class="w-full bg-surface border-outline-variant/30 rounded-lg px-4 py-2 focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all outline-none" placeholder="••••••••" type="password"/>
+</div>
+<div class="space-y-2">
+<label class="text-sm font-label text-on-surface">Новый пароль</label>
+<input class="w-full bg-surface border-outline-variant/30 rounded-lg px-4 py-2 focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all outline-none" placeholder="Минимум 8 символов" type="password"/>
+</div>
+</div>
+<button class="mt-4 px-6 py-2.5 bg-gradient-to-r from-primary to-primary-container text-white font-semibold rounded-lg hover:opacity-90 transition-opacity" type="submit">
+                                Обновить пароль
+                            </button>
+</form>
+</div>
+</div>
+<!-- Appearance & Notifications Aside -->
+<div class="lg:col-span-4 space-y-6">
+<!-- Theme Toggle -->
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border-l-4 border-secondary">
+<h3 class="text-lg font-headline font-bold mb-4">Оформление</h3>
+<div class="flex items-center justify-between p-3 bg-surface-container-low rounded-lg">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-secondary">contrast</span>
+<span class="font-medium text-sm">Темная тема</span>
+</div>
+<button class="w-12 h-6 bg-outline-variant/30 rounded-full relative transition-colors">
+<span class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow-sm"></span>
+</button>
+</div>
+</div>
+<!-- Notification Toggles -->
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm">
+<h3 class="text-lg font-headline font-bold mb-4">Уведомления</h3>
+<div class="space-y-3">
+<div class="flex items-center justify-between p-3 border-b border-surface-container last:border-0">
+<div class="flex flex-col">
+<span class="text-sm font-semibold">Цели</span>
+<span class="text-xs text-outline">Прогресс накоплений</span>
+</div>
+<button class="w-10 h-5 bg-secondary-container rounded-full relative">
+<span class="absolute right-1 top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"></span>
+</button>
+</div>
+<div class="flex items-center justify-between p-3 border-b border-surface-container last:border-0">
+<div class="flex flex-col">
+<span class="text-sm font-semibold">Желания</span>
+<span class="text-xs text-outline">Скидки на товары</span>
+</div>
+<button class="w-10 h-5 bg-outline-variant/30 rounded-full relative">
+<span class="absolute left-1 top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"></span>
+</button>
+</div>
+<div class="flex items-center justify-between p-3 border-b border-surface-container last:border-0">
+<div class="flex flex-col">
+<span class="text-sm font-semibold">Бюджеты</span>
+<span class="text-xs text-outline">Превышение лимитов</span>
+</div>
+<button class="w-10 h-5 bg-secondary-container rounded-full relative">
+<span class="absolute right-1 top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"></span>
+</button>
+</div>
+<div class="flex items-center justify-between p-3">
+<div class="flex flex-col">
+<span class="text-sm font-semibold">Регулярные</span>
+<span class="text-xs text-outline">Предстоящие платежи</span>
+</div>
+<button class="w-10 h-5 bg-secondary-container rounded-full relative">
+<span class="absolute right-1 top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"></span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Categories Section (Full Width Below) -->
+<div class="lg:col-span-12">
+<div class="bg-surface-container-lowest p-8 rounded-xl shadow-sm">
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+<div>
+<h2 class="text-2xl font-headline font-bold">Категории операций</h2>
+<p class="text-outline text-sm">Управляйте структурой ваших расходов и доходов</p>
+</div>
+<button class="flex items-center gap-2 px-5 py-2.5 bg-primary-container text-white rounded-lg font-semibold text-sm">
+<span class="material-symbols-outlined text-lg">add</span>
+                                Добавить категорию
+                            </button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+<!-- System Categories -->
+<div class="p-4 bg-surface rounded-xl border border-outline-variant/20">
+<div class="flex items-center justify-between mb-3">
+<span class="px-2 py-0.5 text-[10px] font-bold bg-surface-container-high text-primary rounded uppercase">Системная</span>
+<span class="material-symbols-outlined text-outline text-sm">lock</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+<span class="material-symbols-outlined">shopping_cart</span>
+</div>
+<div>
+<div class="font-bold">Продукты</div>
+<div class="text-xs text-outline">Супермаркеты, рынки</div>
+</div>
+</div>
+</div>
+<div class="p-4 bg-surface rounded-xl border border-outline-variant/20">
+<div class="flex items-center justify-between mb-3">
+<span class="px-2 py-0.5 text-[10px] font-bold bg-surface-container-high text-primary rounded uppercase">Системная</span>
+<span class="material-symbols-outlined text-outline text-sm">lock</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600">
+<span class="material-symbols-outlined">directions_car</span>
+</div>
+<div>
+<div class="font-bold">Транспорт</div>
+<div class="text-xs text-outline">Такси, топливо, метро</div>
+</div>
+</div>
+</div>
+<!-- User Category -->
+<div class="p-4 bg-surface-container-lowest rounded-xl border-2 border-dashed border-outline-variant/40 hover:border-primary/40 transition-colors cursor-pointer group">
+<div class="flex items-center justify-between mb-3">
+<span class="px-2 py-0.5 text-[10px] font-bold bg-indigo-50 text-indigo-600 rounded uppercase">Пользовательская</span>
+<span class="material-symbols-outlined text-outline text-sm group-hover:text-primary">edit</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+<span class="material-symbols-outlined">brush</span>
+</div>
+<div>
+<div class="font-bold">Хобби и творчество</div>
+<div class="text-xs text-outline">Краски, курсы, музыка</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 md:hidden bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl shadow-[0_-10px_30px_rgba(0,0,0,0.05)] rounded-t-3xl border-t border-slate-100 dark:border-slate-800">
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 font-inter text-[10px] font-semibold uppercase tracking-wider" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="mt-1">Главная</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 font-inter text-[10px] font-semibold uppercase tracking-wider" href="#">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="mt-1">Операции</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 font-inter text-[10px] font-semibold uppercase tracking-wider" href="#">
+<span class="material-symbols-outlined">track_changes</span>
+<span class="mt-1">Цели</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 font-inter text-[10px] font-semibold uppercase tracking-wider" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="mt-1">Аналитика</span>
+</a>
+<a class="flex flex-col items-center justify-center text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl px-3 py-1 font-inter text-[10px] font-semibold uppercase tracking-wider" href="#">
+<span class="material-symbols-outlined">menu</span>
+<span class="mt-1">Меню</span>
+</a>
+</nav>
+</body></html>

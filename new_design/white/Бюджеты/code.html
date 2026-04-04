@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+
+<html lang="ru"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Финансы — Бюджеты</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary-container": "#dad7ff",
+                    "on-primary-fixed-variant": "#3323cc",
+                    "surface-container-high": "#dce9ff",
+                    "on-surface-variant": "#464555",
+                    "background": "#f8f9ff",
+                    "on-error": "#ffffff",
+                    "tertiary-fixed-dim": "#ffb3ad",
+                    "primary-fixed-dim": "#c3c0ff",
+                    "secondary": "#006c49",
+                    "secondary-fixed": "#6ffbbe",
+                    "surface-container": "#e5eeff",
+                    "secondary-fixed-dim": "#4edea3",
+                    "on-secondary-fixed": "#002113",
+                    "inverse-primary": "#c3c0ff",
+                    "surface": "#f8f9ff",
+                    "surface-container-lowest": "#ffffff",
+                    "on-tertiary-fixed": "#410004",
+                    "on-tertiary-container": "#ffd0cc",
+                    "surface-bright": "#f8f9ff",
+                    "secondary-container": "#6cf8bb",
+                    "primary": "#3525cd",
+                    "on-secondary-container": "#00714d",
+                    "primary-fixed": "#e2dfff",
+                    "inverse-on-surface": "#eaf1ff",
+                    "error": "#ba1a1a",
+                    "on-error-container": "#93000a",
+                    "on-primary": "#ffffff",
+                    "primary-container": "#4f46e5",
+                    "outline-variant": "#c7c4d8",
+                    "on-tertiary-fixed-variant": "#930013",
+                    "tertiary": "#960014",
+                    "surface-container-highest": "#d3e4fe",
+                    "error-container": "#ffdad6",
+                    "tertiary-container": "#bc1d25",
+                    "surface-container-low": "#eff4ff",
+                    "surface-tint": "#4d44e3",
+                    "on-secondary-fixed-variant": "#005236",
+                    "on-secondary": "#ffffff",
+                    "surface-dim": "#cbdbf5",
+                    "on-surface": "#0b1c30",
+                    "on-primary-fixed": "#0f0069",
+                    "on-background": "#0b1c30",
+                    "inverse-surface": "#213145",
+                    "tertiary-fixed": "#ffdad7",
+                    "outline": "#777587",
+                    "on-tertiary": "#ffffff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Manrope"],
+                    "body": ["Inter"],
+                    "label": ["Inter"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3 { font-family: 'Manrope', sans-serif; }
+    </style>
+</head>
+<body class="bg-surface text-on-surface">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 bottom-0 z-40 flex flex-col p-4 w-64 h-full border-r-0 bg-slate-50 dark:bg-slate-900 font-manrope text-sm font-medium tracking-tight">
+<div class="flex items-center gap-3 px-2 mb-8">
+<div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">account_balance</span>
+</div>
+<div>
+<div class="text-xl font-bold tracking-tight text-indigo-700 dark:text-indigo-300">Финансы</div>
+<div class="text-[10px] text-slate-500 uppercase tracking-widest">Семейный капитал</div>
+</div>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+                Главная
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+                Операции
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="track_changes">track_changes</span>
+                Цели
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="favorite">favorite</span>
+                Желания
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="savings">savings</span>
+                Подушка
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+                Аналитика
+            </a>
+<!-- Active Tab: Бюджеты -->
+<a class="flex items-center gap-3 px-3 py-2 text-indigo-700 dark:text-indigo-300 font-bold bg-white dark:bg-slate-800 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="account_balance_wallet" style="font-variation-settings: 'FILL' 1;">account_balance_wallet</span>
+                Бюджеты
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="event_repeat">event_repeat</span>
+                Регулярные
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="groups">groups</span>
+                Семья
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+                Настройки
+            </a>
+</nav>
+<div class="mt-auto space-y-1">
+<button class="w-full bg-primary-container text-white rounded-xl py-3 flex items-center justify-center gap-2 mb-6 active:scale-95 transition-transform shadow-md shadow-indigo-200">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+                Добавить операцию
+            </button>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+                Профиль
+            </a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+                Выйти
+            </a>
+</div>
+</aside>
+<!-- TopAppBar -->
+<header class="fixed top-0 right-0 left-0 md:left-64 z-30 flex justify-between items-center px-6 py-3 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md shadow-sm dark:shadow-none">
+<div class="flex items-center gap-4">
+<h1 class="font-manrope text-lg font-semibold text-slate-900 dark:text-white">Бюджеты</h1>
+<div class="h-4 w-[1px] bg-outline-variant mx-2"></div>
+<div class="flex items-center gap-2 bg-surface-container-low px-3 py-1.5 rounded-full cursor-pointer hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="calendar_month">calendar_month</span>
+<span class="text-sm font-medium">Сентябрь 2023</span>
+<span class="material-symbols-outlined text-sm" data-icon="expand_more">expand_more</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 hover:opacity-70 transition-opacity text-slate-600">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 hover:opacity-70 transition-opacity text-slate-600">
+<span class="material-symbols-outlined" data-icon="dark_mode">dark_mode</span>
+</button>
+<img alt="Текущий пользователь" class="w-8 h-8 rounded-full object-cover" data-alt="Close-up portrait of a professional man with a friendly expression in a clean studio lighting setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBKTSzicNe0UylcH4E7gOefp9mGXOyPD_4i62VJnmi1WnRZq5RU_e2LY1CY_hTMVYU21QhbuKeruI3Gxqc2X3Xv96Xdor3mlPw18FH62NiEBDtsMVcK4YFyteGaDI2kY_PB48GQb27949O3ciGxZtwwngl4LvDySKB4ArJKYZy_F3Hxec3sg-g2rHqbnXZPG-s8gqD1QwhMEeLxdLYUxAC8A8xSpNsQQ8XGNPqQ2lNXduCoBwDF0xzuKbm6iXTslxYH6R6o6cosuk0"/>
+</div>
+</header>
+<!-- Main Content -->
+<main class="md:ml-64 pt-20 pb-24 px-6 min-h-screen">
+<!-- Header Actions -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+<div>
+<h2 class="text-3xl font-bold font-headline text-on-surface">Управление бюджетом</h2>
+<p class="text-on-surface-variant font-body">Распределите ваши средства для финансовой свободы</p>
+</div>
+<button class="bg-primary text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2 shadow-lg shadow-indigo-100 hover:shadow-indigo-200 transition-all active:scale-95">
+<span class="material-symbols-outlined" data-icon="add_circle">add_circle</span>
+                Создать бюджет
+            </button>
+</div>
+<!-- Metric Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+<!-- Income Card -->
+<div class="bg-surface-container-lowest p-6 rounded-[1.5rem] relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-6xl text-secondary" data-icon="trending_up">trending_up</span>
+</div>
+<span class="text-label-md font-semibold text-secondary uppercase tracking-wider">Доходы</span>
+<div class="mt-2 mb-4">
+<span class="text-2xl font-extrabold font-headline">450 000 ₽</span>
+<span class="text-sm text-on-surface-variant block">из 400 000 ₽ запланировано</span>
+</div>
+<div class="w-full bg-surface-container-high h-2 rounded-full overflow-hidden">
+<div class="bg-secondary h-full w-full"></div>
+</div>
+<div class="mt-4 flex justify-between items-center text-xs font-medium">
+<span class="text-secondary">+12.5% к плану</span>
+<span class="text-on-surface-variant">Профицит</span>
+</div>
+</div>
+<!-- Expenses Card -->
+<div class="bg-surface-container-lowest p-6 rounded-[1.5rem] relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-6xl text-primary" data-icon="shopping_cart">shopping_cart</span>
+</div>
+<span class="text-label-md font-semibold text-primary uppercase tracking-wider">Расходы</span>
+<div class="mt-2 mb-4">
+<span class="text-2xl font-extrabold font-headline text-on-surface">182 400 ₽</span>
+<span class="text-sm text-on-surface-variant block">из 210 000 ₽ лимита</span>
+</div>
+<div class="w-full bg-surface-container-high h-2 rounded-full overflow-hidden">
+<div class="bg-primary h-full w-[86%]"></div>
+</div>
+<div class="mt-4 flex justify-between items-center text-xs font-medium">
+<span class="text-primary">86% использовано</span>
+<span class="text-on-surface-variant">Осталось 27 600 ₽</span>
+</div>
+</div>
+<!-- Savings Card -->
+<div class="bg-surface-container-lowest p-6 rounded-[1.5rem] relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-6xl text-on-surface-variant" data-icon="savings">savings</span>
+</div>
+<span class="text-label-md font-semibold text-on-surface-variant uppercase tracking-wider">Сбережения</span>
+<div class="mt-2 mb-4">
+<span class="text-2xl font-extrabold font-headline text-on-surface">65 000 ₽</span>
+<span class="text-sm text-on-surface-variant block">в этом месяце</span>
+</div>
+<div class="flex gap-1">
+<div class="h-1 flex-1 bg-secondary rounded-full"></div>
+<div class="h-1 flex-1 bg-secondary rounded-full"></div>
+<div class="h-1 flex-1 bg-surface-container-high rounded-full"></div>
+<div class="h-1 flex-1 bg-surface-container-high rounded-full"></div>
+</div>
+<div class="mt-4 text-xs font-medium text-secondary">Выполнено на 50%</div>
+</div>
+<!-- Free Cash Card -->
+<div class="bg-primary-container p-6 rounded-[1.5rem] relative overflow-hidden text-white shadow-xl shadow-indigo-100">
+<div class="absolute top-0 right-0 p-4 opacity-20">
+<span class="material-symbols-outlined text-6xl" data-icon="account_balance_wallet">account_balance_wallet</span>
+</div>
+<span class="text-label-md font-semibold opacity-80 uppercase tracking-wider">Свободный остаток</span>
+<div class="mt-2 mb-4">
+<span class="text-3xl font-extrabold font-headline">202 600 ₽</span>
+<span class="text-sm opacity-80 block">Доступно для распределения</span>
+</div>
+<button class="bg-white/20 backdrop-blur-sm border border-white/30 text-white px-4 py-2 rounded-lg text-xs font-bold w-full hover:bg-white/30 transition-colors">
+                    РАСПРЕДЕЛИТЬ
+                </button>
+</div>
+</div>
+<!-- Budget Table Container -->
+<div class="bg-surface-container-lowest rounded-[1.5rem] overflow-hidden">
+<div class="px-8 py-6 border-b-0 flex justify-between items-center">
+<h3 class="text-xl font-bold font-headline">Детализация по категориям</h3>
+<div class="flex gap-2">
+<button class="p-2 hover:bg-surface-container-low rounded-lg transition-colors text-outline">
+<span class="material-symbols-outlined" data-icon="filter_list">filter_list</span>
+</button>
+<button class="p-2 hover:bg-surface-container-low rounded-lg transition-colors text-outline">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low/50">
+<th class="px-8 py-4 text-label-md font-semibold text-outline uppercase tracking-wider">Тип / Категория</th>
+<th class="px-8 py-4 text-label-md font-semibold text-outline uppercase tracking-wider">План</th>
+<th class="px-8 py-4 text-label-md font-semibold text-outline uppercase tracking-wider">Факт</th>
+<th class="px-8 py-4 text-label-md font-semibold text-outline uppercase tracking-wider">Прогресс</th>
+<th class="px-8 py-4 text-label-md font-semibold text-outline uppercase tracking-wider text-right">Действия</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container-low">
+<!-- Row 1: Healthy Budget -->
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-8 py-5">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="restaurant">restaurant</span>
+</div>
+<div>
+<div class="font-bold text-on-surface">Продукты</div>
+<div class="text-xs text-on-surface-variant">Расход</div>
+</div>
+</div>
+</td>
+<td class="px-8 py-5 font-medium">45 000 ₽</td>
+<td class="px-8 py-5 font-bold">32 400 ₽</td>
+<td class="px-8 py-5 w-64">
+<div class="flex flex-col gap-1">
+<div class="w-full bg-surface-container-high h-1.5 rounded-full overflow-hidden">
+<div class="bg-primary h-full" style="width: 72%"></div>
+</div>
+<span class="text-[10px] font-semibold text-primary">72%</span>
+</div>
+</td>
+<td class="px-8 py-5">
+<div class="flex justify-end gap-2">
+<button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container text-outline transition-colors"><span class="material-symbols-outlined text-lg" data-icon="edit">edit</span></button>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-error-container hover:text-error text-outline transition-colors"><span class="material-symbols-outlined text-lg" data-icon="delete">delete</span></button>
+</div>
+</td>
+</tr>
+<!-- Row 2: Overspent Budget -->
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-8 py-5">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center text-error">
+<span class="material-symbols-outlined" data-icon="theater_comedy">theater_comedy</span>
+</div>
+<div>
+<div class="font-bold text-on-surface">Развлечения</div>
+<div class="text-xs text-on-surface-variant">Расход</div>
+</div>
+</div>
+</td>
+<td class="px-8 py-5 font-medium">15 000 ₽</td>
+<td class="px-8 py-5 font-bold text-error">18 500 ₽</td>
+<td class="px-8 py-5 w-64">
+<div class="flex flex-col gap-1">
+<div class="w-full bg-error-container h-1.5 rounded-full overflow-hidden">
+<div class="bg-error h-full" style="width: 100%"></div>
+</div>
+<span class="text-[10px] font-semibold text-error">Превышение на 3 500 ₽</span>
+</div>
+</td>
+<td class="px-8 py-5">
+<div class="flex justify-end gap-2">
+<button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container text-outline transition-colors"><span class="material-symbols-outlined text-lg" data-icon="edit">edit</span></button>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-error-container hover:text-error text-outline transition-colors"><span class="material-symbols-outlined text-lg" data-icon="delete">delete</span></button>
+</div>
+</td>
+</tr>
+<!-- Row 3: Income Category -->
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-8 py-5">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+</div>
+<div>
+<div class="font-bold text-on-surface">Зарплата</div>
+<div class="text-xs text-on-surface-variant">Доход</div>
+</div>
+</div>
+</td>
+<td class="px-8 py-5 font-medium">350 000 ₽</td>
+<td class="px-8 py-5 font-bold">350 000 ₽</td>
+<td class="px-8 py-5 w-64">
+<div class="flex flex-col gap-1">
+<div class="w-full bg-surface-container-high h-1.5 rounded-full overflow-hidden">
+<div class="bg-secondary h-full" style="width: 100%"></div>
+</div>
+<span class="text-[10px] font-semibold text-secondary">100% получено</span>
+</div>
+</td>
+<td class="px-8 py-5">
+<div class="flex justify-end gap-2">
+<button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container text-outline transition-colors"><span class="material-symbols-outlined text-lg" data-icon="edit">edit</span></button>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-error-container hover:text-error text-outline transition-colors"><span class="material-symbols-outlined text-lg" data-icon="delete">delete</span></button>
+</div>
+</td>
+</tr>
+<!-- Row 4: Utilities -->
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-8 py-5">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="home_work">home_work</span>
+</div>
+<div>
+<div class="font-bold text-on-surface">ЖКХ и Аренда</div>
+<div class="text-xs text-on-surface-variant">Расход</div>
+</div>
+</div>
+</td>
+<td class="px-8 py-5 font-medium">80 000 ₽</td>
+<td class="px-8 py-5 font-bold">78 000 ₽</td>
+<td class="px-8 py-5 w-64">
+<div class="flex flex-col gap-1">
+<div class="w-full bg-surface-container-high h-1.5 rounded-full overflow-hidden">
+<div class="bg-primary h-full" style="width: 97%"></div>
+</div>
+<span class="text-[10px] font-semibold text-primary">97%</span>
+</div>
+</td>
+<td class="px-8 py-5">
+<div class="flex justify-end gap-2">
+<button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container text-outline transition-colors"><span class="material-symbols-outlined text-lg" data-icon="edit">edit</span></button>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-error-container hover:text-error text-outline transition-colors"><span class="material-symbols-outlined text-lg" data-icon="delete">delete</span></button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-8 flex justify-center border-t border-surface-container-low">
+<button class="text-primary font-bold text-sm hover:underline flex items-center gap-2">
+                    Смотреть все категории
+                    <span class="material-symbols-outlined text-sm" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+</div>
+</main>
+<!-- BottomNavBar (Mobile only) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 md:hidden bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl shadow-[0_-10px_30px_rgba(0,0,0,0.05)] rounded-t-3xl">
+<button class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 active:bg-slate-100 transition-all">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider">Главная</span>
+</button>
+<button class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 active:bg-slate-100 transition-all">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider">Опер.</span>
+</button>
+<button class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 active:bg-slate-100 transition-all">
+<span class="material-symbols-outlined" data-icon="track_changes">track_changes</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider">Цели</span>
+</button>
+<button class="flex flex-col items-center justify-center text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl px-3 py-1 transition-all">
+<span class="material-symbols-outlined" data-icon="account_balance_wallet" style="font-variation-settings: 'FILL' 1;">account_balance_wallet</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider">Бюджет</span>
+</button>
+<button class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 active:bg-slate-100 transition-all">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider">Меню</span>
+</button>
+</nav>
+</body></html>

@@ -1,17 +1,11 @@
+import { Link } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import api from '../services/api';
 import Modal from '../components/Modal';
 import { useForm } from 'react-hook-form';
 import { formatMoney } from '../utils/format';
-import SectionHeader from '../components/ui/SectionHeader';
-import Card from '../components/ui/Card';
-import Button from '../components/ui/Button';
-import Input from '../components/ui/Input';
-import EmptyState from '../components/ui/EmptyState';
 
-function currentMonth() {
-  return new Date().toISOString().slice(0, 7);
-}
+function currentMonth() { return new Date().toISOString().slice(0, 7); }
 
 export default function Budgets() {
   const [month, setMonth] = useState(currentMonth());
@@ -30,166 +24,182 @@ export default function Budgets() {
       ]);
       setItems(budgetsRes.data?.items || []);
       setCategories(catRes.data || []);
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || 'Ошибка');
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month]);
+  useEffect(() => { fetchData(); }, [month]);
 
   const onCreate = async (data) => {
     try {
-      await api.post('/budgets', {
-        month,
-        type: data.type,
-        category_id: Number(data.category_id),
-        limit_amount: Number(data.limit_amount),
-      });
-      setModalOpen(false);
-      reset();
-      fetchData();
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || 'Ошибка');
-    }
+      await api.post('/budgets', { month, type: data.type, category_id: Number(data.category_id), limit_amount: Number(data.limit_amount) });
+      setModalOpen(false); reset(); fetchData();
+    } catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
   };
 
   const onUpdate = async (id, nextLimit) => {
-    try {
-      await api.put(`/budgets/${id}`, { limit_amount: Number(nextLimit) });
-      fetchData();
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || 'Ошибка');
-    }
+    try { await api.put(`/budgets/${id}`, { limit_amount: Number(nextLimit) }); fetchData(); }
+    catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
   };
 
   const onDelete = async (id) => {
     if (!window.confirm('Удалить бюджет?')) return;
-    try {
-      await api.delete(`/budgets/${id}`);
-      fetchData();
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || 'Ошибка');
-    }
+    try { await api.delete(`/budgets/${id}`); fetchData(); }
+    catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
   };
 
   const totals = useMemo(() => {
     const byType = { income: { limit: 0, actual: 0 }, expense: { limit: 0, actual: 0 } };
-    for (const i of items) {
-      byType[i.type].limit += Number(i.limit_amount || 0);
-      byType[i.type].actual += Number(i.actual_amount || 0);
-    }
+    for (const i of items) { byType[i.type].limit += Number(i.limit_amount || 0); byType[i.type].actual += Number(i.actual_amount || 0); }
     return byType;
   }, [items]);
 
-  if (loading) return <div className="text-center py-10">Загрузка...</div>;
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+        <p className="text-on-surface-variant text-sm font-medium">Загрузка...</p>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="space-y-6">
-      <SectionHeader
-        title="Бюджеты"
-        subtitle="План/факт по категориям за месяц."
-        right={
-          <>
-            <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
-            <Button
-              variant="primary"
-              onClick={() => {
-                reset({ type: 'expense' });
-                setModalOpen(true);
-              }}
-            >
-              + Добавить
-            </Button>
-          </>
-        }
-      />
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="p-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Расходы (всего)</p>
-          <p className="text-lg font-semibold text-gray-900 dark:text-white">
-            {formatMoney(totals.expense.actual)} / {formatMoney(totals.expense.limit)} ₽
-          </p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Доходы (всего)</p>
-          <p className="text-lg font-semibold text-gray-900 dark:text-white">
-            {formatMoney(totals.income.actual)} / {formatMoney(totals.income.limit)} ₽
-          </p>
-        </Card>
+    <div className="space-y-8">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-2 text-sm text-on-surface-variant">
+        <Link to="/" className="hover:text-primary transition-colors">Главная</Link>
+        <span className="material-symbols-outlined text-sm">chevron_right</span>
+        <span className="text-on-surface font-medium">Бюджеты</span>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden border border-gray-200 dark:border-gray-700">
+      {/* Section Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-extrabold tracking-tight text-on-surface font-headline">Бюджеты</h2>
+          <p className="text-on-surface-variant text-sm mt-1">План/факт по категориям за месяц</p>
+        </div>
+        <div className="flex gap-2 items-center">
+          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="select-ghost py-2.5 text-sm" />
+          <button onClick={() => { reset({ type: 'expense' }); setModalOpen(true); }} className="btn-primary px-6 py-2.5 flex items-center gap-2 text-sm">
+            <span className="material-symbols-outlined text-sm">add</span>
+            Добавить
+          </button>
+        </div>
+      </div>
+
+      {/* Summary Cards - Bento Grid 4-column */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Income */}
+        <div className="bg-surface-container-lowest p-5 rounded-3xl shadow-card">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center text-secondary">
+              <span className="material-symbols-outlined text-sm">trending_up</span>
+            </div>
+            <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Доходы</p>
+          </div>
+          <p className="text-xl font-extrabold font-headline text-on-surface">{formatMoney(totals.income.actual)} ₽</p>
+          <p className="text-xs text-secondary mt-1 font-semibold">
+            {totals.income.limit > 0 ? `${Math.round((totals.income.actual / totals.income.limit) * 100)}% от плана` : 'Без плана'}
+          </p>
+        </div>
+        {/* Expenses */}
+        <div className="bg-surface-container-lowest p-5 rounded-3xl shadow-card">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 rounded-lg bg-error/10 flex items-center justify-center text-error">
+              <span className="material-symbols-outlined text-sm">trending_down</span>
+            </div>
+            <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Расходы</p>
+          </div>
+          <p className="text-xl font-extrabold font-headline text-on-surface">{formatMoney(totals.expense.actual)} ₽</p>
+          <div className="progress-bar h-1.5 mt-2">
+            <div className={`progress-bar-fill ${totals.expense.limit > 0 && totals.expense.actual > totals.expense.limit ? 'bg-error' : 'bg-primary'}`} style={{ width: `${totals.expense.limit > 0 ? Math.min(100, (totals.expense.actual / totals.expense.limit) * 100) : 0}%` }}></div>
+          </div>
+        </div>
+        {/* Savings */}
+        <div className="bg-surface-container-lowest p-5 rounded-3xl shadow-card">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+              <span className="material-symbols-outlined text-sm">savings</span>
+            </div>
+            <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Накопления</p>
+          </div>
+          <p className="text-xl font-extrabold font-headline text-on-surface">{formatMoney(Math.max(0, totals.income.actual - totals.expense.actual))} ₽</p>
+          <p className="text-xs text-on-surface-variant mt-1">Доходы − Расходы</p>
+        </div>
+        {/* Free Cash */}
+        <div className="bg-gradient-to-br from-primary to-primary-container text-white p-5 rounded-3xl shadow-button relative overflow-hidden">
+          <div className="absolute -top-6 -right-6 w-20 h-20 bg-white/10 rounded-full blur-xl"></div>
+          <div className="flex items-center gap-2 mb-2 relative">
+            <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+              <span className="material-symbols-outlined text-sm">account_balance_wallet</span>
+            </div>
+            <p className="text-xs font-bold text-white/70 uppercase tracking-widest">Свободно</p>
+          </div>
+          <p className="text-xl font-extrabold font-headline relative">{formatMoney(Math.max(0, totals.income.actual - totals.expense.actual))} ₽</p>
+          <p className="text-xs text-white/60 mt-1 relative">Доступно к распределению</p>
+        </div>
+      </div>
+
+      {/* Budget Table */}
+      <div className="bg-surface-container-lowest rounded-3xl shadow-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-900">
+          <table className="min-w-full">
+            <thead className="bg-surface-container">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Тип</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Категория</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">План</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Факт</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Прогресс</th>
-                <th className="px-4 py-3"></th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Тип</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Категория</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">План</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Факт</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Прогресс</th>
+                <th className="px-6 py-4 text-right text-xs font-bold text-on-surface-variant uppercase tracking-widest"></th>
               </tr>
             </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {items.map((b) => {
+            <tbody>
+              {items.map((b, i) => {
                 const progress = Math.min(100, Math.round(Number(b.progress || 0)));
                 const isOver = Number(b.actual_amount || 0) > Number(b.limit_amount || 0);
                 return (
-                  <tr key={b.id}>
-                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                      {b.type === 'expense' ? 'Расход' : 'Доход'}
+                  <tr key={b.id} className={`transition-colors hover:bg-surface-container ${i % 2 === 0 ? 'bg-surface-container-lowest' : 'bg-surface-container-low'}`}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                        b.type === 'expense' ? 'bg-error/10 text-error' : 'bg-secondary/10 text-secondary'
+                      }`}>
+                        <span className="material-symbols-outlined text-sm">{b.type === 'expense' ? 'trending_down' : 'trending_up'}</span>
+                        {b.type === 'expense' ? 'Расход' : 'Доход'}
+                      </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                      {b.category_name}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                      {formatMoney(b.limit_amount)} ₽
-                    </td>
-                    <td className={`px-4 py-3 text-sm ${isOver ? 'text-red-600' : 'text-gray-900 dark:text-gray-100'}`}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-on-surface">{b.category_name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-on-surface-variant">{formatMoney(b.limit_amount)} ₽</td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${isOver ? 'text-error' : 'text-on-surface'}`}>
                       {formatMoney(b.actual_amount)} ₽
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="w-40 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                        <div
-                          className={`${isOver ? 'bg-red-600' : 'bg-indigo-600'} h-2 rounded-full`}
-                          style={{ width: `${progress}%` }}
-                        />
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-3">
+                        <div className="progress-bar flex-1 w-32">
+                          <div className={`progress-bar-fill ${isOver ? 'bg-error' : 'bg-primary'}`} style={{ width: `${progress}%` }}></div>
+                        </div>
+                        <span className={`text-xs font-bold ${isOver ? 'text-error' : 'text-on-surface-variant'}`}>{progress}%</span>
                       </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{progress}%</div>
                     </td>
-                    <td className="px-4 py-3 text-right text-sm">
-                      <button
-                        onClick={() => {
-                          const next = prompt('Новый план (₽):', String(Math.trunc(Number(b.limit_amount || 0))));
-                          if (!next) return;
-                          onUpdate(b.id, next);
-                        }}
-                        className="text-indigo-600 dark:text-indigo-400 hover:underline mr-3"
-                      >
-                        Изменить
-                      </button>
-                      <button onClick={() => onDelete(b.id)} className="text-red-600 hover:underline">
-                        Удалить
-                      </button>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => { const next = prompt('Новый план (₽):', String(Math.trunc(Number(b.limit_amount || 0)))); if (next) onUpdate(b.id, next); }} className="w-9 h-9 flex items-center justify-center rounded-lg text-primary hover:bg-primary/10 transition-colors">
+                          <span className="material-symbols-outlined text-sm">edit</span>
+                        </button>
+                        <button onClick={() => onDelete(b.id)} className="w-9 h-9 flex items-center justify-center rounded-lg text-error hover:bg-error-container transition-colors">
+                          <span className="material-symbols-outlined text-sm">delete</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
               })}
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={6}>
-                    <EmptyState title="Нет бюджетов" description="Добавьте первый бюджет на этот месяц." />
+                  <td colSpan={6} className="px-6 py-16 text-center">
+                    <span className="material-symbols-outlined text-5xl text-outline mb-3">account_balance_wallet</span>
+                    <h3 className="text-lg font-bold text-on-surface mb-1">Нет бюджетов</h3>
+                    <p className="text-on-surface-variant text-sm">Добавьте первый бюджет на этот месяц</p>
                   </td>
                 </tr>
               )}
@@ -198,56 +208,35 @@ export default function Budgets() {
         </div>
       </div>
 
+      {/* Modal */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Новый бюджет">
-        <form onSubmit={handleSubmit(onCreate)} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Тип</label>
-            <select
-              {...register('type', { required: true })}
-              className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-            >
-              <option value="expense">Расход</option>
-              <option value="income">Доход</option>
-            </select>
+        <form onSubmit={handleSubmit(onCreate)} className="space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Тип</label>
+              <select {...register('type', { required: true })} className="select-ghost">
+                <option value="expense">Расход</option>
+                <option value="income">Доход</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Категория</label>
+              <select {...register('category_id', { required: true })} className="select-ghost">
+                <option value="">Выберите</option>
+                {categories.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.type === 'income' ? 'Доход' : 'Расход'})</option>)}
+              </select>
+            </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Категория</label>
-            <select
-              {...register('category_id', { required: true })}
-              className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-            >
-              <option value="">Выберите категорию</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.type === 'income' ? 'Доход' : 'Расход'})
-                </option>
-              ))}
-            </select>
+            <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">План (₽)</label>
+            <input type="number" step="1" {...register('limit_amount', { required: true, min: 1 })} className="input-ghost" placeholder="0" />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">План (₽)</label>
-            <input
-              type="number"
-              step="1"
-              {...register('limit_amount', { required: true, min: 1 })}
-              className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-            />
-          </div>
-          <div className="flex justify-end space-x-2 pt-4">
-            <button
-              type="button"
-              onClick={() => setModalOpen(false)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
-            >
-              Отмена
-            </button>
-            <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
-              Сохранить
-            </button>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={() => setModalOpen(false)} className="btn-ghost px-6 py-3">Отмена</button>
+            <button type="submit" className="btn-primary px-8 py-3">Сохранить</button>
           </div>
         </form>
       </Modal>
     </div>
   );
 }
-

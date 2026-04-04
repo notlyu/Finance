@@ -10,41 +10,26 @@ export default function Settings() {
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
   const { register, handleSubmit, reset } = useForm();
 
-  // Смена пароля
   const [passwordMessage, setPasswordMessage] = useState('');
   const [passwordError, setPasswordError] = useState('');
-
-  // Категории
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryType, setNewCategoryType] = useState('expense');
 
-  // Настройки уведомлений
   const [notifSettings, setNotifSettings] = useState({
-    remind_upcoming: true,
-    notify_goal_reached: true,
-    notify_budget_exceeded: true,
-    notify_wish_completed: true,
+    remind_upcoming: true, notify_goal_reached: true,
+    notify_budget_exceeded: true, notify_wish_completed: true,
   });
   const [notifSaved, setNotifSaved] = useState(false);
 
   const fetchUser = async () => {
-    try {
-      const res = await api.get('/auth/me');
-      setUser(res.data);
-    } catch (err) {
-      console.error(err);
-    }
+    try { const res = await api.get('/auth/me'); setUser(res.data); }
+    catch (err) { console.error(err); }
   };
 
   const fetchCategories = async () => {
-    try {
-      const res = await api.get('/categories');
-      setCategories(res.data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+    try { const res = await api.get('/categories'); setCategories(res.data); }
+    catch (err) { console.error(err); }
+    finally { setLoading(false); }
   };
 
   const fetchNotifSettings = async () => {
@@ -56,222 +41,255 @@ export default function Settings() {
         notify_budget_exceeded: res.data.notify_budget_exceeded ?? true,
         notify_wish_completed: res.data.notify_wish_completed ?? true,
       });
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   };
 
-  useEffect(() => {
-    fetchUser();
-    fetchCategories();
-    fetchNotifSettings();
-  }, []);
+  useEffect(() => { fetchUser(); fetchCategories(); fetchNotifSettings(); }, []);
 
   const onChangePassword = async (data) => {
-    setPasswordMessage('');
-    setPasswordError('');
+    setPasswordMessage(''); setPasswordError('');
     try {
-      await api.post('/auth/change-password', {
-        oldPassword: data.oldPassword,
-        newPassword: data.newPassword,
-      });
-      setPasswordMessage('Пароль успешно изменён');
-      reset();
-    } catch (err) {
-      setPasswordError(err.response?.data?.message || 'Ошибка');
-    }
+      await api.post('/auth/change-password', { oldPassword: data.oldPassword, newPassword: data.newPassword });
+      setPasswordMessage('Пароль успешно изменён'); reset();
+    } catch (err) { setPasswordError(err.response?.data?.message || 'Ошибка'); }
   };
 
   const onCreateCategory = async () => {
     if (!newCategoryName) return;
     try {
-      await api.post('/categories', {
-        name: newCategoryName,
-        type: newCategoryType,
-      });
-      setNewCategoryName('');
-      fetchCategories();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Ошибка');
-    }
+      await api.post('/categories', { name: newCategoryName, type: newCategoryType });
+      setNewCategoryName(''); fetchCategories();
+    } catch (err) { alert(err.response?.data?.message || 'Ошибка'); }
   };
 
   const onDeleteCategory = async (id) => {
     if (window.confirm('Удалить категорию?')) {
-      try {
-        await api.delete(`/categories/${id}`);
-        fetchCategories();
-      } catch (err) {
-        alert(err.response?.data?.message || 'Ошибка');
-      }
+      try { await api.delete(`/categories/${id}`); fetchCategories(); }
+      catch (err) { alert(err.response?.data?.message || 'Ошибка'); }
     }
   };
 
   const toggleTheme = () => {
-    const isDark = document.documentElement.classList.toggle('dark');
-    localStorage.setItem('theme', isDark ? 'dark' : 'light');
-    setIsDark(isDark);
+    const d = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', d ? 'dark' : 'light');
+    setIsDark(d);
   };
 
   const saveNotifSettings = async () => {
-    try {
-      await api.put('/notifications/settings', notifSettings);
-      setNotifSaved(true);
-      setTimeout(() => setNotifSaved(false), 2000);
-    } catch (err) {
-      console.error(err);
-    }
+    try { await api.put('/notifications/settings', notifSettings); setNotifSaved(true); setTimeout(() => setNotifSaved(false), 2000); }
+    catch (err) { console.error(err); }
   };
 
-  if (loading) return <div className="text-center py-10">Загрузка...</div>;
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+        <p className="text-on-surface-variant text-sm font-medium">Загрузка...</p>
+      </div>
+    </div>
+  );
+
+  const tabs = [
+    { key: 'profile', label: 'Профиль', icon: 'person' },
+    { key: 'notifications', label: 'Уведомления', icon: 'notifications' },
+    { key: 'categories', label: 'Категории', icon: 'category' },
+    { key: 'theme', label: 'Оформление', icon: 'palette' },
+  ];
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Настройки</h1>
-
-      {/* Вкладки */}
-      <div className="border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
-        <nav className="flex space-x-4 min-w-max">
-          {[
-            { key: 'profile', label: 'Профиль' },
-            { key: 'notifications', label: 'Уведомления' },
-            { key: 'categories', label: 'Категории' },
-            { key: 'theme', label: 'Оформление' },
-          ].map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`py-2 px-4 text-sm font-medium whitespace-nowrap ${
-                activeTab === tab.key
-                  ? 'border-b-2 border-indigo-500 text-indigo-600 dark:text-indigo-400'
-                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
+    <div className="space-y-8">
+      {/* Section Header */}
+      <div>
+        <h2 className="text-3xl font-extrabold tracking-tight text-on-surface font-headline">Настройки</h2>
+        <p className="text-on-surface-variant text-sm mt-1">Управление аккаунтом и приложением</p>
       </div>
 
-      {/* Профиль */}
-      {activeTab === 'profile' && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 className="text-lg font-medium mb-4 dark:text-white">Информация о пользователе</h2>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Имя</label>
-              <p className="mt-1 text-gray-900 dark:text-white">{user?.name}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
-              <p className="mt-1 text-gray-900 dark:text-white">{user?.email}</p>
-            </div>
-          </div>
+      {/* Tabs */}
+      <div className="flex gap-2 overflow-x-auto pb-2">
+        {tabs.map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${
+              activeTab === tab.key
+                ? 'bg-primary text-white shadow-button'
+                : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'
+            }`}
+          >
+            <span className="material-symbols-outlined text-sm">{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-          <h2 className="text-lg font-medium mt-8 mb-4 dark:text-white">Смена пароля</h2>
-          <form onSubmit={handleSubmit(onChangePassword)} className="space-y-4 max-w-md">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Старый пароль</label>
-              <input type="password" {...register('oldPassword', { required: true })} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm p-2 dark:bg-gray-700 dark:text-white" />
+      {/* Profile Tab */}
+      {activeTab === 'profile' && (
+        <div className="space-y-6">
+          <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card">
+            <div className="flex items-center gap-4 mb-8">
+              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-bold text-2xl">
+                {user?.name?.charAt(0).toUpperCase() || '?'}
+              </div>
+              <div>
+                <h3 className="text-xl font-bold font-headline text-on-surface">{user?.name}</h3>
+                <p className="text-sm text-on-surface-variant">{user?.email}</p>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Новый пароль</label>
-              <input type="password" {...register('newPassword', { required: true, minLength: 6 })} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm p-2 dark:bg-gray-700 dark:text-white" />
-            </div>
-            {passwordMessage && <div className="text-green-600 text-sm">{passwordMessage}</div>}
-            {passwordError && <div className="text-red-600 text-sm">{passwordError}</div>}
-            <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">Изменить пароль</button>
-          </form>
+
+            <h4 className="text-sm font-bold text-on-surface-variant uppercase tracking-widest mb-4">Смена пароля</h4>
+            <form onSubmit={handleSubmit(onChangePassword)} className="space-y-4 max-w-md">
+              <div>
+                <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Старый пароль</label>
+                <input type="password" {...register('oldPassword', { required: true })} className="input-ghost" placeholder="Введите старый пароль" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Новый пароль</label>
+                <input type="password" {...register('newPassword', { required: true, minLength: 6 })} className="input-ghost" placeholder="Минимум 6 символов" />
+              </div>
+              {passwordMessage && <div className="text-secondary text-sm font-semibold flex items-center gap-1"><span className="material-symbols-outlined text-sm">check_circle</span>{passwordMessage}</div>}
+              {passwordError && <div className="text-error text-sm font-semibold flex items-center gap-1"><span className="material-symbols-outlined text-sm">error</span>{passwordError}</div>}
+              <button type="submit" className="btn-primary px-6 py-3 text-sm">Изменить пароль</button>
+            </form>
+          </div>
         </div>
       )}
 
-      {/* Уведомления */}
+      {/* Notifications Tab */}
       {activeTab === 'notifications' && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 className="text-lg font-medium mb-4 dark:text-white">Настройки уведомлений</h2>
+        <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card">
+          <h3 className="text-lg font-bold font-headline mb-6">Настройки уведомлений</h3>
           <div className="space-y-4 max-w-lg">
             {[
-              { key: 'notify_goal_reached', label: '🎯 Уведомлять о достижении цели', desc: 'Когда сумма накоплений достигает целевой' },
-              { key: 'notify_wish_completed', label: '✨ Уведомлять о выполнении желания', desc: 'Когда желание полностью оплачено' },
-              { key: 'notify_budget_exceeded', label: '⚠️ Уведомлять о превышении бюджета', desc: 'Когда расходы по категории превышают лимит' },
-              { key: 'remind_upcoming', label: '📅 Напоминать о регулярных платежах', desc: 'Предстоящие регулярные операции' },
+              { key: 'notify_goal_reached', label: 'Достижение цели', desc: 'Когда сумма накоплений достигает целевой', icon: 'emoji_events' },
+              { key: 'notify_wish_completed', label: 'Выполнение желания', desc: 'Когда желание полностью оплачено', icon: 'stars' },
+              { key: 'notify_budget_exceeded', label: 'Превышение бюджета', desc: 'Когда расходы по категории превышают лимит', icon: 'warning' },
+              { key: 'remind_upcoming', label: 'Регулярные платежи', desc: 'Предстоящие регулярные операции', icon: 'event_repeat' },
             ].map(item => (
-              <div key={item.key} className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
-                <label className="flex items-start gap-3 flex-1 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={notifSettings[item.key]}
-                    onChange={e => setNotifSettings(prev => ({ ...prev, [item.key]: e.target.checked }))}
-                    className="mt-1 h-4 w-4 text-indigo-600 rounded border-gray-300"
-                  />
+              <div key={item.key} className="flex items-center justify-between p-4 bg-surface-container rounded-2xl hover:bg-surface-container-high transition-colors">
+                <div className="flex items-center gap-3 flex-1">
+                  <span className="material-symbols-outlined text-on-surface-variant">{item.icon}</span>
                   <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{item.label}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{item.desc}</p>
+                    <p className="text-sm font-semibold text-on-surface">{item.label}</p>
+                    <p className="text-xs text-on-surface-variant">{item.desc}</p>
                   </div>
-                </label>
+                </div>
+                <button
+                  onClick={() => setNotifSettings(prev => ({ ...prev, [item.key]: !prev[item.key] }))}
+                  className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
+                    notifSettings[item.key] ? 'bg-primary' : 'bg-outline-variant'
+                  }`}
+                >
+                  <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${
+                    notifSettings[item.key] ? 'translate-x-5' : 'translate-x-0.5'
+                  }`}></div>
+                </button>
               </div>
             ))}
             <div className="flex items-center gap-3 pt-2">
-              <button onClick={saveNotifSettings} className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 text-sm">
-                Сохранить
-              </button>
-              {notifSaved && <span className="text-green-600 text-sm">✓ Сохранено</span>}
+              <button onClick={saveNotifSettings} className="btn-primary px-6 py-3 text-sm">Сохранить</button>
+              {notifSaved && <span className="text-secondary text-sm font-semibold flex items-center gap-1"><span className="material-symbols-outlined text-sm">check_circle</span>Сохранено</span>}
             </div>
           </div>
         </div>
       )}
 
-      {/* Категории */}
+      {/* Categories Tab */}
       {activeTab === 'categories' && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 className="text-lg font-medium mb-4 dark:text-white">Управление категориями</h2>
-          <div className="mb-6 flex flex-wrap gap-4 items-end">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Название</label>
-              <input type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm p-2 dark:bg-gray-700 dark:text-white" />
+        <div className="space-y-6">
+          <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card">
+            <h3 className="text-lg font-bold font-headline mb-6">Добавить категорию</h3>
+            <div className="flex flex-wrap gap-4 items-end">
+              <div className="flex-1 min-w-48">
+                <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Название</label>
+                <input type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} className="input-ghost" placeholder="Название категории" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Тип</label>
+                <select value={newCategoryType} onChange={(e) => setNewCategoryType(e.target.value)} className="select-ghost">
+                  <option value="expense">Расход</option>
+                  <option value="income">Доход</option>
+                </select>
+              </div>
+              <button onClick={onCreateCategory} className="btn-primary px-6 py-3 text-sm">Добавить</button>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Тип</label>
-              <select value={newCategoryType} onChange={(e) => setNewCategoryType(e.target.value)} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md shadow-sm p-2 dark:bg-gray-700 dark:text-white">
-                <option value="expense">Расход</option>
-                <option value="income">Доход</option>
-              </select>
-            </div>
-            <button onClick={onCreateCategory} className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">Добавить</button>
           </div>
 
-          <h3 className="text-md font-medium mt-6 mb-2 dark:text-white">Системные категории</h3>
-          <div className="space-y-2">
-            {categories.filter(c => c.is_system).map(cat => (
-              <div key={cat.id} className="flex justify-between items-center py-1">
-                <span>{cat.name} <span className="text-xs text-gray-500">({cat.type === 'income' ? 'Доход' : 'Расход'})</span></span>
-                <span className="text-xs text-gray-400">Системная</span>
-              </div>
-            ))}
+          <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card">
+            <h3 className="text-lg font-bold font-headline mb-4 flex items-center gap-2">
+              <span className="material-symbols-outlined text-on-surface-variant">star</span>
+              Системные категории
+            </h3>
+            <div className="space-y-2">
+              {categories.filter(c => c.is_system).map(cat => (
+                <div key={cat.id} className="flex justify-between items-center p-3 bg-surface-container rounded-xl">
+                  <span className="text-sm font-semibold text-on-surface">{cat.name}</span>
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${cat.type === 'income' ? 'bg-secondary/10 text-secondary' : 'bg-error/10 text-error'}`}>
+                    {cat.type === 'income' ? 'Доход' : 'Расход'}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <h3 className="text-md font-medium mt-6 mb-2 dark:text-white">Пользовательские категории</h3>
-          <div className="space-y-2">
-            {categories.filter(c => !c.is_system).map(cat => (
-              <div key={cat.id} className="flex justify-between items-center py-1 border-b">
-                <span>{cat.name} <span className="text-xs text-gray-500">({cat.type === 'income' ? 'Доход' : 'Расход'})</span></span>
-                <button onClick={() => onDeleteCategory(cat.id)} className="text-red-600 text-sm">Удалить</button>
+          <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card">
+            <h3 className="text-lg font-bold font-headline mb-4 flex items-center gap-2">
+              <span className="material-symbols-outlined text-on-surface-variant">edit</span>
+              Пользовательские категории
+            </h3>
+            {categories.filter(c => !c.is_system).length > 0 ? (
+              <div className="space-y-2">
+                {categories.filter(c => !c.is_system).map(cat => (
+                  <div key={cat.id} className="flex justify-between items-center p-3 bg-surface-container rounded-xl">
+                    <div>
+                      <span className="text-sm font-semibold text-on-surface">{cat.name}</span>
+                      <span className={`ml-2 px-3 py-1 rounded-full text-xs font-bold ${cat.type === 'income' ? 'bg-secondary/10 text-secondary' : 'bg-error/10 text-error'}`}>
+                        {cat.type === 'income' ? 'Доход' : 'Расход'}
+                      </span>
+                    </div>
+                    <button onClick={() => onDeleteCategory(cat.id)} className="text-error text-sm font-semibold hover:opacity-80 transition-colors flex items-center gap-1">
+                      <span className="material-symbols-outlined text-sm">delete</span>
+                      Удалить
+                    </button>
+                  </div>
+                ))}
               </div>
-            ))}
-            {categories.filter(c => !c.is_system).length === 0 && (
-              <p className="text-gray-500 dark:text-gray-400">Нет пользовательских категорий</p>
+            ) : (
+              <p className="text-on-surface-variant text-sm text-center py-4">Нет пользовательских категорий</p>
             )}
           </div>
         </div>
       )}
 
-      {/* Оформление */}
+      {/* Theme Tab */}
       {activeTab === 'theme' && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-          <h2 className="text-lg font-medium mb-4 dark:text-white">Тема оформления</h2>
-          <button onClick={toggleTheme} className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white px-4 py-2 rounded-md">
-            {isDark ? 'Светлая тема' : 'Тёмная тема'}
-          </button>
+        <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card">
+          <h3 className="text-lg font-bold font-headline mb-6">Тема оформления</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button
+              onClick={() => { if (isDark) toggleTheme(); }}
+              className={`p-6 rounded-2xl border-2 transition-all text-left ${
+                !isDark ? 'border-primary bg-primary/5' : 'border-outline-variant/30 hover:border-outline-variant'
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <span className="material-symbols-outlined text-2xl text-yellow-600" style={{ fontVariationSettings: "'FILL' 1" }}>light_mode</span>
+                <span className="font-bold text-on-surface">Светлая тема</span>
+              </div>
+              <p className="text-xs text-on-surface-variant">Классический светлый интерфейс</p>
+            </button>
+            <button
+              onClick={() => { if (!isDark) toggleTheme(); }}
+              className={`p-6 rounded-2xl border-2 transition-all text-left ${
+                isDark ? 'border-primary bg-primary/5' : 'border-outline-variant/30 hover:border-outline-variant'
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <span className="material-symbols-outlined text-2xl text-indigo-400" style={{ fontVariationSettings: "'FILL' 1" }}>dark_mode</span>
+                <span className="font-bold text-on-surface">Тёмная тема</span>
+              </div>
+              <p className="text-xs text-on-surface-variant">Тёмный интерфейс для комфортной работы</p>
+            </button>
+          </div>
         </div>
       )}
     </div>

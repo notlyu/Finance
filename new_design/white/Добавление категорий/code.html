@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+
+<html class="light" lang="ru"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Настройки категорий — Казначей</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                "tertiary": "#960014",
+                "on-primary-container": "#dad7ff",
+                "surface-tint": "#4d44e3",
+                "primary": "#3525cd",
+                "on-tertiary": "#ffffff",
+                "tertiary-fixed": "#ffdad7",
+                "outline-variant": "#c7c4d8",
+                "on-surface": "#0b1c30",
+                "inverse-on-surface": "#eaf1ff",
+                "surface": "#f8f9ff",
+                "on-background": "#0b1c30",
+                "on-primary-fixed-variant": "#3323cc",
+                "tertiary-fixed-dim": "#ffb3ad",
+                "on-tertiary-fixed-variant": "#930013",
+                "surface-bright": "#f8f9ff",
+                "surface-dim": "#cbdbf5",
+                "on-tertiary-container": "#ffd0cc",
+                "surface-variant": "#d3e4fe",
+                "secondary-fixed": "#6ffbbe",
+                "primary-fixed": "#e2dfff",
+                "tertiary-container": "#bc1d25",
+                "surface-container-highest": "#d3e4fe",
+                "surface-container": "#e5eeff",
+                "secondary-fixed-dim": "#4edea3",
+                "on-primary": "#ffffff",
+                "error-container": "#ffdad6",
+                "inverse-surface": "#213145",
+                "on-secondary": "#ffffff",
+                "on-primary-fixed": "#0f0069",
+                "error": "#ba1a1a",
+                "on-surface-variant": "#464555",
+                "surface-container-lowest": "#ffffff",
+                "surface-container-high": "#dce9ff",
+                "primary-container": "#4f46e5",
+                "outline": "#777587",
+                "secondary-container": "#6cf8bb",
+                "on-tertiary-fixed": "#410004",
+                "background": "#f8f9ff",
+                "on-secondary-fixed": "#002113",
+                "on-secondary-fixed-variant": "#005236",
+                "secondary": "#006c49",
+                "primary-fixed-dim": "#c3c0ff",
+                "on-secondary-container": "#00714d",
+                "inverse-primary": "#c3c0ff",
+                "on-error-container": "#93000a",
+                "surface-container-low": "#eff4ff",
+                "on-error": "#ffffff"
+            },
+            "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+            },
+            "fontFamily": {
+                "headline": ["Manrope"],
+                "body": ["Inter"],
+                "label": ["Inter"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .tonal-layering {
+            box-shadow: 0 20px 40px rgba(11, 28, 48, 0.04);
+        }
+        .glass-effect {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body selection:bg-primary/10">
+<!-- SideNavBar Shell -->
+<aside class="hidden md:flex flex-col fixed left-0 top-0 h-full py-8 px-4 h-screen w-64 border-r-0 bg-slate-100 dark:bg-slate-900 tonal-layering">
+<div class="mb-10 px-2">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">account_balance</span>
+</div>
+<div>
+<h1 class="font-headline font-bold text-xl tracking-tight text-primary">Казначей</h1>
+<p class="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Семейный бюджет</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 space-y-2">
+<!-- Inactive: Обзор -->
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:text-primary hover:bg-white/80 transition-all duration-300" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-medium">Обзор</span>
+</a>
+<!-- Inactive: Транзакции -->
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:text-primary hover:bg-white/80 transition-all duration-300" href="#">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="font-medium">Транзакции</span>
+</a>
+<!-- Inactive: Категории -->
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:text-primary hover:bg-white/80 transition-all duration-300" href="#">
+<span class="material-symbols-outlined">category</span>
+<span class="font-medium">Категории</span>
+</a>
+<!-- Inactive: Семья -->
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:text-primary hover:bg-white/80 transition-all duration-300" href="#">
+<span class="material-symbols-outlined">family_restroom</span>
+<span class="font-medium">Семья</span>
+</a>
+<!-- Active: Настройки -->
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-primary font-bold border-r-4 border-primary bg-indigo-50/50" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">settings</span>
+<span class="font-medium">Настройки</span>
+</a>
+</nav>
+<div class="mt-auto px-2">
+<button class="w-full py-4 px-4 bg-gradient-to-br from-primary to-primary-container text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:scale-95 transition-transform active:opacity-80">
+<span class="material-symbols-outlined">add</span>
+<span>Добавить расход</span>
+</button>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="md:pl-64 min-h-screen">
+<!-- TopAppBar -->
+<header class="flex justify-between items-center w-full px-8 py-6 sticky top-0 z-20 bg-surface/80 backdrop-blur-md">
+<div>
+<h2 class="font-headline font-bold text-2xl text-on-surface">Настройки</h2>
+<p class="text-on-surface-variant text-sm">Управление категориями и лимитами</p>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative hidden lg:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="pl-10 pr-4 py-2 bg-surface-container-low border-none rounded-full text-sm w-64 focus:ring-2 focus:ring-primary/20 transition-all" placeholder="Поиск настроек..." type="text"/>
+</div>
+<div class="flex items-center gap-2">
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+<div class="h-10 w-[1px] bg-outline-variant/30 mx-2"></div>
+<img alt="Профиль" class="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm" data-alt="Close-up portrait of a professional man with a kind expression in soft studio lighting, minimalist aesthetic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAFucZReJRfpLTyr5sFSvFxFMcWdB8UrP8y9h0q-d3qtzy3R5R7fb9ltf4mh2qAVAeBQeFTsvwYWI4G727WoIonUfHxkMN4R9t1x-ymQkn-fTuS93i6Sg7mNmssZJkerBKNG1qdiaNnoAK9V8mr252de9N9uVNztm9nlXcg4fOdG_Wx1JbNGc7rNkjLjb-6robw46od9dfVM4fxyhdocVZdoxV65AJpEWEYDnTm8IjWSGcuB0mD43beThje4WH2X4Ssblnk0P1SVfM"/>
+</div>
+</div>
+</header>
+<div class="px-8 pb-12 max-w-6xl">
+<!-- Bento Grid Content -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+<!-- Section 1: Add Category Form -->
+<section class="lg:col-span-5 space-y-6">
+<div class="bg-surface-container-lowest p-8 rounded-3xl tonal-layering">
+<div class="flex items-center gap-3 mb-8">
+<div class="w-10 h-10 rounded-full bg-secondary-fixed flex items-center justify-center text-on-secondary-fixed-variant">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">add_circle</span>
+</div>
+<h3 class="font-headline font-bold text-xl text-on-surface">Новая категория</h3>
+</div>
+<form class="space-y-6">
+<div>
+<label class="block text-xs font-bold uppercase tracking-widest text-outline mb-2">Название категории</label>
+<input class="w-full bg-surface-container-low border-none rounded-2xl py-4 px-5 text-on-surface focus:ring-2 focus:ring-primary/20 placeholder:text-outline/50 transition-all" placeholder="Например: Хобби" type="text"/>
+</div>
+<div>
+<label class="block text-xs font-bold uppercase tracking-widest text-outline mb-2">Тип категории</label>
+<div class="grid grid-cols-2 gap-3">
+<button class="flex items-center justify-center gap-2 py-4 rounded-2xl bg-primary text-white font-semibold" type="button">
+<span class="material-symbols-outlined text-sm">trending_down</span>
+                                        Расход
+                                    </button>
+<button class="flex items-center justify-center gap-2 py-4 rounded-2xl bg-surface-container-low text-on-surface-variant font-semibold hover:bg-surface-container transition-colors" type="button">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+                                        Доход
+                                    </button>
+</div>
+</div>
+<div>
+<label class="block text-xs font-bold uppercase tracking-widest text-outline mb-2">Визуальный маркер</label>
+<div class="flex flex-wrap gap-3">
+<button class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 border-2 border-indigo-600" type="button"><span class="material-symbols-outlined text-lg">category</span></button>
+<button class="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600" type="button"><span class="material-symbols-outlined text-lg">shopping_cart</span></button>
+<button class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600" type="button"><span class="material-symbols-outlined text-lg">restaurant</span></button>
+<button class="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center text-rose-600" type="button"><span class="material-symbols-outlined text-lg">directions_car</span></button>
+<button class="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-500" type="button"><span class="material-symbols-outlined text-lg">more_horiz</span></button>
+</div>
+</div>
+<button class="w-full py-4 bg-primary text-white rounded-2xl font-bold text-lg hover:shadow-xl hover:shadow-primary/20 transition-all" type="submit">Создать категорию</button>
+</form>
+</div>
+<!-- Decorative Card -->
+<div class="relative overflow-hidden rounded-3xl bg-primary p-8 text-white min-h-[160px] flex flex-col justify-end">
+<img alt="Арт" class="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-overlay" data-alt="Abstract fluid 3D render with flowing indigo and soft purple curves, elegant digital art style" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBhACTg5Jl1loX9QtYDf5c6daqGeQa_R8BcIEerFxV23QJI09yFyVmDfFaOKHCl-daJsyippoSjdqbZq0o9HZephWU8z5RUbQeAc-1X9xW6ZJBoFiVFHlZoIx9Eqm2yuzAb9pIHwtQ--ewLy8YX_g9fGA1wOCZKGuPXEXzf-wfZHrIkUwo89qcV7Hw2l8mQs-xX3j-RzFy5ldhCebyFqAk8gzhelTxNQTOBqP96L-gh9sWLQ0XjYihJ97JaQ6f5mI1lJp_IBG2kcj8"/>
+<div class="relative z-10">
+<p class="text-primary-fixed text-sm font-bold uppercase tracking-wider mb-1">Совет дня</p>
+<h4 class="font-headline font-bold text-xl">Разделяй и властвуй</h4>
+<p class="text-white/80 text-sm mt-1">Детализированные категории помогают точнее определить «черные дыры» бюджета.</p>
+</div>
+</div>
+</section>
+<!-- Section 2: Categories List -->
+<section class="lg:col-span-7 space-y-8">
+<!-- System Categories -->
+<div>
+<div class="flex items-center justify-between mb-4 px-2">
+<h3 class="font-headline font-bold text-lg text-on-surface">Системные категории</h3>
+<span class="text-xs font-bold text-outline-variant bg-surface-container px-3 py-1 rounded-full uppercase tracking-tighter">Только чтение</span>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+<!-- Locked Card 1 -->
+<div class="group bg-surface-container-low p-4 rounded-2xl flex items-center gap-4 border border-transparent hover:border-outline-variant/30 transition-all">
+<div class="w-12 h-12 rounded-xl bg-surface-container-lowest flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
+</div>
+<div class="flex-1">
+<p class="font-bold text-on-surface">Жилье</p>
+<p class="text-xs text-on-surface-variant">Аренда, налоги, ЖКХ</p>
+</div>
+<span class="material-symbols-outlined text-outline/40 group-hover:text-outline transition-colors">lock</span>
+</div>
+<!-- Locked Card 2 -->
+<div class="group bg-surface-container-low p-4 rounded-2xl flex items-center gap-4 border border-transparent hover:border-outline-variant/30 transition-all">
+<div class="w-12 h-12 rounded-xl bg-surface-container-lowest flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">shopping_bag</span>
+</div>
+<div class="flex-1">
+<p class="font-bold text-on-surface">Продукты</p>
+<p class="text-xs text-on-surface-variant">Супермаркеты, рынки</p>
+</div>
+<span class="material-symbols-outlined text-outline/40 group-hover:text-outline transition-colors">lock</span>
+</div>
+<!-- Locked Card 3 -->
+<div class="group bg-surface-container-low p-4 rounded-2xl flex items-center gap-4 border border-transparent hover:border-outline-variant/30 transition-all">
+<div class="w-12 h-12 rounded-xl bg-surface-container-lowest flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">medical_services</span>
+</div>
+<div class="flex-1">
+<p class="font-bold text-on-surface">Здоровье</p>
+<p class="text-xs text-on-surface-variant">Аптеки, врачи</p>
+</div>
+<span class="material-symbols-outlined text-outline/40 group-hover:text-outline transition-colors">lock</span>
+</div>
+<!-- Locked Card 4 -->
+<div class="group bg-surface-container-low p-4 rounded-2xl flex items-center gap-4 border border-transparent hover:border-outline-variant/30 transition-all">
+<div class="w-12 h-12 rounded-xl bg-surface-container-lowest flex items-center justify-center text-amber-600">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">commute</span>
+</div>
+<div class="flex-1">
+<p class="font-bold text-on-surface">Транспорт</p>
+<p class="text-xs text-on-surface-variant">Такси, метро, бензин</p>
+</div>
+<span class="material-symbols-outlined text-outline/40 group-hover:text-outline transition-colors">lock</span>
+</div>
+</div>
+</div>
+<!-- User Categories -->
+<div>
+<div class="flex items-center justify-between mb-4 px-2">
+<h3 class="font-headline font-bold text-lg text-on-surface">Пользовательские категории</h3>
+<span class="text-xs font-bold text-primary bg-primary-fixed px-3 py-1 rounded-full uppercase tracking-tighter">Редактируемые</span>
+</div>
+<div class="bg-surface-container-lowest rounded-3xl tonal-layering overflow-hidden">
+<div class="divide-y divide-surface-container-low">
+<!-- User Category Item 1 -->
+<div class="flex items-center gap-4 p-5 hover:bg-surface-container-low/50 transition-colors group">
+<div class="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600">
+<span class="material-symbols-outlined">fitness_center</span>
+</div>
+<div class="flex-1">
+<p class="font-bold text-on-surface">Спортзал</p>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="text-[10px] bg-secondary-fixed text-on-secondary-fixed-variant px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Расход</span>
+<span class="text-xs text-outline italic">Создано: 12 Сентября</span>
+</div>
+</div>
+<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-outline hover:text-primary hover:bg-white transition-all">
+<span class="material-symbols-outlined text-lg">edit</span>
+</button>
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-outline hover:text-error hover:bg-error-container transition-all">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</div>
+<!-- User Category Item 2 -->
+<div class="flex items-center gap-4 p-5 hover:bg-surface-container-low/50 transition-colors group">
+<div class="w-12 h-12 rounded-xl bg-rose-100 flex items-center justify-center text-rose-600">
+<span class="material-symbols-outlined">auto_stories</span>
+</div>
+<div class="flex-1">
+<p class="font-bold text-on-surface">Обучение</p>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="text-[10px] bg-secondary-fixed text-on-secondary-fixed-variant px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Расход</span>
+<span class="text-xs text-outline italic">Создано: 05 Сентября</span>
+</div>
+</div>
+<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-outline hover:text-primary hover:bg-white transition-all">
+<span class="material-symbols-outlined text-lg">edit</span>
+</button>
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-outline hover:text-error hover:bg-error-container transition-all">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</div>
+<!-- User Category Item 3 -->
+<div class="flex items-center gap-4 p-5 hover:bg-surface-container-low/50 transition-colors group">
+<div class="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600">
+<span class="material-symbols-outlined">payments</span>
+</div>
+<div class="flex-1">
+<p class="font-bold text-on-surface">Фриланс</p>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="text-[10px] bg-primary-fixed text-on-primary-fixed-variant px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Доход</span>
+<span class="text-xs text-outline italic">Создано: 28 Августа</span>
+</div>
+</div>
+<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-outline hover:text-primary hover:bg-white transition-all">
+<span class="material-symbols-outlined text-lg">edit</span>
+</button>
+<button class="w-10 h-10 rounded-full flex items-center justify-center text-outline hover:text-error hover:bg-error-container transition-all">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+</div>
+</main>
+</body></html>

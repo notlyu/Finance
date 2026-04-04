@@ -1,4 +1,4 @@
-const { Goal, GoalContribution, Transaction, User, Family } = require('../models');
+const { Goal, GoalContribution, Transaction, User, Family, Category } = require('../models');
 const { Op } = require('sequelize');
 
 // Вспомогательная функция для расчёта необходимого ежемесячного взноса
@@ -282,15 +282,21 @@ exports.contributeToGoal = async (req, res) => {
     const result = await Goal.sequelize.transaction(async (t) => {
       let transactionId = null;
       if (createTransaction) {
-        if (!category_id) {
-          throw new Error('category_id обязателен для createTransaction');
+        let catId = category_id;
+        if (!catId) {
+          const [cat] = await Category.findOrCreate({
+            where: { name: 'Пополнение целей', family_id: user.family_id },
+            defaults: { name: 'Пополнение целей', family_id: user.family_id, type: 'expense' },
+            transaction: t
+          });
+          catId = cat.id;
         }
         const tx = await Transaction.create({
           user_id: user.id,
           family_id: user.family_id,
           amount,
           type: 'expense',
-          category_id,
+          category_id: catId,
           date: date || new Date(),
           comment: comment || `Пополнение цели: ${goal.name}`,
           is_private: !!is_private,

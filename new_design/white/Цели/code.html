@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+
+<html class="light" lang="ru"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Финансы — Цели накоплений</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary": "#960014",
+                    "on-secondary-fixed-variant": "#005236",
+                    "inverse-primary": "#c3c0ff",
+                    "inverse-surface": "#213145",
+                    "outline-variant": "#c7c4d8",
+                    "on-error-container": "#93000a",
+                    "on-tertiary": "#ffffff",
+                    "surface-container-low": "#eff4ff",
+                    "on-tertiary-fixed": "#410004",
+                    "on-tertiary-fixed-variant": "#930013",
+                    "on-primary": "#ffffff",
+                    "surface-variant": "#d3e4fe",
+                    "surface-container-high": "#dce9ff",
+                    "tertiary-container": "#bc1d25",
+                    "outline": "#777587",
+                    "on-secondary": "#ffffff",
+                    "on-primary-fixed": "#0f0069",
+                    "secondary": "#006c49",
+                    "on-primary-fixed-variant": "#3323cc",
+                    "error": "#ba1a1a",
+                    "primary-container": "#4f46e5",
+                    "on-secondary-container": "#00714d",
+                    "primary-fixed-dim": "#c3c0ff",
+                    "secondary-fixed-dim": "#4edea3",
+                    "tertiary-fixed": "#ffdad7",
+                    "on-tertiary-container": "#ffd0cc",
+                    "on-secondary-fixed": "#002113",
+                    "surface-dim": "#cbdbf5",
+                    "on-background": "#0b1c30",
+                    "surface-container-lowest": "#ffffff",
+                    "secondary-container": "#6cf8bb",
+                    "primary": "#3525cd",
+                    "surface-container-highest": "#d3e4fe",
+                    "on-surface": "#0b1c30",
+                    "on-surface-variant": "#464555",
+                    "surface-container": "#e5eeff",
+                    "surface": "#f8f9ff",
+                    "on-error": "#ffffff",
+                    "primary-fixed": "#e2dfff",
+                    "tertiary-fixed-dim": "#ffb3ad",
+                    "inverse-on-surface": "#eaf1ff",
+                    "error-container": "#ffdad6",
+                    "surface-tint": "#4d44e3",
+                    "secondary-fixed": "#6ffbbe",
+                    "background": "#f8f9ff",
+                    "on-primary-container": "#dad7ff",
+                    "surface-bright": "#f8f9ff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Manrope"],
+                    "body": ["Inter"],
+                    "label": ["Inter"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .confetti-gradient {
+            background: radial-gradient(circle at 50% 50%, rgba(53, 37, 205, 0.1) 0%, transparent 70%);
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface">
+<!-- SideNavBar (Desktop) -->
+<aside class="fixed left-0 top-0 bottom-0 z-40 flex flex-col p-4 w-64 h-full border-r-0 bg-slate-50 dark:bg-slate-900 hidden md:flex font-manrope text-sm font-medium tracking-tight">
+<div class="mb-8 px-2">
+<h1 class="text-xl font-bold tracking-tight text-indigo-700 dark:text-indigo-300">Финансы</h1>
+<p class="text-xs text-slate-500">Семейный капитал</p>
+</div>
+<nav class="flex-1 space-y-1">
+<!-- Nav Item: Главная -->
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span>Главная</span>
+</a>
+<!-- Nav Item: Операции -->
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+<span>Операции</span>
+</a>
+<!-- Nav Item: Цели (Active) -->
+<a class="flex items-center gap-3 px-3 py-2 text-indigo-700 dark:text-indigo-300 font-bold bg-white dark:bg-slate-800 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="track_changes" style="font-variation-settings: 'FILL' 1;">track_changes</span>
+<span>Цели</span>
+</a>
+<!-- Other Nav Items suppressed for brevity but following JSON labels -->
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="favorite">favorite</span>
+<span>Желания</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="savings">savings</span>
+<span>Подушка</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span>Аналитика</span>
+</a>
+</nav>
+<div class="mt-auto pt-4 space-y-1">
+<button class="w-full mb-4 py-3 px-4 bg-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-200 active:scale-95 duration-200">
+                Добавить операцию
+            </button>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-100" href="#">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+<span>Профиль</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-100" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span>Выйти</span>
+</a>
+</div>
+</aside>
+<!-- TopAppBar -->
+<header class="fixed top-0 right-0 left-0 md:left-64 z-30 flex justify-between items-center px-6 py-3 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md shadow-sm dark:shadow-none font-manrope text-lg font-semibold">
+<div class="flex items-center gap-2">
+<span class="hidden md:block text-slate-900 dark:text-white font-bold">Финансы</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-slate-400 dark:text-slate-500 hover:opacity-70 active:scale-95 duration-200">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="text-slate-400 dark:text-slate-500 hover:opacity-70 active:scale-95 duration-200">
+<span class="material-symbols-outlined" data-icon="dark_mode">dark_mode</span>
+</button>
+<img alt="Текущий пользователь" class="w-8 h-8 rounded-full border-2 border-indigo-100" data-alt="professional portrait of a confident man in business casual attire with soft office background lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB2_6WfntuAVfq6GRLbDEtjqBVuT9Yj_Q1uABpkWmNN6fzoDFTyhzAry-yscBlxYCBgCd8I3O0X-v4hN4CladlCIvVjQzjA9fVc0thNLHhCSw8kyIvt4_jN4NaZXZrgaM8aN1qz8Gbo2nv5C0PxOtKhoUjdEXcLTweFNCBHHJFSVxgftXasxRNTXm7gtajPQfykHag4cGlop5rueIhg_CcDyVDWemICE_jBP4nX3KKg_XoT9gXH73Ye1Z-tf5vnT1srIN2JKZkiZnA"/>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="pt-20 pb-24 md:pb-8 md:pl-64 min-h-screen">
+<div class="max-w-6xl mx-auto px-6">
+<!-- Section Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-10">
+<div>
+<nav class="flex gap-2 text-xs font-medium text-slate-400 mb-2 uppercase tracking-widest">
+<span>Сбережения</span>
+<span>/</span>
+<span class="text-primary">Цели</span>
+</nav>
+<h2 class="text-4xl md:text-5xl font-headline font-extrabold text-on-surface tracking-tight">Цели накоплений</h2>
+</div>
+<button class="flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-bold hover:shadow-xl transition-all active:scale-95">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+                    Добавить цель
+                </button>
+</div>
+<!-- Goals Grid (Bento style approach) -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<!-- Card 1: Active Goal -->
+<div class="group bg-surface-container-lowest rounded-[2rem] p-8 transition-all hover:shadow-2xl hover:shadow-indigo-500/5 relative overflow-hidden">
+<div class="absolute top-0 right-0 p-6">
+<div class="w-12 h-12 rounded-2xl bg-primary-fixed flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="directions_car" style="font-variation-settings: 'FILL' 1;">directions_car</span>
+</div>
+</div>
+<div class="mb-12">
+<h3 class="text-2xl font-headline font-bold text-on-surface mb-1">Новая машина</h3>
+<p class="text-sm text-slate-500 font-medium">Срок: Декабрь 2024</p>
+</div>
+<div class="space-y-6">
+<div class="flex justify-between items-end">
+<div class="space-y-1">
+<span class="text-sm font-semibold text-slate-400 uppercase tracking-tighter">Накоплено</span>
+<div class="text-3xl font-headline font-extrabold text-primary">2,400,000 ₽</div>
+</div>
+<div class="text-right">
+<span class="text-sm font-semibold text-slate-400 uppercase tracking-tighter">Всего</span>
+<div class="text-xl font-headline font-bold text-on-surface">3,000,000 ₽</div>
+</div>
+</div>
+<!-- Progress Bar -->
+<div class="relative w-full h-4 bg-surface-container rounded-full overflow-hidden">
+<div class="absolute top-0 left-0 h-full bg-gradient-to-r from-primary to-primary-container rounded-full" style="width: 80%"></div>
+</div>
+<div class="flex justify-between text-sm font-bold">
+<span class="text-primary">80% выполнено</span>
+<span class="text-on-surface-variant">Осталось: 600,000 ₽</span>
+</div>
+<div class="grid grid-cols-2 gap-4 pt-4">
+<button class="py-4 bg-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-sm" data-icon="account_balance_wallet">account_balance_wallet</span>
+                                Пополнить
+                            </button>
+<button class="py-4 bg-surface-container text-on-surface rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-surface-container-high transition-colors active:scale-95">
+<span class="material-symbols-outlined text-sm" data-icon="trending_up">trending_up</span>
+                                Прогноз
+                            </button>
+</div>
+</div>
+</div>
+<!-- Card 2: Completed Goal -->
+<div class="group bg-surface-container-lowest/50 rounded-[2rem] p-8 border border-white/50 backdrop-blur-sm relative overflow-hidden grayscale-[0.5] opacity-80">
+<div class="absolute inset-0 bg-secondary/5 pointer-events-none"></div>
+<div class="absolute top-0 right-0 p-6">
+<div class="w-12 h-12 rounded-2xl bg-secondary-container flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined" data-icon="check_circle" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+</div>
+<div class="mb-12">
+<h3 class="text-2xl font-headline font-bold text-on-surface line-through decoration-secondary decoration-2 mb-1">Отпуск 2024</h3>
+<div class="inline-flex items-center gap-1.5 px-3 py-1 bg-secondary text-white rounded-full text-[10px] font-bold uppercase tracking-widest mt-2">
+<span class="material-symbols-outlined text-[12px]" data-icon="done">done</span>
+                            Цель достигнута!
+                        </div>
+</div>
+<div class="space-y-6">
+<div class="flex justify-between items-end">
+<div>
+<span class="text-sm font-semibold text-slate-400 uppercase">Собрано</span>
+<div class="text-3xl font-headline font-extrabold text-secondary">500,000 ₽</div>
+</div>
+</div>
+<div class="relative w-full h-4 bg-secondary-container/30 rounded-full">
+<div class="absolute top-0 left-0 h-full bg-secondary rounded-full" style="width: 100%"></div>
+</div>
+<p class="text-sm font-medium text-on-secondary-container italic">"Пора собирать чемоданы! Билеты куплены, отель забронирован."</p>
+<div class="pt-4">
+<button class="w-full py-4 bg-white border-2 border-secondary-container text-secondary rounded-2xl font-bold hover:bg-secondary-container/10 transition-colors">
+                                Просмотреть историю
+                            </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Modal Overlay: Пополнить цель -->
+<div class="fixed inset-0 z-[60] flex items-center justify-center px-4 overflow-hidden">
+<!-- Backdrop -->
+<div class="absolute inset-0 bg-on-background/60 backdrop-blur-sm"></div>
+<!-- Celebration Effect (Subtle) -->
+<div class="absolute inset-0 confetti-gradient pointer-events-none"></div>
+<!-- Modal Content -->
+<div class="relative w-full max-w-lg bg-surface rounded-[2.5rem] shadow-2xl overflow-hidden p-8 md:p-12">
+<div class="flex justify-between items-start mb-8">
+<div>
+<h3 class="text-3xl font-headline font-extrabold text-on-surface tracking-tight mb-2">Пополнить цель</h3>
+<p class="text-slate-500 font-medium">Новая машина</p>
+</div>
+<button class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+</button>
+</div>
+<div class="space-y-8">
+<div class="p-6 bg-surface-container-low rounded-3xl border border-white">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-2xl bg-secondary-container flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined" data-icon="account_balance">account_balance</span>
+</div>
+<div>
+<p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Свободные средства</p>
+<p class="text-2xl font-headline font-bold text-on-surface">130,000 ₽</p>
+</div>
+</div>
+</div>
+<div class="space-y-4">
+<label class="block text-sm font-bold text-slate-500 px-2">Сумма пополнения</label>
+<div class="relative">
+<input class="w-full h-20 bg-surface-container-highest border-none rounded-3xl text-3xl font-headline font-extrabold text-primary px-8 focus:ring-4 focus:ring-primary/10 transition-all" type="text" value="32,500"/>
+<span class="absolute right-8 top-1/2 -translate-y-1/2 text-2xl font-headline font-bold text-slate-400">₽</span>
+</div>
+<div class="flex gap-3">
+<button class="flex-1 py-3 rounded-2xl bg-surface-container hover:bg-surface-container-high font-bold text-sm transition-colors">25%</button>
+<button class="flex-1 py-3 rounded-2xl bg-surface-container hover:bg-surface-container-high font-bold text-sm transition-colors">50%</button>
+<button class="flex-1 py-3 rounded-2xl bg-primary-container text-white font-bold text-sm transition-colors">100%</button>
+</div>
+</div>
+<div class="flex flex-col md:flex-row gap-4 pt-4">
+<button class="flex-1 py-4 order-2 md:order-1 bg-surface-container text-on-surface font-bold rounded-2xl active:scale-95 transition-transform">
+                        Отмена
+                    </button>
+<button class="flex-[2] py-4 order-1 md:order-2 bg-primary text-white font-bold rounded-2xl shadow-xl shadow-indigo-200 active:scale-95 transition-transform">
+                        Пополнить цель
+                    </button>
+</div>
+</div>
+</div>
+</div>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 md:hidden bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl shadow-[0_-10px_30px_rgba(0,0,0,0.05)] border-t border-slate-100 dark:border-slate-800">
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider">Главная</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500" href="#">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider">Операции</span>
+</a>
+<a class="flex flex-col items-center justify-center text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl px-3 py-1" href="#">
+<span class="material-symbols-outlined" data-icon="track_changes" style="font-variation-settings: 'FILL' 1;">track_changes</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider">Цели</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider">Аналитика</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500" href="#">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+<span class="font-inter text-[10px] font-semibold uppercase tracking-wider">Меню</span>
+</a>
+</nav>
+</body></html>

@@ -4,11 +4,27 @@ import api from '../services/api';
 import Modal from '../components/Modal';
 import ForecastModal from '../components/ForecastModal';
 import { formatMoney } from '../utils/format';
-import Button from '../components/ui/Button';
+
+const categoryIcons = {
+  car: 'directions_car',
+  travel: 'flight',
+  home: 'home',
+  education: 'school',
+  tech: 'devices',
+  health: 'favorite',
+  default: 'track_changes',
+};
+
+function getGoalIcon(goalName) {
+  const name = goalName.toLowerCase();
+  for (const [key, icon] of Object.entries(categoryIcons)) {
+    if (name.includes(key)) return icon;
+  }
+  return categoryIcons.default;
+}
 
 export default function Goals() {
   const [goals, setGoals] = useState([]);
-  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [contribModalOpen, setContribModalOpen] = useState(false);
@@ -21,23 +37,16 @@ export default function Goals() {
   const [showCelebration, setShowCelebration] = useState(null);
   const [forecastOpen, setForecastOpen] = useState(false);
   const [forecastGoal, setForecastGoal] = useState(null);
-  const { register, handleSubmit, reset, setValue } = useForm();
+  const { register, handleSubmit, reset, setValue, watch } = useForm();
 
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const fetchData = async () => {
     try {
-      const [gRes, cRes] = await Promise.all([
-        api.get('/goals', { params: { archived: showArchived } }),
-        api.get('/categories')
-      ]);
-      setGoals(gRes.data);
-      setCategories(cRes.data.filter(c => c.type === 'expense'));
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+      const res = await api.get('/goals', { params: { archived: showArchived } });
+      setGoals(res.data);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => { fetchData(); }, [showArchived]);
@@ -55,14 +64,8 @@ export default function Goals() {
       } else {
         await api.post('/goals', payload);
       }
-      setModalOpen(false);
-      reset();
-      setEditingId(null);
-      fetchData();
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || 'Ошибка');
-    }
+      setModalOpen(false); reset(); setEditingId(null); fetchData();
+    } catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
   };
 
   const openEditModal = (goal) => {
@@ -82,205 +85,224 @@ export default function Goals() {
 
   const deleteGoal = async (id) => {
     if (window.confirm('Удалить цель?')) {
-      try {
-        await api.delete(`/goals/${id}`);
-        fetchData();
-      } catch (err) {
-        console.error(err);
-        alert(err.response?.data?.message || 'Ошибка');
-      }
+      try { await api.delete(`/goals/${id}`); fetchData(); }
+      catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
     }
   };
 
   const openContribModal = async (goal) => {
-    setContribGoal(goal);
-    setContribAmount('');
-    setContribSelectedLabel('');
-    setContribModalOpen(true);
+    setContribGoal(goal); setContribAmount(''); setContribSelectedLabel(''); setContribModalOpen(true);
     try {
       const res = await api.get('/dashboard');
       setContribAvailable(res.data.availableFunds || 0);
-    } catch (err) {
-      console.error(err);
-      setContribAvailable(0);
-    }
+    } catch (err) { console.error(err); setContribAvailable(0); }
   };
 
-  const openForecast = (goal) => {
-    setForecastGoal(goal);
-    setForecastOpen(true);
-  };
+  const openForecast = (goal) => { setForecastGoal(goal); setForecastOpen(true); };
 
   const handleContribute = async (amount) => {
     if (!contribGoal || !amount || amount <= 0) return;
     try {
-      // Найти категорию по умолчанию
-      const cat = categories.find(c => /накоп|сбереж|цел/i.test(c.name)) || categories[0];
       const res = await api.post(`/goals/${contribGoal.id}/contribute`, {
-        amount,
-        createTransaction: true,
-        category_id: cat?.id,
-        comment: `Пополнение цели: ${contribGoal.name}`,
+        amount, createTransaction: true, comment: `Пополнение цели: ${contribGoal.name}`,
       });
-      setContribModalOpen(false);
-      setContribGoal(null);
-      setContribSelectedLabel('');
-      fetchData();
-      const newAmount = res.data.current_amount;
-      if (newAmount >= Number(contribGoal.target_amount)) {
+      setContribModalOpen(false); setContribGoal(null); setContribSelectedLabel(''); fetchData();
+      if (res.data.current_amount >= Number(contribGoal.target_amount)) {
         setShowCelebration(contribGoal.name);
         setTimeout(() => setShowCelebration(null), 3000);
       }
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || 'Ошибка');
-    }
+    } catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
   };
 
-  // Процентные кнопки — считаем от остатка цели, проверяем хватает ли свободных средств
   const contribOptions = useMemo(() => {
     if (!contribGoal) return [];
     const remaining = Math.max(0, Number(contribGoal.target_amount) - Number(contribGoal.current_amount));
-    const pcts = [10, 25, 50, 75, 90, 100];
-    return pcts.map(pct => {
+    return [10, 25, 50, 75, 90, 100].map(pct => {
       const value = Math.round(remaining * (pct / 100) * 100) / 100;
-      const canAfford = value <= contribAvailable;
-      return { label: `${pct}%`, value, pct, canAfford };
+      return { label: `${pct}%`, value, pct, canAfford: value <= contribAvailable };
     }).filter(o => o.value > 0);
   }, [contribGoal, contribAvailable]);
 
-  if (loading) return <div className="text-center py-10">Загрузка...</div>;
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+        <p className="text-on-surface-variant text-sm font-medium">Загрузка...</p>
+      </div>
+    </div>
+  );
 
   const activeGoals = goals.filter(g => !g.archived && !g.achieved);
   const archivedGoals = goals.filter(g => g.archived || g.achieved);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Celebration overlay */}
       {showCelebration && (
         <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 text-center animate-bounce">
+          <div className="bg-surface-container-lowest rounded-3xl shadow-ambient p-8 text-center animate-bounce">
             <div className="text-6xl mb-2">🎉</div>
-            <h3 className="text-2xl font-bold text-green-600">Цель достигнута!</h3>
-            <p className="text-gray-600 dark:text-gray-300 mt-1">{showCelebration}</p>
+            <h3 className="text-2xl font-bold text-secondary font-headline">Цель достигнута!</h3>
+            <p className="text-on-surface-variant mt-1">{showCelebration}</p>
           </div>
         </div>
       )}
 
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Цели накоплений</h1>
+      {/* Section Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <nav className="flex gap-2 text-xs font-medium text-on-surface-variant/50 mb-2 uppercase tracking-widest">
+            <span>Сбережения</span>
+            <span>/</span>
+            <span className="text-primary">Цели</span>
+          </nav>
+          <h2 className="text-4xl md:text-5xl font-headline font-extrabold text-on-surface tracking-tight">Цели накоплений</h2>
+        </div>
         <div className="flex gap-2">
           {archivedGoals.length > 0 && (
-            <button onClick={() => setShowArchived(!showArchived)} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+            <button onClick={() => setShowArchived(!showArchived)} className="btn-ghost px-4 py-3 text-sm">
               {showArchived ? 'Скрыть архив' : 'Архив'}
             </button>
           )}
           <button
             onClick={() => { setEditingId(null); reset({ auto_contribute_enabled: false, auto_contribute_type: 'percentage', auto_contribute_value: '', is_family_goal: false, target_date: todayStr }); setModalOpen(true); }}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+            className="btn-primary px-6 py-3 flex items-center gap-2 text-sm"
           >
-            + Добавить цель
+            <span className="material-symbols-outlined text-sm">add</span>
+            Добавить цель
           </button>
         </div>
       </div>
 
-      {/* Активные цели */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Active Goals Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {activeGoals.map(goal => {
           const progress = goal.progress || ((Number(goal.current_amount) / Number(goal.target_amount)) * 100);
           const remaining = Math.max(0, Number(goal.target_amount) - Number(goal.current_amount));
           const achieved = goal.achieved || (Number(goal.current_amount) >= Number(goal.target_amount));
           return (
-            <div key={goal.id} className={`rounded-lg shadow p-4 border transition-all duration-300 ${
-              achieved
-                ? 'border-green-400 dark:border-green-600 bg-green-50 dark:bg-green-900/10'
-                : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
-            }`}>
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <h3 className={`text-lg font-medium flex items-center gap-2 ${achieved ? 'text-green-700 dark:text-green-400 line-through' : 'text-gray-900 dark:text-white'}`}>
-                    {achieved && <span className="text-green-500 text-lg animate-pulse">✓</span>}
-                    {goal.name}
-                  </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    {formatMoney(goal.current_amount)} / {formatMoney(goal.target_amount)} ₽
+            <div key={goal.id} className="group bg-surface-container-lowest rounded-[2rem] p-8 transition-all hover:shadow-2xl hover:shadow-indigo-500/5 relative overflow-hidden">
+              {/* Icon */}
+              <div className="absolute top-0 right-0 p-6">
+                <div className="w-12 h-12 rounded-2xl bg-primary-fixed flex items-center justify-center text-primary">
+                  <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
+                    {getGoalIcon(goal.name)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Title */}
+              <div className="mb-12">
+                <h3 className="text-2xl font-headline font-bold text-on-surface mb-1">{goal.name}</h3>
+                {goal.target_date && (
+                  <p className="text-sm text-on-surface-variant/60 font-medium">
+                    Срок: {new Date(goal.target_date).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })}
                   </p>
-                </div>
-                <div className="flex space-x-1">
-                  <button onClick={() => openEditModal(goal)} className="text-indigo-600 dark:text-indigo-400 p-1">✏️</button>
-                  <button onClick={() => deleteGoal(goal.id)} className="text-red-600 p-1">🗑️</button>
-                </div>
+                )}
               </div>
 
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mt-3">
-                <div className={`h-2.5 rounded-full transition-all duration-700 ${achieved ? 'bg-green-500' : 'bg-green-600'}`} style={{ width: `${Math.min(progress, 100)}%` }}></div>
-              </div>
-
-              <div className="mt-2 flex justify-between items-center text-sm">
-                <span className="text-gray-500 dark:text-gray-400">Осталось: {formatMoney(remaining)} ₽</span>
-                <span className="text-gray-500 dark:text-gray-400">{Math.round(progress)}%</span>
-              </div>
-
-              {goal.target_date && (
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Срок: {new Date(goal.target_date).toLocaleDateString()}</p>
-              )}
-              {goal.interest_rate > 0 && (
-                <p className="text-xs text-gray-400 dark:text-gray-500">Ставка: {goal.interest_rate}% годовых</p>
-              )}
-              {goal.auto_contribute_enabled && (
-                <p className="text-xs text-indigo-500 dark:text-indigo-400 mt-1">
-                  Авто: {goal.auto_contribute_type === 'percentage' ? `${goal.auto_contribute_value}% от дохода` : `${formatMoney(goal.auto_contribute_value)} ₽/мес`}
-                </p>
-              )}
-
-              {achieved && (
-                <div className="mt-2 text-center text-sm text-green-600 dark:text-green-400 font-semibold animate-pulse">
-                  🎉 Цель достигнута! Перемещена в архив
+              {/* Progress Section */}
+              <div className="space-y-6">
+                <div className="flex justify-between items-end">
+                  <div className="space-y-1">
+                    <span className="text-sm font-semibold text-on-surface-variant/50 uppercase tracking-tighter">Накоплено</span>
+                    <div className="text-3xl font-headline font-extrabold text-primary">{formatMoney(goal.current_amount)} ₽</div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-sm font-semibold text-on-surface-variant/50 uppercase tracking-tighter">Всего</span>
+                    <div className="text-xl font-headline font-bold text-on-surface">{formatMoney(goal.target_amount)} ₽</div>
+                  </div>
                 </div>
-              )}
 
-              <button
-                onClick={() => openContribModal(goal)}
-                className="mt-3 w-full bg-indigo-100 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 py-2 rounded-md hover:bg-indigo-200 dark:hover:bg-indigo-500/25 transition font-medium"
-              >
-                Пополнить
-              </button>
-              <button
-                onClick={() => openForecast(goal)}
-                className="mt-2 w-full text-sm text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition py-1"
-              >
-                📊 Прогноз накоплений
-              </button>
+                {/* Progress Bar */}
+                <div className="relative w-full h-4 bg-surface-container rounded-full overflow-hidden">
+                  <div
+                    className="absolute top-0 left-0 h-full bg-gradient-to-r from-primary to-primary-container rounded-full transition-all duration-700"
+                    style={{ width: `${Math.min(progress, 100)}%` }}
+                  ></div>
+                </div>
+                <div className="flex justify-between text-sm font-bold">
+                  <span className="text-primary">{Math.round(progress)}% выполнено</span>
+                  <span className="text-on-surface-variant">Осталось: {formatMoney(remaining)} ₽</span>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="grid grid-cols-2 gap-4 pt-4">
+                  <button
+                    onClick={() => openContribModal(goal)}
+                    className="py-4 bg-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                  >
+                    <span className="material-symbols-outlined text-sm">account_balance_wallet</span>
+                    Пополнить
+                  </button>
+                  <button
+                    onClick={() => openForecast(goal)}
+                    className="py-4 bg-surface-container text-on-surface rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-surface-container-high transition-colors active:scale-95"
+                  >
+                    <span className="material-symbols-outlined text-sm">trending_up</span>
+                    Прогноз
+                  </button>
+                </div>
+              </div>
             </div>
           );
         })}
-        {activeGoals.length === 0 && <p className="text-gray-500 dark:text-gray-400 col-span-2 text-center py-8">Нет активных целей</p>}
+        {activeGoals.length === 0 && (
+          <div className="col-span-2 bg-surface-container-lowest rounded-[2rem] p-16 text-center">
+            <div className="w-20 h-20 mx-auto rounded-3xl bg-primary/10 flex items-center justify-center mb-6">
+              <span className="material-symbols-outlined text-4xl text-primary">track_changes</span>
+            </div>
+            <h3 className="text-xl font-bold font-headline text-on-surface mb-2">Нет активных целей</h3>
+            <p className="text-on-surface-variant text-sm mb-6">Создайте первую цель накоплений</p>
+            <button
+              onClick={() => { reset({ auto_contribute_enabled: false, auto_contribute_type: 'percentage', auto_contribute_value: '', is_family_goal: false, target_date: todayStr }); setModalOpen(true); }}
+              className="btn-primary px-8 py-3 inline-flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-sm">add</span>
+              Добавить цель
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Архив целей */}
+      {/* Archived Goals */}
       {showArchived && archivedGoals.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-3">📦 Архив выполненных</h2>
-          <div className="space-y-2">
+        <div className="space-y-6">
+          <h3 className="text-2xl font-headline font-bold text-on-surface">Архив выполненных</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {archivedGoals.map(g => (
-              <div key={g.id} className="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-green-500">✓</span>
-                  <span className="line-through text-gray-500 dark:text-gray-400">{g.name}</span>
+              <div key={g.id} className="group bg-surface-container-lowest/50 rounded-[2rem] p-8 border border-outline-variant/20 backdrop-blur-sm relative overflow-hidden">
+                <div className="absolute inset-0 bg-secondary/5 pointer-events-none"></div>
+                <div className="absolute top-0 right-0 p-6">
+                  <div className="w-12 h-12 rounded-2xl bg-secondary-container flex items-center justify-center text-secondary">
+                    <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">{formatMoney(g.current_amount)} / {formatMoney(g.target_amount)} ₽</span>
-                  <button
-                    onClick={async () => {
-                      try {
-                        await api.put(`/goals/${g.id}`, { archived: false });
-                        fetchData();
-                      } catch (err) { console.error(err); }
-                    }}
-                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
-                  >
-                    Вернуть
-                  </button>
+                <div className="mb-12">
+                  <h3 className="text-2xl font-headline font-bold text-on-surface line-through decoration-secondary decoration-2 mb-1">{g.name}</h3>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-secondary text-white rounded-full text-[10px] font-bold uppercase tracking-widest mt-2">
+                    <span className="material-symbols-outlined text-[12px]">done</span>
+                    Цель достигнута!
+                  </div>
+                </div>
+                <div className="space-y-6">
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <span className="text-sm font-semibold text-on-surface-variant/50 uppercase">Собрано</span>
+                      <div className="text-3xl font-headline font-extrabold text-secondary">{formatMoney(g.current_amount)} ₽</div>
+                    </div>
+                  </div>
+                  <div className="relative w-full h-4 bg-secondary-container/30 rounded-full">
+                    <div className="absolute top-0 left-0 h-full bg-secondary rounded-full" style={{ width: '100%' }}></div>
+                  </div>
+                  <div className="pt-4">
+                    <button
+                      onClick={async () => { try { await api.put(`/goals/${g.id}`, { archived: false }); fetchData(); } catch (err) { console.error(err); } }}
+                      className="w-full py-4 bg-surface-container text-on-surface rounded-2xl font-bold hover:bg-surface-container-high transition-colors"
+                    >
+                      Вернуть в активные
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -288,153 +310,167 @@ export default function Goals() {
         </div>
       )}
 
-      {/* Модальное окно пополнения цели */}
+      {/* Contribution Modal */}
       <Modal isOpen={contribModalOpen} onClose={() => { setContribModalOpen(false); setContribGoal(null); }} title="Пополнить цель">
         {contribGoal && (
-          <div className="space-y-4">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Цель: <span className="font-medium text-gray-900 dark:text-gray-100">{contribGoal.name}</span>
-            </p>
-
-            {/* Свободные средства */}
-            <div className={`rounded-md p-3 text-sm border ${contribAvailable > 0 ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800'}`}>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Свободные средства семьи:</span>
-                <span className={`font-bold text-lg ${contribAvailable > 0 ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>{formatMoney(contribAvailable)} ₽</span>
+          <div className="space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                <span className="material-symbols-outlined">{getGoalIcon(contribGoal.name)}</span>
+              </div>
+              <div>
+                <p className="font-bold text-on-surface font-headline">{contribGoal.name}</p>
+                <p className="text-xs text-on-surface-variant">Пополнение цели</p>
               </div>
             </div>
 
-            <div className="bg-gray-50 dark:bg-gray-900/40 rounded-md p-3 text-sm space-y-1">
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Целевая сумма:</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">{formatMoney(contribGoal.target_amount)} ₽</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Накоплено:</span>
-                <span className="font-medium text-green-600">{formatMoney(contribGoal.current_amount)} ₽</span>
-              </div>
-              <div className="flex justify-between border-t border-gray-200 dark:border-gray-700 pt-1">
-                <span className="text-gray-600 dark:text-gray-300">Осталось:</span>
-                <span className="font-medium text-red-600">{formatMoney(Math.max(0, Number(contribGoal.target_amount) - Number(contribGoal.current_amount)))} ₽</span>
+            <div className={`rounded-2xl p-4 ${contribAvailable > 0 ? 'bg-secondary/5' : 'bg-error/5'}`}>
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-on-surface-variant">Свободные средства:</span>
+                <span className={`text-xl font-bold font-headline ${contribAvailable > 0 ? 'text-secondary' : 'text-error'}`}>{formatMoney(contribAvailable)} ₽</span>
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Сумма пополнения (₽)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={contribAmount}
-                onChange={e => setContribAmount(e.target.value)}
-                className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-lg font-medium"
-                placeholder="Введите сумму"
-              />
+            <div className="bg-surface-container rounded-2xl p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-on-surface-variant">Целевая сумма</span>
+                <span className="font-semibold text-on-surface">{formatMoney(contribGoal.target_amount)} ₽</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-on-surface-variant">Накоплено</span>
+                <span className="font-semibold text-secondary">{formatMoney(contribGoal.current_amount)} ₽</span>
+              </div>
+              <div className="flex justify-between text-sm pt-2 border-t border-outline-variant/20">
+                <span className="text-on-surface-variant font-bold">Осталось</span>
+                <span className="font-bold text-error">{formatMoney(Math.max(0, Number(contribGoal.target_amount) - Number(contribGoal.current_amount)))} ₽</span>
+              </div>
             </div>
 
             <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">% от свободных средств:</p>
+              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Сумма пополнения</label>
+              <input type="number" step="0.01" min="0.01" value={contribAmount} onChange={e => setContribAmount(e.target.value)} className="input-ghost text-lg font-bold" placeholder="0.00" />
+            </div>
+
+            <div>
+              <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-3">% от остатка цели</p>
               <div className="grid grid-cols-3 gap-2">
                 {contribOptions.map(o => (
                   <button
                     key={o.label}
-                    onClick={() => {
-                      if (!o.canAfford) return;
-                      setContribAmount(String(o.value));
-                      setContribSelectedLabel(o.label);
-                    }}
+                    onClick={() => { if (o.canAfford) { setContribAmount(String(o.value)); setContribSelectedLabel(o.label); } }}
                     disabled={!o.canAfford}
-                    className={`relative px-3 py-3 rounded-xl transition border-2 text-center ${
+                    className={`relative px-3 py-3 rounded-2xl transition-all text-center ${
                       !o.canAfford
-                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 border-gray-200 dark:border-gray-700 cursor-not-allowed'
-                        : o.pct === 100
-                          ? contribSelectedLabel === o.label
-                            ? 'bg-green-600 text-white border-green-600 shadow-lg shadow-green-200 dark:shadow-green-900/30'
-                            : 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/40'
-                          : contribSelectedLabel === o.label
-                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-200 dark:shadow-indigo-900/30'
-                            : 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-500/20'
+                        ? 'bg-surface-container text-on-surface-variant/40 cursor-not-allowed'
+                        : contribSelectedLabel === o.label
+                          ? o.pct === 100
+                            ? 'bg-secondary text-white shadow-lg shadow-secondary/20'
+                            : 'bg-primary text-white shadow-button'
+                          : 'bg-surface-container-high text-on-surface hover:bg-surface-container-highest'
                     }`}
                   >
-                    <div className="text-sm font-semibold">{o.label}</div>
-                    <div className={`text-xs mt-0.5 ${o.pct === 100 ? 'text-green-100' : 'opacity-70'}`}>{formatMoney(o.value)} ₽</div>
-                    {!o.canAfford && <div className="text-[10px] text-red-400 mt-0.5">нет средств</div>}
+                    <div className="text-sm font-bold">{o.label}</div>
+                    <div className={`text-xs mt-0.5 ${contribSelectedLabel === o.label ? 'text-white/80' : 'text-on-surface-variant'}`}>{formatMoney(o.value)} ₽</div>
+                    {!o.canAfford && <div className="text-[10px] text-error mt-0.5">нет средств</div>}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="ghost" onClick={() => { setContribModalOpen(false); setContribGoal(null); }}>Отмена</Button>
-              <Button variant="primary" disabled={!contribAmount || Number(contribAmount) <= 0} onClick={() => handleContribute(Number(contribAmount))}>
-                Пополнить
-              </Button>
+            <div className="flex justify-end gap-3 pt-2">
+              <button type="button" onClick={() => { setContribModalOpen(false); setContribGoal(null); }} className="btn-ghost px-6 py-3">Отмена</button>
+              <button type="button" disabled={!contribAmount || Number(contribAmount) <= 0} onClick={() => handleContribute(Number(contribAmount))} className="btn-primary px-8 py-3 disabled:opacity-50 disabled:cursor-not-allowed">Пополнить</button>
             </div>
           </div>
         )}
       </Modal>
 
-      {/* Прогнозный калькулятор */}
-      <ForecastModal
-        goal={forecastGoal}
-        isOpen={forecastOpen}
-        onClose={() => { setForecastOpen(false); setForecastGoal(null); }}
-      />
+      {/* Forecast Modal */}
+      <ForecastModal goal={forecastGoal} isOpen={forecastOpen} onClose={() => { setForecastOpen(false); setForecastGoal(null); }} />
 
-      {/* Модальное окно добавления/редактирования */}
+      {/* Add/Edit Goal Modal */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Редактировать цель' : 'Новая цель'}>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Название</label>
-            <input {...register('name', { required: true })} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
+            <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Название</label>
+            <input {...register('name', { required: true })} className="input-ghost" placeholder="Например: Новая машина" />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Целевая сумма (₽)</label>
-            <input type="number" step="0.01" {...register('target_amount', { required: true, min: 0.01 })} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Категория цели</label>
-            <select {...register('category_id')} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
-              <option value="">Без категории</option>
-              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Срок (дата)</label>
-            <input type="date" {...register('target_date')} defaultValue={todayStr} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Годовая ставка (%)</label>
-            <input type="number" step="0.01" {...register('interest_rate')} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Текущая сумма (₽)</label>
-            <input type="number" step="0.01" {...register('current_amount')} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
-          </div>
-          <div className="flex items-center">
-            <input type="checkbox" {...register('is_family_goal')} className="h-4 w-4 text-indigo-600" />
-            <label className="ml-2 block text-sm text-gray-900 dark:text-gray-100">Семейная цель</label>
-          </div>
-          <div className="flex items-center">
-            <input type="checkbox" {...register('auto_contribute_enabled')} className="h-4 w-4 text-indigo-600" />
-            <label className="ml-2 block text-sm text-gray-900 dark:text-gray-100">Автозачисление</label>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Тип</label>
-              <select {...register('auto_contribute_type')} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
-                <option value="percentage">% от дохода</option>
-                <option value="fixed">Фикс. сумма</option>
-              </select>
+              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Целевая сумма</label>
+              <input type="number" step="0.01" {...register('target_amount', { required: true, min: 0.01 })} className="input-ghost" placeholder="0.00" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Значение</label>
-              <input type="number" step="0.01" {...register('auto_contribute_value')} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
+              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Текущая сумма</label>
+              <input type="number" step="0.01" {...register('current_amount')} className="input-ghost" placeholder="0.00" />
             </div>
           </div>
-          <div className="flex justify-end space-x-2 pt-4">
-            <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">Отмена</button>
-            <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-md">Сохранить</button>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Срок</label>
+              <input type="date" {...register('target_date')} defaultValue={todayStr} className="select-ghost" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Ставка (%)</label>
+              <input type="number" step="0.01" {...register('interest_rate')} className="input-ghost" placeholder="0" />
+            </div>
+          </div>
+
+          <label className="flex items-center justify-between p-4 bg-surface-container rounded-2xl cursor-pointer">
+            <div>
+              <span className="text-sm font-semibold text-on-surface">Автозачисление</span>
+              <p className="text-xs text-on-surface-variant">Автоматическое пополнение из доходов</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setValue('auto_contribute_enabled', !watch('auto_contribute_enabled'))}
+              className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
+                watch('auto_contribute_enabled') ? 'bg-primary' : 'bg-outline-variant'
+              }`}
+            >
+              <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${
+                watch('auto_contribute_enabled') ? 'translate-x-5' : 'translate-x-0.5'
+              }`}></div>
+            </button>
+          </label>
+
+          {watch('auto_contribute_enabled') && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Тип</label>
+                <select {...register('auto_contribute_type')} className="select-ghost">
+                  <option value="percentage">% от дохода</option>
+                  <option value="fixed">Фикс. сумма</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Значение</label>
+                <input type="number" step="0.01" {...register('auto_contribute_value')} className="input-ghost" placeholder="0" />
+              </div>
+            </div>
+          )}
+
+          <label className="flex items-center justify-between p-4 bg-surface-container rounded-2xl cursor-pointer">
+            <div>
+              <span className="text-sm font-semibold text-on-surface">Семейная цель</span>
+              <p className="text-xs text-on-surface-variant">Доступна всем членам семьи</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setValue('is_family_goal', !watch('is_family_goal'))}
+              className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
+                watch('is_family_goal') ? 'bg-primary' : 'bg-outline-variant'
+              }`}
+            >
+              <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${
+                watch('is_family_goal') ? 'translate-x-5' : 'translate-x-0.5'
+              }`}></div>
+            </button>
+          </label>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={() => setModalOpen(false)} className="btn-ghost px-6 py-3">Отмена</button>
+            <button type="submit" className="btn-primary px-8 py-3">Сохранить</button>
           </div>
         </form>
       </Modal>

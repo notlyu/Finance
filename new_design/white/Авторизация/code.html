@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+
+<html class="light" lang="ru"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Финансы - Авторизация</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Manrope:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary": "#960014",
+                        "on-secondary-fixed-variant": "#005236",
+                        "inverse-primary": "#c3c0ff",
+                        "inverse-surface": "#213145",
+                        "outline-variant": "#c7c4d8",
+                        "on-error-container": "#93000a",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-low": "#eff4ff",
+                        "on-tertiary-fixed": "#410004",
+                        "on-tertiary-fixed-variant": "#930013",
+                        "on-primary": "#ffffff",
+                        "surface-variant": "#d3e4fe",
+                        "surface-container-high": "#dce9ff",
+                        "tertiary-container": "#bc1d25",
+                        "outline": "#777587",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed": "#0f0069",
+                        "secondary": "#006c49",
+                        "on-primary-fixed-variant": "#3323cc",
+                        "error": "#ba1a1a",
+                        "primary-container": "#4f46e5",
+                        "on-secondary-container": "#00714d",
+                        "primary-fixed-dim": "#c3c0ff",
+                        "secondary-fixed-dim": "#4edea3",
+                        "tertiary-fixed": "#ffdad7",
+                        "on-tertiary-container": "#ffd0cc",
+                        "on-secondary-fixed": "#002113",
+                        "surface-dim": "#cbdbf5",
+                        "on-background": "#0b1c30",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-container": "#6cf8bb",
+                        "primary": "#3525cd",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-surface": "#0b1c30",
+                        "on-surface-variant": "#464555",
+                        "surface-container": "#e5eeff",
+                        "surface": "#f8f9ff",
+                        "on-error": "#ffffff",
+                        "primary-fixed": "#e2dfff",
+                        "tertiary-fixed-dim": "#ffb3ad",
+                        "inverse-on-surface": "#eaf1ff",
+                        "error-container": "#ffdad6",
+                        "surface-tint": "#4d44e3",
+                        "secondary-fixed": "#6ffbbe",
+                        "background": "#f8f9ff",
+                        "on-primary-container": "#dad7ff",
+                        "surface-bright": "#f8f9ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1.25rem",
+                        "3xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        h1, h2, .brand-font {
+            font-family: 'Manrope', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen flex flex-col font-body">
+<!-- Top Navigation (Shell Implementation) -->
+<header class="fixed top-0 right-0 left-0 z-30 flex justify-between items-center px-6 py-4 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md">
+<div class="flex items-center gap-2">
+<div class="w-10 h-10 bg-primary-container rounded-xl flex items-center justify-center text-white shadow-sm">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">account_balance_wallet</span>
+</div>
+<span class="brand-font text-xl font-extrabold tracking-tight text-on-surface">Финансы</span>
+</div>
+<div class="flex items-center gap-3">
+<button class="p-2 rounded-full hover:bg-surface-container-high transition-colors flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant">dark_mode</span>
+</button>
+</div>
+</header>
+<main class="flex-grow flex items-center justify-center px-4 pt-20 pb-12">
+<!-- Main Auth Container (Bento/Layered Style) -->
+<div class="max-w-md w-full relative">
+<!-- Decorative background element for depth -->
+<div class="absolute -top-12 -right-12 w-64 h-64 bg-primary-container/10 rounded-full blur-3xl -z-10"></div>
+<div class="absolute -bottom-12 -left-12 w-64 h-64 bg-secondary-container/10 rounded-full blur-3xl -z-10"></div>
+<div class="bg-surface-container-lowest rounded-3xl shadow-[0_20px_40px_rgba(11,28,48,0.06)] overflow-hidden border border-white/40">
+<div class="p-8 md:p-10">
+<div class="mb-10">
+<h1 class="text-3xl font-extrabold tracking-tight mb-2 text-on-surface leading-tight">Добро пожаловать</h1>
+<p class="text-on-surface-variant text-body-lg">Управляйте своим капиталом осознанно и спокойно</p>
+</div>
+<!-- Error Message (Style: Danger Red) -->
+<div class="mb-6 p-4 bg-error-container rounded-xl flex items-start gap-3 border-l-4 border-error">
+<span class="material-symbols-outlined text-error mt-0.5" style="font-variation-settings: 'FILL' 1;">error</span>
+<div>
+<p class="text-sm font-semibold text-on-error-container">Ошибка входа</p>
+<p class="text-xs text-on-error-container/80">Неверный пароль или адрес электронной почты. Пожалуйста, попробуйте еще раз.</p>
+</div>
+</div>
+<form class="space-y-6">
+<div>
+<label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1" for="email">Email</label>
+<div class="relative group">
+<div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-outline group-focus-within:text-primary transition-colors">alternate_email</span>
+</div>
+<input class="block w-full pl-12 pr-4 py-4 bg-surface-container-low border-transparent rounded-2xl focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all text-on-surface placeholder:text-outline/60 outline-none border-2" id="email" name="email" placeholder="example@mail.ru" type="email"/>
+</div>
+</div>
+<div>
+<div class="flex justify-between items-center mb-2 ml-1">
+<label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest" for="password">Пароль</label>
+<a class="text-xs font-semibold text-primary hover:text-on-primary-fixed-variant transition-colors" href="#">Забыли?</a>
+</div>
+<div class="relative group">
+<div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-outline group-focus-within:text-primary transition-colors">lock</span>
+</div>
+<input class="block w-full pl-12 pr-12 py-4 bg-surface-container-low border-transparent rounded-2xl focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all text-on-surface placeholder:text-outline/60 outline-none border-2" id="password" name="password" type="password"/>
+<button class="absolute inset-y-0 right-0 pr-4 flex items-center text-outline hover:text-on-surface-variant" type="button">
+<span class="material-symbols-outlined">visibility</span>
+</button>
+</div>
+</div>
+<div class="pt-2">
+<button class="w-full py-4 bg-gradient-to-r from-primary to-primary-container text-white font-bold text-lg rounded-2xl shadow-lg shadow-primary/20 hover:opacity-90 active:scale-[0.98] transition-all duration-200" type="submit">
+                                Войти
+                            </button>
+</div>
+</form>
+<div class="mt-10 pt-8 border-t border-surface-container flex flex-col items-center gap-4">
+<p class="text-on-surface-variant text-sm font-medium">Нет аккаунта?</p>
+<button class="w-full py-3.5 border-2 border-outline-variant hover:border-primary/40 hover:bg-surface-container text-on-surface font-bold text-sm rounded-2xl transition-all flex items-center justify-center gap-2">
+                            Зарегистрироваться
+                        </button>
+</div>
+</div>
+<!-- Subtle Decorative Footer -->
+<div class="bg-surface-container-low p-6 flex justify-center items-center">
+<div class="flex items-center gap-2 opacity-50">
+<div class="w-1.5 h-1.5 rounded-full bg-primary"></div>
+<span class="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface">Digital Curator System</span>
+<div class="w-1.5 h-1.5 rounded-full bg-secondary"></div>
+</div>
+</div>
+</div>
+<!-- Accessibility Links -->
+<div class="mt-8 flex justify-center gap-6">
+<a class="text-[11px] font-bold uppercase tracking-widest text-outline hover:text-on-surface transition-colors" href="#">Конфиденциальность</a>
+<a class="text-[11px] font-bold uppercase tracking-widest text-outline hover:text-on-surface transition-colors" href="#">Условия</a>
+<a class="text-[11px] font-bold uppercase tracking-widest text-outline hover:text-on-surface transition-colors" href="#">Поддержка</a>
+</div>
+</div>
+</main>
+<!-- Footer Visual Element -->
+<div class="mt-auto p-8 flex flex-col md:flex-row justify-between items-center gap-4 w-full">
+<div class="flex -space-x-3 overflow-hidden">
+<img alt="User 1" class="inline-block h-8 w-8 rounded-full ring-4 ring-surface" data-alt="Portrait of a professional young woman with neutral expression in soft studio lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAdwzseIv-movrqUJ3wYjLvEr7LrUX6Mcm0ptSSiOTeU7a_5PCp_gwluxsnnhmnguq66TRx22JhPnZzjOUY3qR3EPT0LwxxbhP5EtH0gZ6zg4Bf_u33cBLvdwGymMPaE4Q0dXQpvVCRCGjS1oou6o32heqJrNkt_Wn0uixrKj7Q-1YPYNWoZWFQDQvckgLHIki7KRj0pFY6imkNuaSbvOWa53xO3eDu2HMx2ouflmPUnBaXGvKfpoJTz2iRufJUc7C0K2XS2C2sUKo"/>
+<img alt="User 2" class="inline-block h-8 w-8 rounded-full ring-4 ring-surface" data-alt="Close-up of a smiling man with professional attire and soft natural lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCM_f2xQRwH343S_lG-u310iHoLWG-POL4eggFOj7Wn9v4Z267MgP4xtFz7t1mN6L-PChI3rDYOeDxgTKpjXZe87IchUUYTuoTfH8izfjfVZu1zsXgp4PThz1By-ZcOoE3SGUk4bLm5-uSmh5uV2FNkWClbsg__lCRcNgYIxQxVnpabUMxtvOtXZpZp5pqcfXLKiU9b8myYHc6bRUrhvKJf4AJkr1kJtnoQY5eXCC4fbkNNLfbguyb2o2gucnjSm_Hcm--59oWKfA4"/>
+<img alt="User 3" class="inline-block h-8 w-8 rounded-full ring-4 ring-surface" data-alt="Close-up of a confident woman looking at the camera with a subtle smile in bright daylight" src="https://lh3.googleusercontent.com/aida-public/AB6AXuALm5Tg-o16T4E5Nei42Sl2sYWXIYf3q3CrcLAxQo3LD_v8JhQkzPhOxcIF8Ntb16NhWqV7pNLUx6rKCvDRu0gK9cY4ADq-oZQIGcAaYXTrdWm6LxktZevi9Xhy0_38hFfrJuo8PqWlHC07P1ys9DZPdUa464xHr1wC5K7vxaW5eCWlDFUtl3qd0oWh8LdUOgFCLye_-WDcPu4OcOvQZ6xpAXsBWvPa-LRlCDrs1uSgxQJYhVmIyMp9Eg1v4QTl2iIOBCoq3vO2M5o"/>
+<div class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface-container-high ring-4 ring-surface text-[10px] font-bold text-primary">12k+</div>
+</div>
+<p class="text-xs font-medium text-outline text-center md:text-left">Присоединяйтесь к 12,000+ семей, управляющих капиталом эффективно.</p>
+</div>
+</body></html>

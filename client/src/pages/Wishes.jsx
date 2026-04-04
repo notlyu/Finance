@@ -1,9 +1,9 @@
+import { Link } from 'react-router-dom';
 import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import api from '../services/api';
 import Modal from '../components/Modal';
 import { formatMoney } from '../utils/format';
-import Button from '../components/ui/Button';
 
 export default function Wishes() {
   const [wishes, setWishes] = useState([]);
@@ -17,7 +17,7 @@ export default function Wishes() {
   const [editingId, setEditingId] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
   const [showCelebration, setShowCelebration] = useState(null);
-  const { register, handleSubmit, reset, setValue } = useForm();
+  const { register, handleSubmit, reset, setValue, watch } = useForm();
 
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
@@ -29,262 +29,265 @@ export default function Wishes() {
       ]);
       setWishes(wRes.data);
       setCategories(cRes.data.filter(c => c.type === 'expense'));
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => { fetchData(); }, [showArchived]);
 
+  // Bento stats
+  const totalBudget = useMemo(() => wishes.reduce((s, w) => s + Number(w.cost || 0), 0), [wishes]);
+  const totalSaved = useMemo(() => wishes.reduce((s, w) => s + Number(w.saved_amount || 0), 0), [wishes]);
+  const remainingTotal = useMemo(() => Math.max(0, totalBudget - totalSaved), [totalBudget, totalSaved]);
+
   const onSubmit = async (data) => {
     try {
-      const payload = {
-        ...data,
-        category_id: data.category_id ? Number(data.category_id) : undefined,
-        created_at: todayStr
-      };
-      if (editingId) {
-        await api.put(`/wishes/${editingId}`, payload);
-      } else {
-        await api.post('/wishes', payload);
-      }
-      setModalOpen(false);
-      reset();
-      setEditingId(null);
-      fetchData();
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || 'Ошибка');
-    }
+      const payload = { ...data, category_id: data.category_id ? Number(data.category_id) : undefined, created_at: todayStr };
+      if (editingId) { await api.put(`/wishes/${editingId}`, payload); }
+      else { await api.post('/wishes', payload); }
+      setModalOpen(false); reset(); setEditingId(null); fetchData();
+    } catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
   };
 
   const openEditModal = (wish) => {
     setEditingId(wish.id);
-    setValue('name', wish.name);
-    setValue('cost', wish.cost);
-    setValue('priority', wish.priority);
-    setValue('status', wish.status);
-    setValue('saved_amount', wish.saved_amount);
-    setValue('is_private', wish.is_private);
-    setValue('category_id', wish.category_id);
+    setValue('name', wish.name); setValue('cost', wish.cost); setValue('priority', wish.priority);
+    setValue('status', wish.status); setValue('saved_amount', wish.saved_amount);
+    setValue('is_private', wish.is_private); setValue('category_id', wish.category_id);
     setModalOpen(true);
   };
 
   const deleteWish = async (id) => {
     if (window.confirm('Удалить желание?')) {
-      try {
-        await api.delete(`/wishes/${id}`);
-        fetchData();
-      } catch (err) {
-        console.error(err);
-        alert(err.response?.data?.message || 'Ошибка');
-      }
+      try { await api.delete(`/wishes/${id}`); fetchData(); }
+      catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
     }
   };
 
   const openFundModal = async (wish) => {
-    setFundWish(wish);
-    setFundAmount('');
-    setFundModalOpen(true);
-    // Загрузить свободные средства с дашборда
-    try {
-      const res = await api.get('/dashboard');
-      setFundAvailable(res.data.availableFunds || 0);
-    } catch (err) {
-      console.error(err);
-      setFundAvailable(0);
-    }
+    setFundWish(wish); setFundAmount(''); setFundModalOpen(true);
+    try { const res = await api.get('/dashboard'); setFundAvailable(res.data.availableFunds || 0); }
+    catch (err) { console.error(err); setFundAvailable(0); }
   };
 
   const handleFund = async (amount) => {
     if (!fundWish || !amount || amount <= 0) return;
     try {
       const res = await api.post(`/wishes/${fundWish.id}/fund`, { amount: Number(amount) });
-      setFundModalOpen(false);
-      setFundWish(null);
-      fetchData();
-      // Check if wish is now completed — show celebration
-      const newSaved = res.data.saved_amount;
-      if (newSaved >= Number(fundWish.cost)) {
+      setFundModalOpen(false); setFundWish(null); fetchData();
+      if (res.data.saved_amount >= Number(fundWish.cost)) {
         setShowCelebration(fundWish.name);
         setTimeout(() => setShowCelebration(null), 3000);
       }
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || 'Ошибка');
-    }
+    } catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
   };
 
-  // Доли от остатка + полное закрытие
   const fundOptions = useMemo(() => {
     if (!fundWish) return [];
     const remaining = Math.max(0, Number(fundWish.cost) - Number(fundWish.saved_amount));
-    const opts = [
+    return [
       { label: 'Полностью', value: remaining, accent: true },
       { label: '1/2', value: Math.round(remaining * 0.5 * 100) / 100 },
       { label: '1/3', value: Math.round(remaining / 3 * 100) / 100 },
       { label: '2/3', value: Math.round(remaining * 2 / 3 * 100) / 100 },
       { label: '1/4', value: Math.round(remaining * 0.25 * 100) / 100 },
       { label: '3/4', value: Math.round(remaining * 0.75 * 100) / 100 },
-    ];
-    return opts.filter(o => o.value > 0);
+    ].filter(o => o.value > 0);
   }, [fundWish]);
 
-  const priorityLabels = { 1: 'Высокий', 2: 'Средний', 3: 'Низкий' };
-  const priorityColors = {
-    1: 'text-red-500',
-    2: 'text-yellow-500',
-    3: 'text-green-500',
-  };
+  const priorityColors = { 1: 'text-error', 2: 'text-yellow-600', 3: 'text-secondary' };
 
-  if (loading) return <div className="text-center py-10">Загрузка...</div>;
+  if (loading) return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+        <p className="text-on-surface-variant text-sm font-medium">Загрузка...</p>
+      </div>
+    </div>
+  );
 
   const activeWishes = wishes.filter(w => !w.archived && w.status !== 'completed');
   const archivedWishes = wishes.filter(w => w.archived || w.status === 'completed');
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Celebration overlay */}
       {showCelebration && (
         <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 text-center animate-bounce">
+          <div className="bg-surface-container-lowest rounded-3xl shadow-ambient p-8 text-center animate-bounce">
             <div className="text-6xl mb-2">🎉</div>
-            <h3 className="text-2xl font-bold text-green-600">Желание выполнено!</h3>
-            <p className="text-gray-600 dark:text-gray-300 mt-1">{showCelebration}</p>
+            <h3 className="text-2xl font-bold text-secondary font-headline">Желание выполнено!</h3>
+            <p className="text-on-surface-variant mt-1">{showCelebration}</p>
           </div>
         </div>
       )}
 
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Желания</h1>
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-2 text-sm text-on-surface-variant">
+        <Link to="/" className="hover:text-primary transition-colors">Главная</Link>
+        <span className="material-symbols-outlined text-sm">chevron_right</span>
+        <span className="text-on-surface font-medium">Желания</span>
+      </div>
+
+      {/* Section Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-extrabold tracking-tight text-on-surface font-headline">Желания</h2>
+          <p className="text-on-surface-variant text-sm mt-1">
+            {activeWishes.length} активных, {archivedWishes.length} выполненных
+          </p>
+        </div>
         <div className="flex gap-2">
           {archivedWishes.length > 0 && (
-            <button onClick={() => setShowArchived(!showArchived)} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+            <button onClick={() => setShowArchived(!showArchived)} className="btn-ghost px-4 py-2.5 text-sm">
               {showArchived ? 'Скрыть архив' : 'Архив'}
             </button>
           )}
           <button
             onClick={() => { setEditingId(null); reset({ priority: 2, status: 'active', is_private: false, created_at: todayStr }); setModalOpen(true); }}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+            className="btn-primary px-6 py-2.5 flex items-center gap-2 text-sm"
           >
-            + Добавить желание
+            <span className="material-symbols-outlined text-sm">add</span>
+            Добавить желание
           </button>
         </div>
       </div>
 
-      {/* Активные желания */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Bento Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-surface-container-lowest p-6 rounded-3xl shadow-card relative overflow-hidden">
+          <div className="absolute -top-8 -right-8 w-32 h-32 bg-tertiary/5 rounded-full blur-2xl"></div>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-tertiary/10 flex items-center justify-center text-tertiary">
+              <span className="material-symbols-outlined">favorite</span>
+            </div>
+            <p className="text-sm font-bold text-on-surface-variant uppercase tracking-widest">Общий бюджет</p>
+          </div>
+          <p className="text-3xl font-extrabold font-headline text-on-surface">{formatMoney(totalBudget)} ₽</p>
+          <p className="text-xs text-on-surface-variant mt-2">Накоплено: {formatMoney(totalSaved)} ₽ ({totalBudget > 0 ? Math.round((totalSaved / totalBudget) * 100) : 0}%)</p>
+        </div>
+        <div className="bg-gradient-to-br from-primary to-primary-container text-white p-6 rounded-3xl shadow-button relative overflow-hidden">
+          <div className="absolute -top-8 -right-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold text-white/70 uppercase tracking-widest mb-1">Доступно к распределению</p>
+              <p className="text-3xl font-extrabold font-headline">{formatMoney(remainingTotal)} ₽</p>
+              <p className="text-xs text-white/60 mt-2">Осталось накопить на все желания</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Active Wishes Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {activeWishes.map(wish => {
           const progress = wish.progress || ((Number(wish.saved_amount) / Number(wish.cost)) * 100);
           const remaining = Math.max(0, Number(wish.cost) - Number(wish.saved_amount));
           const isCompleted = progress >= 100;
           return (
-            <div key={wish.id} className={`rounded-lg shadow p-4 border transition-all duration-300 ${
-              isCompleted
-                ? 'border-green-400 dark:border-green-600 bg-green-50 dark:bg-green-900/10 shadow-green-200 dark:shadow-green-900/20'
-                : wish.is_hidden
-                  ? 'border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40'
-                  : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
+            <div key={wish.id} className={`p-6 rounded-3xl transition-all duration-300 ${
+              isCompleted ? 'bg-secondary/5 border-2 border-secondary/30' : 'bg-surface-container-lowest shadow-card'
             }`}>
               {wish.is_hidden ? (
-                <div className="text-center py-4 text-gray-500 dark:text-gray-400">🔒 Скрытое желание</div>
+                <div className="text-center py-8 text-on-surface-variant">
+                  <span className="material-symbols-outlined text-4xl mb-2">lock</span>
+                  <p className="font-medium">Скрытое желание</p>
+                </div>
               ) : (
                 <>
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className={priorityColors[wish.priority] || 'text-gray-400'}>
-                          {'★'.repeat(Math.min(wish.priority, 3))}{'☆'.repeat(Math.max(0, 3 - wish.priority))}
+                        <span className={`material-symbols-outlined ${priorityColors[wish.priority] || 'text-outline'}`}>
+                          {wish.priority === 1 ? 'priority_high' : wish.priority === 2 ? 'signal_cellular_alt' : 'trending_down'}
                         </span>
-                        <h3 className={`text-lg font-medium ${isCompleted ? 'text-green-700 dark:text-green-400 line-through' : 'text-gray-900 dark:text-white'}`}>
+                        <h3 className={`text-lg font-bold font-headline truncate ${isCompleted ? 'text-secondary line-through' : 'text-on-surface'}`}>
                           {wish.name}
                         </h3>
-                        {wish.is_private && <span className="text-xs">🔒</span>}
-                        {isCompleted && <span className="text-green-500 text-lg animate-pulse">✓</span>}
+                        {wish.is_private && <span className="material-symbols-outlined text-sm text-on-surface-variant">lock</span>}
+                        {isCompleted && <span className="material-symbols-outlined text-secondary animate-pulse">check_circle</span>}
                       </div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      <p className="text-sm text-on-surface-variant mt-1">
                         {formatMoney(wish.saved_amount)} / {formatMoney(wish.cost)} ₽
                       </p>
                     </div>
-                    <div className="flex space-x-1">
-                      <button onClick={() => openEditModal(wish)} className="text-indigo-600 dark:text-indigo-400 p-1">✏️</button>
-                      <button onClick={() => deleteWish(wish.id)} className="text-red-600 p-1">🗑️</button>
+                    <div className="flex gap-1 shrink-0 ml-3">
+                      <button onClick={() => openEditModal(wish)} className="w-9 h-9 flex items-center justify-center rounded-lg text-primary hover:bg-primary/10 transition-colors">
+                        <span className="material-symbols-outlined text-sm">edit</span>
+                      </button>
+                      <button onClick={() => deleteWish(wish.id)} className="w-9 h-9 flex items-center justify-center rounded-lg text-error hover:bg-error-container transition-colors">
+                        <span className="material-symbols-outlined text-sm">delete</span>
+                      </button>
                     </div>
                   </div>
 
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mt-3">
-                    <div className={`h-2.5 rounded-full transition-all duration-700 ${isCompleted ? 'bg-green-500' : 'bg-purple-600'}`} style={{ width: `${Math.min(progress, 100)}%` }}></div>
-                  </div>
-
-                  <div className="mt-2 flex justify-between items-center text-sm">
-                    <span className="text-gray-500 dark:text-gray-400">Осталось: {formatMoney(remaining)} ₽</span>
-                    <span className="text-gray-500 dark:text-gray-400">{Math.round(progress)}%</span>
+                  {/* Progress */}
+                  <div className="mb-4">
+                    <div className="progress-bar">
+                      <div className={`progress-bar-fill ${isCompleted ? 'bg-secondary' : 'bg-tertiary'}`} style={{ width: `${Math.min(progress, 100)}%` }}></div>
+                    </div>
+                    <div className="flex justify-between mt-2">
+                      <span className="text-xs font-bold text-on-surface-variant uppercase">Осталось: {formatMoney(remaining)} ₽</span>
+                      <span className="text-xs font-bold text-on-surface-variant uppercase">{Math.round(progress)}%</span>
+                    </div>
                   </div>
 
                   {isCompleted && (
-                    <div className="mt-2 text-center text-sm text-green-600 dark:text-green-400 font-semibold animate-pulse">
+                    <div className="text-center text-sm text-secondary font-semibold animate-pulse mb-3">
                       🎉 Желание выполнено! Перемещено в архив
                     </div>
                   )}
 
-                      {/* Быстрое пополнение долями — только если не выполнено */}
-                      {!isCompleted && remaining > 0 && (
-                        <>
-                          <div className="mt-3">
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Быстрое пополнение:</p>
-                            <div className="flex gap-1.5 flex-wrap">
-                              {fundOptions.slice(1, 5).map(f => (
-                                <button
-                                  key={f.label}
-                                  onClick={() => handleFund(f.value)}
-                                  className="px-2 py-1 text-xs bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 rounded hover:bg-purple-200 dark:hover:bg-purple-500/25 transition"
-                                >
-                                  {f.label} ({formatMoney(f.value)} ₽)
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={() => openFundModal(wish)}
-                            className="mt-2 w-full bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 py-2 rounded-md hover:bg-purple-200 dark:hover:bg-purple-500/25 transition font-medium"
-                          >
-                            Выделить средства
-                          </button>
-                        </>
-                      )}
+                  {/* Quick fund + Fund button */}
+                  {!isCompleted && remaining > 0 && (
+                    <>
+                      <div className="mb-3">
+                        <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Быстрое пополнение</p>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {fundOptions.slice(1, 5).map(f => (
+                            <button key={f.label} onClick={() => handleFund(f.value)} className="chip hover:bg-tertiary-container hover:text-on-tertiary-container">
+                              {f.label} ({formatMoney(f.value)} ₽)
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <button onClick={() => openFundModal(wish)} className="w-full btn-secondary py-3 text-sm">
+                        <span className="material-symbols-outlined text-sm mr-1">savings</span>
+                        Выделить средства
+                      </button>
+                    </>
+                  )}
                 </>
               )}
             </div>
           );
         })}
-        {activeWishes.length === 0 && <p className="text-gray-500 dark:text-gray-400 col-span-2 text-center py-8">Нет активных желаний</p>}
+        {activeWishes.length === 0 && (
+          <div className="col-span-2 bg-surface-container-lowest p-12 rounded-3xl text-center">
+            <span className="material-symbols-outlined text-5xl text-outline mb-3">favorite</span>
+            <h3 className="text-lg font-bold text-on-surface mb-1">Нет активных желаний</h3>
+            <p className="text-on-surface-variant text-sm">Создайте первое желание</p>
+          </div>
+        )}
       </div>
 
-      {/* Архив желаний */}
+      {/* Archived Wishes */}
       {showArchived && archivedWishes.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-3">📦 Архив выполненных</h2>
-          <div className="space-y-2">
+        <div className="bg-surface-container p-6 rounded-3xl">
+          <h3 className="text-lg font-bold font-headline mb-4 flex items-center gap-2">
+            <span className="material-symbols-outlined text-on-surface-variant">inventory_2</span>
+            Архив выполненных
+          </h3>
+          <div className="space-y-3">
             {archivedWishes.map(w => (
-              <div key={w.id} className="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-green-500">✓</span>
-                  <span className="line-through text-gray-500 dark:text-gray-400">{w.name}</span>
+              <div key={w.id} className="flex justify-between items-center p-4 bg-surface-container-lowest rounded-2xl">
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-secondary">check_circle</span>
+                  <span className="text-on-surface-variant line-through font-medium">{w.name}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">{formatMoney(w.saved_amount)} / {formatMoney(w.cost)} ₽</span>
-                  <button
-                    onClick={async () => {
-                      try {
-                        await api.put(`/wishes/${w.id}`, { archived: false, status: 'active' });
-                        fetchData();
-                      } catch (err) { console.error(err); }
-                    }}
-                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
-                  >
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-on-surface-variant font-medium">{formatMoney(w.saved_amount)} / {formatMoney(w.cost)} ₽</span>
+                  <button onClick={async () => { try { await api.put(`/wishes/${w.id}`, { archived: false, status: 'active' }); fetchData(); } catch (err) { console.error(err); } }} className="text-xs text-primary font-semibold hover:underline">
                     Вернуть
                   </button>
                 </div>
@@ -294,128 +297,140 @@ export default function Wishes() {
         </div>
       )}
 
-      {/* Модальное окно добавления/редактирования желания */}
+      {/* Add/Edit Wish Modal */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Редактировать желание' : 'Новое желание'}>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Название</label>
-            <input {...register('name', { required: true })} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
+            <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Название</label>
+            <input {...register('name', { required: true })} className="input-ghost" placeholder="Например: Наушники" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Стоимость</label>
+              <input type="number" step="0.01" {...register('cost', { required: true, min: 0.01 })} className="input-ghost" placeholder="0.00" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Накоплено</label>
+              <input type="number" step="0.01" {...register('saved_amount')} className="input-ghost" placeholder="0.00" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Категория</label>
+              <select {...register('category_id')} className="select-ghost">
+                <option value="">Без категории</option>
+                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Приоритет</label>
+              <select {...register('priority')} className="select-ghost">
+                <option value="1">★ Высокий</option>
+                <option value="2">★★ Средний</option>
+                <option value="3">★★★ Низкий</option>
+              </select>
+            </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Стоимость (₽)</label>
-            <input type="number" step="0.01" {...register('cost', { required: true, min: 0.01 })} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Категория желания</label>
-            <select {...register('category_id')} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
-              <option value="">Без категории</option>
-              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Приоритет</label>
-            <select {...register('priority')} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
-              <option value="1">★ Высокий</option>
-              <option value="2">★★ Средний</option>
-              <option value="3">★★★ Низкий</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Статус</label>
-            <select {...register('status')} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+            <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Статус</label>
+            <select {...register('status')} className="select-ghost">
               <option value="active">Активно</option>
               <option value="completed">Выполнено</option>
               <option value="postponed">Отложено</option>
             </select>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Уже накоплено (₽)</label>
-            <input type="number" step="0.01" {...register('saved_amount')} className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
+          <div className="flex items-center justify-between p-4 bg-surface-container rounded-2xl">
+            <div>
+              <span className="text-sm font-semibold text-on-surface">Скрыть от семьи</span>
+              <p className="text-xs text-on-surface-variant">Желание будет видно только вам</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setValue('is_private', !watch('is_private'))}
+              className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
+                watch('is_private') ? 'bg-primary' : 'bg-outline-variant'
+              }`}
+            >
+              <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${
+                watch('is_private') ? 'translate-x-5' : 'translate-x-0.5'
+              }`}></div>
+            </button>
           </div>
-          <div className="flex items-center">
-            <input type="checkbox" {...register('is_private')} className="h-4 w-4 text-indigo-600" />
-            <label className="ml-2 block text-sm text-gray-900 dark:text-gray-100">Скрыть от семьи (сюрприз)</label>
-          </div>
-          <div className="flex justify-end space-x-2 pt-4">
-            <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">Отмена</button>
-            <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-md">Сохранить</button>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={() => setModalOpen(false)} className="btn-ghost px-6 py-3">Отмена</button>
+            <button type="submit" className="btn-primary px-8 py-3">Сохранить</button>
           </div>
         </form>
       </Modal>
 
-      {/* Модальное окно выделения средств — БЕЗ выбора категории */}
+      {/* Fund Wish Modal */}
       <Modal isOpen={fundModalOpen} onClose={() => { setFundModalOpen(false); setFundWish(null); }} title="Выделить средства">
         {fundWish && (
-          <div className="space-y-4">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Пополнение: <span className="font-medium text-gray-900 dark:text-gray-100">{fundWish.name}</span>
-            </p>
-
-            {/* Свободные средства */}
-            <div className={`rounded-md p-3 text-sm border ${fundAvailable > 0 ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800'}`}>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Свободные средства семьи:</span>
-                <span className={`font-bold text-lg ${fundAvailable > 0 ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>{formatMoney(fundAvailable)} ₽</span>
+          <div className="space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-tertiary/10 flex items-center justify-center text-tertiary">
+                <span className="material-symbols-outlined">favorite</span>
+              </div>
+              <div>
+                <p className="font-bold text-on-surface font-headline">{fundWish.name}</p>
+                <p className="text-xs text-on-surface-variant">Пополнение желания</p>
               </div>
             </div>
 
-            <div className="bg-gray-50 dark:bg-gray-900/40 rounded-md p-3 text-sm space-y-1">
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Стоимость:</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">{formatMoney(fundWish.cost)} ₽</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Накоплено:</span>
-                <span className="font-medium text-green-600">{formatMoney(fundWish.saved_amount)} ₽</span>
-              </div>
-              <div className="flex justify-between border-t border-gray-200 dark:border-gray-700 pt-1">
-                <span className="text-gray-600 dark:text-gray-300">Осталось:</span>
-                <span className="font-medium text-red-600">{formatMoney(Math.max(0, Number(fundWish.cost) - Number(fundWish.saved_amount)))} ₽</span>
+            <div className={`rounded-2xl p-4 ${fundAvailable > 0 ? 'bg-secondary/5' : 'bg-error/5'}`}>
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-on-surface-variant">Свободные средства:</span>
+                <span className={`text-xl font-bold font-headline ${fundAvailable > 0 ? 'text-secondary' : 'text-error'}`}>{formatMoney(fundAvailable)} ₽</span>
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Сумма пополнения (₽)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={fundAmount}
-                onChange={e => setFundAmount(e.target.value)}
-                className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-lg font-medium"
-                placeholder="Введите сумму"
-              />
+            <div className="bg-surface-container rounded-2xl p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-on-surface-variant">Стоимость</span>
+                <span className="font-semibold text-on-surface">{formatMoney(fundWish.cost)} ₽</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-on-surface-variant">Накоплено</span>
+                <span className="font-semibold text-secondary">{formatMoney(fundWish.saved_amount)} ₽</span>
+              </div>
+              <div className="flex justify-between text-sm pt-2 border-t border-outline-variant/20">
+                <span className="text-on-surface-variant font-bold">Осталось</span>
+                <span className="font-bold text-error">{formatMoney(Math.max(0, Number(fundWish.cost) - Number(fundWish.saved_amount)))} ₽</span>
+              </div>
             </div>
 
             <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Выберите долю от остатка:</p>
+              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Сумма пополнения</label>
+              <input type="number" step="0.01" min="0.01" value={fundAmount} onChange={e => setFundAmount(e.target.value)} className="input-ghost text-lg font-bold" placeholder="0.00" />
+            </div>
+
+            <div>
+              <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-3">Доля от остатка</p>
               <div className="grid grid-cols-3 gap-2">
                 {fundOptions.map(f => (
                   <button
                     key={f.label}
                     onClick={() => setFundAmount(String(f.value))}
-                    className={`relative px-3 py-3 rounded-xl transition border-2 text-center ${
+                    className={`relative px-3 py-3 rounded-2xl transition-all text-center ${
                       f.accent
                         ? fundAmount === String(f.value)
-                          ? 'bg-green-600 text-white border-green-600 shadow-lg shadow-green-200 dark:shadow-green-900/30'
-                          : 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/40'
+                          ? 'bg-secondary text-white shadow-lg shadow-secondary/20'
+                          : 'bg-secondary/10 text-secondary hover:bg-secondary/20'
                         : fundAmount === String(f.value)
-                          ? 'bg-purple-600 text-white border-purple-600 shadow-lg shadow-purple-200 dark:shadow-purple-900/30'
-                          : 'bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-500/20'
+                          ? 'bg-tertiary text-white shadow-lg shadow-tertiary/20'
+                          : 'bg-surface-container-high text-on-surface hover:bg-surface-container-highest'
                     }`}
                   >
-                    <div className={`text-sm font-semibold ${f.accent ? '' : ''}`}>{f.label}</div>
-                    <div className={`text-xs mt-0.5 ${f.accent ? 'text-green-100' : 'opacity-70'}`}>{formatMoney(f.value)} ₽</div>
+                    <div className="text-sm font-bold">{f.label}</div>
+                    <div className={`text-xs mt-0.5 ${f.accent ? (fundAmount === String(f.value) ? 'text-white/80' : 'text-secondary/70') : (fundAmount === String(f.value) ? 'text-white/80' : 'text-on-surface-variant')}`}>{formatMoney(f.value)} ₽</div>
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="ghost" onClick={() => { setFundModalOpen(false); setFundWish(null); }}>Отмена</Button>
-              <Button variant="primary" disabled={!fundAmount || Number(fundAmount) <= 0} onClick={() => handleFund(Number(fundAmount))}>
-                Пополнить
-              </Button>
+            <div className="flex justify-end gap-3 pt-2">
+              <button type="button" onClick={() => { setFundModalOpen(false); setFundWish(null); }} className="btn-ghost px-6 py-3">Отмена</button>
+              <button type="button" disabled={!fundAmount || Number(fundAmount) <= 0} onClick={() => handleFund(Number(fundAmount))} className="btn-primary px-8 py-3 disabled:opacity-50 disabled:cursor-not-allowed">Пополнить</button>
             </div>
           </div>
         )}
