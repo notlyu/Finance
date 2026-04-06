@@ -32,11 +32,13 @@ export default function Goals() {
   const [contribAmount, setContribAmount] = useState('');
   const [contribSelectedLabel, setContribSelectedLabel] = useState('');
   const [contribAvailable, setContribAvailable] = useState(0);
+  const [contribWarning, setContribWarning] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
   const [showCelebration, setShowCelebration] = useState(null);
   const [forecastOpen, setForecastOpen] = useState(false);
   const [forecastGoal, setForecastGoal] = useState(null);
+  const [goalTab, setGoalTab] = useState('family');
   const { register, handleSubmit, reset, setValue, watch } = useForm();
 
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -91,22 +93,26 @@ export default function Goals() {
   };
 
   const openContribModal = async (goal) => {
-    setContribGoal(goal); setContribAmount(''); setContribSelectedLabel(''); setContribModalOpen(true);
+    setContribGoal(goal); setContribAmount(''); setContribSelectedLabel(''); setContribWarning(null); setContribModalOpen(true);
     try {
       const res = await api.get('/dashboard');
-      setContribAvailable(res.data.availableFunds || 0);
+      setContribAvailable(res.data.family ? res.data.family.available : res.data.personal.available);
     } catch (err) { console.error(err); setContribAvailable(0); }
   };
 
   const openForecast = (goal) => { setForecastGoal(goal); setForecastOpen(true); };
 
-  const handleContribute = async (amount) => {
+  const handleContribute = async (amount, skipWarning = false) => {
     if (!contribGoal || !amount || amount <= 0) return;
     try {
       const res = await api.post(`/goals/${contribGoal.id}/contribute`, {
-        amount, createTransaction: true, comment: `Пополнение цели: ${contribGoal.name}`,
+        amount, createTransaction: true, comment: `Пополнение цели: ${contribGoal.name}`, skipWarning,
       });
-      setContribModalOpen(false); setContribGoal(null); setContribSelectedLabel(''); fetchData();
+      if (res.data.warning && !skipWarning) {
+        setContribWarning(res.data.warning);
+        return;
+      }
+      setContribModalOpen(false); setContribGoal(null); setContribSelectedLabel(''); setContribWarning(null); fetchData();
       if (res.data.current_amount >= Number(contribGoal.target_amount)) {
         setShowCelebration(contribGoal.name);
         setTimeout(() => setShowCelebration(null), 3000);
@@ -134,6 +140,10 @@ export default function Goals() {
 
   const activeGoals = goals.filter(g => !g.archived && !g.achieved);
   const archivedGoals = goals.filter(g => g.archived || g.achieved);
+
+  const familyGoals = activeGoals.filter(g => g.family_id);
+  const personalGoals = activeGoals.filter(g => !g.family_id);
+  const displayGoals = goalTab === 'family' ? familyGoals : personalGoals;
 
   return (
     <div className="space-y-8">
@@ -174,9 +184,25 @@ export default function Goals() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setGoalTab('family')}
+          className={`px-5 py-2.5 rounded-2xl text-sm font-bold transition-colors ${goalTab === 'family' ? 'bg-primary text-white' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}`}
+        >
+          Семейные ({familyGoals.length})
+        </button>
+        <button
+          onClick={() => setGoalTab('personal')}
+          className={`px-5 py-2.5 rounded-2xl text-sm font-bold transition-colors ${goalTab === 'personal' ? 'bg-primary text-white' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}`}
+        >
+          Мои ({personalGoals.length})
+        </button>
+      </div>
+
       {/* Active Goals Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {activeGoals.map(goal => {
+        {displayGoals.map(goal => {
           const progress = goal.progress || ((Number(goal.current_amount) / Number(goal.target_amount)) * 100);
           const remaining = Math.max(0, Number(goal.target_amount) - Number(goal.current_amount));
           const achieved = goal.achieved || (Number(goal.current_amount) >= Number(goal.target_amount));
@@ -346,6 +372,17 @@ export default function Goals() {
               </div>
             </div>
 
+            {contribWarning && (
+              <div className="p-4 bg-warning-container rounded-2xl border-l-4 border-warning flex items-start gap-3">
+                <span className="material-symbols-outlined text-warning mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-on-warning-container">Осторожно!</p>
+                  <p className="text-xs text-on-warning-container/80 mt-1">После взноса свободных средств останется: {formatMoney(contribWarning.afterContribution)} ₽</p>
+                  <p className="text-xs text-on-warning-container/60">Порог предупреждения: {formatMoney(contribWarning.threshold)} ₽</p>
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Сумма пополнения</label>
               <input type="number" step="0.01" min="0.01" value={contribAmount} onChange={e => setContribAmount(e.target.value)} className="input-ghost text-lg font-bold" placeholder="0.00" />
@@ -378,8 +415,12 @@ export default function Goals() {
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => { setContribModalOpen(false); setContribGoal(null); }} className="btn-ghost px-6 py-3">Отмена</button>
-              <button type="button" disabled={!contribAmount || Number(contribAmount) <= 0} onClick={() => handleContribute(Number(contribAmount))} className="btn-primary px-8 py-3 disabled:opacity-50 disabled:cursor-not-allowed">Пополнить</button>
+              <button type="button" onClick={() => { setContribModalOpen(false); setContribGoal(null); setContribWarning(null); }} className="btn-ghost px-6 py-3">Отмена</button>
+              {contribWarning ? (
+                <button type="button" onClick={() => handleContribute(Number(contribAmount), true)} className="btn-primary px-8 py-3 bg-error hover:bg-error/90">Всё равно пополнить</button>
+              ) : (
+                <button type="button" disabled={!contribAmount || Number(contribAmount) <= 0} onClick={() => handleContribute(Number(contribAmount))} className="btn-primary px-8 py-3 disabled:opacity-50 disabled:cursor-not-allowed">Пополнить</button>
+              )}
             </div>
           </div>
         )}

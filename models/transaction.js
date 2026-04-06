@@ -4,7 +4,7 @@ module.exports = (sequelize, DataTypes) => {
   const Transaction = sequelize.define('Transaction', {
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
     user_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
-    family_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    family_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     amount: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
     type: { type: DataTypes.ENUM('income', 'expense'), allowNull: false },
     category_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },

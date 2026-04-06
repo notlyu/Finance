@@ -2,7 +2,9 @@ const { Transaction, Category, User, Goal, GoalContribution, Budget } = require(
 const { Op } = require('sequelize');
 
 exports.getTransactions = async (userId, familyId, query = {}) => {
-    const whereClause = { family_id: familyId };
+    const whereClause = familyId
+        ? { [Op.or]: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
+        : { family_id: null, user_id: userId };
 
     // Filter by specific member if requested
     if (query.memberId && query.memberId !== userId) {
@@ -133,18 +135,30 @@ exports.createTransaction = async (userId, familyId, data) => {
     if (data.type === 'expense' && data.category_id) {
         try {
             const month = txDate.slice(0, 7); // "YYYY-MM"
-            const budget = await Budget.findOne({
-                where: { family_id: familyId, category_id: data.category_id, type: 'expense', month }
-            });
+            const budgetWhere = familyId
+                ? {
+                    [Op.or]: [
+                        { family_id: familyId, category_id: data.category_id, type: 'expense', month },
+                        { family_id: null, user_id: userId, category_id: data.category_id, type: 'expense', month },
+                    ],
+                }
+                : { family_id: null, user_id: userId, category_id: data.category_id, type: 'expense', month };
+            const budget = await Budget.findOne({ where: budgetWhere });
             if (budget) {
                 const monthStart = `${month}-01`;
                 const nextMonth = new Date(`${month}-15`);
                 nextMonth.setMonth(nextMonth.getMonth() + 1);
                 const monthEnd = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`;
 
-                const spent = await Transaction.sum('amount', {
-                    where: { family_id: familyId, category_id: data.category_id, type: 'expense', date: { [Op.gte]: monthStart, [Op.lt]: monthEnd } }
-                }) || 0;
+                const spentWhere = familyId
+                    ? {
+                        [Op.or]: [
+                            { family_id: familyId, category_id: data.category_id, type: 'expense', date: { [Op.gte]: monthStart, [Op.lt]: monthEnd } },
+                            { family_id: null, user_id: userId, category_id: data.category_id, type: 'expense', date: { [Op.gte]: monthStart, [Op.lt]: monthEnd } },
+                        ],
+                      }
+                    : { family_id: null, user_id: userId, category_id: data.category_id, type: 'expense', date: { [Op.gte]: monthStart, [Op.lt]: monthEnd } };
+                const spent = await Transaction.sum('amount', { where: spentWhere }) || 0;
 
                 const newTotal = Number(spent) + Number(data.amount);
                 const limit = Number(budget.limit_amount);
@@ -177,14 +191,21 @@ exports.createTransaction = async (userId, familyId, data) => {
   if (tx && tx.type === 'income') {
         try {
             // Найти все цели семейной/личной принадлежности с включенным автопополнением
+            // Для семейных целей — только свои (добавляем user_id)
             const goals = await Goal.findAll({
-                where: {
-                    [Op.or]: [
-                        { family_id: familyId },
-                        { user_id: userId, family_id: null }
-                    ],
-                    auto_contribute_enabled: true
-                }
+                where: familyId
+                    ? {
+                        [Op.or]: [
+                            { family_id: familyId, user_id: userId },
+                            { user_id: userId, family_id: null }
+                        ],
+                        auto_contribute_enabled: true
+                    }
+                    : {
+                        user_id: userId,
+                        family_id: null,
+                        auto_contribute_enabled: true
+                    }
             });
 
             for (const goal of goals) {
@@ -242,7 +263,9 @@ exports.createTransaction = async (userId, familyId, data) => {
 
 exports.getTransactionById = async (id, familyId, userId) => {
     const t = await Transaction.findOne({
-        where: { id, family_id: familyId },
+        where: familyId
+            ? { id, [Op.or]: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
+            : { id, family_id: null, user_id: userId },
         include: [
             { model: Category, as: 'Category', attributes: ['id', 'name'] },
             { model: User, as: 'User', attributes: ['id', 'name'] },
@@ -282,12 +305,20 @@ exports.getTransactionById = async (id, familyId, userId) => {
     };
 };
 
-exports.updateTransaction = async (id, familyId, data) => {
-    const transaction = await Transaction.findOne({ where: { id, family_id: familyId } });
+exports.updateTransaction = async (id, familyId, userId, data) => {
+    const where = familyId
+        ? { id, [Op.or]: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
+        : { id, family_id: null, user_id: userId };
+    const transaction = await Transaction.findOne({ where });
     if (!transaction) throw new Error('Transaction not found');
-    await transaction.update(data);
-    // Reload to get updated values
-    const updated = await Transaction.findOne({ where: { id, family_id: familyId } });
+
+    // Защита: нельзя подменить user_id или family_id
+    const safeData = { ...data };
+    delete safeData.user_id;
+    delete safeData.family_id;
+
+    await transaction.update(safeData);
+    const updated = await Transaction.findOne({ where });
     if (updated) {
       // Recalculate auto contributions if this is income
       if (updated.type === 'income') {
@@ -300,8 +331,11 @@ exports.updateTransaction = async (id, familyId, data) => {
     return updated;
 };
 
-exports.deleteTransaction = async (id, familyId) => {
-    const transaction = await Transaction.findOne({ where: { id, family_id: familyId } });
+exports.deleteTransaction = async (id, familyId, userId) => {
+    const where = familyId
+        ? { id, [Op.or]: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
+        : { id, family_id: null, user_id: userId };
+    const transaction = await Transaction.findOne({ where });
     if (!transaction) throw new Error('Transaction not found');
     // If this is an income, revert any auto-contributions linked to it
     if (transaction.type === 'income') {

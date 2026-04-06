@@ -3,6 +3,8 @@ import { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
 import NotificationBell from './NotificationBell';
 
+export const FAMILY_CHANGED_EVENT = 'family:changed';
+
 const navItems = [
   { name: 'Главная', path: '/', icon: 'dashboard' },
   { name: 'Операции', path: '/transactions', icon: 'receipt_long' },
@@ -38,15 +40,18 @@ export default function Layout() {
         const res = await api.get('/auth/me');
         setUser(res.data);
         setSelectedMember(res.data);
-        if (res.data.family_id) {
-          try {
-            const famRes = await api.get(`/families/${res.data.family_id}`);
-            if (famRes.data && famRes.data.Members) setFamilyMembers(famRes.data.Members);
-          } catch (err) { console.error('Failed to fetch family:', err); }
+        if (res.data.family && res.data.family.members) {
+          setFamilyMembers(res.data.family.members);
+        } else {
+          setFamilyMembers([]);
         }
       } catch (err) { console.error(err); }
     };
     fetchUser();
+
+    const onFamilyChanged = () => fetchUser();
+    window.addEventListener(FAMILY_CHANGED_EVENT, onFamilyChanged);
+    return () => window.removeEventListener(FAMILY_CHANGED_EVENT, onFamilyChanged);
   }, []);
 
   useEffect(() => {
@@ -89,7 +94,7 @@ export default function Layout() {
         </div>
         <div className="flex flex-col items-start min-w-0 flex-1">
           <span className="text-xs font-bold text-on-surface leading-none truncate">{selectedMember?.name || '...'}</span>
-          <span className="text-[10px] text-on-surface-variant uppercase tracking-tighter">Владелец</span>
+          <span className="text-[10px] text-on-surface-variant uppercase tracking-tighter">{user?.family?.owner_user_id === user?.id ? 'Владелец' : user?.family_id ? 'Участник' : 'Личный'}</span>
         </div>
         <span className="material-symbols-outlined text-sm text-on-surface-variant">expand_more</span>
       </button>

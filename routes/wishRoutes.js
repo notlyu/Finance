@@ -14,6 +14,5 @@ router.put('/:id', wishController.updateWish);
 router.delete('/:id', wishController.deleteWish);
 router.post('/:id/contribute', wishController.contributeToWish);
 router.post('/:id/fund', wishController.fundWish);
-router.get('/export', wishController.exportWishes);
 
 module.exports = router;

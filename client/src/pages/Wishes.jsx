@@ -8,27 +8,34 @@ import { formatMoney } from '../utils/format';
 export default function Wishes() {
   const [wishes, setWishes] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentFamilyId, setCurrentFamilyId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [fundModalOpen, setFundModalOpen] = useState(false);
   const [fundWish, setFundWish] = useState(null);
   const [fundAmount, setFundAmount] = useState('');
   const [fundAvailable, setFundAvailable] = useState(0);
+  const [fundWarning, setFundWarning] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
   const [showCelebration, setShowCelebration] = useState(null);
+  const [wishTab, setWishTab] = useState('all');
   const { register, handleSubmit, reset, setValue, watch } = useForm();
 
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const fetchData = async () => {
     try {
-      const [wRes, cRes] = await Promise.all([
+      const [wRes, cRes, meRes] = await Promise.all([
         api.get('/wishes', { params: { showArchived } }),
-        api.get('/categories')
+        api.get('/categories'),
+        api.get('/auth/me'),
       ]);
       setWishes(wRes.data);
       setCategories(cRes.data.filter(c => c.type === 'expense'));
+      setCurrentUserId(meRes.data.id);
+      setCurrentFamilyId(meRes.data.family_id);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
@@ -65,16 +72,20 @@ export default function Wishes() {
   };
 
   const openFundModal = async (wish) => {
-    setFundWish(wish); setFundAmount(''); setFundModalOpen(true);
-    try { const res = await api.get('/dashboard'); setFundAvailable(res.data.availableFunds || 0); }
+    setFundWish(wish); setFundAmount(''); setFundWarning(null); setFundModalOpen(true);
+    try { const res = await api.get('/dashboard'); setFundAvailable(res.data.family ? res.data.family.available : res.data.personal.available); }
     catch (err) { console.error(err); setFundAvailable(0); }
   };
 
-  const handleFund = async (amount) => {
+  const handleFund = async (amount, skipWarning = false) => {
     if (!fundWish || !amount || amount <= 0) return;
     try {
-      const res = await api.post(`/wishes/${fundWish.id}/fund`, { amount: Number(amount) });
-      setFundModalOpen(false); setFundWish(null); fetchData();
+      const res = await api.post(`/wishes/${fundWish.id}/fund`, { amount: Number(amount), skipWarning });
+      if (res.data.warning && !skipWarning) {
+        setFundWarning(res.data.warning);
+        return;
+      }
+      setFundModalOpen(false); setFundWish(null); setFundWarning(null); fetchData();
       if (res.data.saved_amount >= Number(fundWish.cost)) {
         setShowCelebration(fundWish.name);
         setTimeout(() => setShowCelebration(null), 3000);
@@ -109,6 +120,10 @@ export default function Wishes() {
   const activeWishes = wishes.filter(w => !w.archived && w.status !== 'completed');
   const archivedWishes = wishes.filter(w => w.archived || w.status === 'completed');
 
+  const familyWishes = activeWishes.filter(w => !w.is_hidden && w.family_id);
+  const personalWishes = activeWishes.filter(w => !w.family_id);
+  const displayWishes = wishTab === 'family' ? familyWishes : personalWishes;
+
   return (
     <div className="space-y-8">
       {/* Celebration overlay */}
@@ -137,7 +152,7 @@ export default function Wishes() {
             {activeWishes.length} активных, {archivedWishes.length} выполненных
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center flex-wrap">
           {archivedWishes.length > 0 && (
             <button onClick={() => setShowArchived(!showArchived)} className="btn-ghost px-4 py-2.5 text-sm">
               {showArchived ? 'Скрыть архив' : 'Архив'}
@@ -151,6 +166,21 @@ export default function Wishes() {
             Добавить желание
           </button>
         </div>
+      </div>
+
+      <div className="flex gap-2">
+        <button
+          onClick={() => setWishTab('family')}
+          className={`px-5 py-2.5 rounded-2xl text-sm font-bold transition-colors ${wishTab === 'family' ? 'bg-primary text-white' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}`}
+        >
+          Все ({familyWishes.length})
+        </button>
+        <button
+          onClick={() => setWishTab('personal')}
+          className={`px-5 py-2.5 rounded-2xl text-sm font-bold transition-colors ${wishTab === 'personal' ? 'bg-primary text-white' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}`}
+        >
+          Мои ({personalWishes.length})
+        </button>
       </div>
 
       {/* Bento Stats */}
@@ -180,7 +210,7 @@ export default function Wishes() {
 
       {/* Active Wishes Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {activeWishes.map(wish => {
+        {displayWishes.map(wish => {
           const progress = wish.progress || ((Number(wish.saved_amount) / Number(wish.cost)) * 100);
           const remaining = Math.max(0, Number(wish.cost) - Number(wish.saved_amount));
           const isCompleted = progress >= 100;
@@ -262,7 +292,7 @@ export default function Wishes() {
             </div>
           );
         })}
-        {activeWishes.length === 0 && (
+        {displayWishes.length === 0 && (
           <div className="col-span-2 bg-surface-container-lowest p-12 rounded-3xl text-center">
             <span className="material-symbols-outlined text-5xl text-outline mb-3">favorite</span>
             <h3 className="text-lg font-bold text-on-surface mb-1">Нет активных желаний</h3>
@@ -384,6 +414,17 @@ export default function Wishes() {
               </div>
             </div>
 
+            {fundWarning && (
+              <div className="p-4 bg-warning-container rounded-2xl border-l-4 border-warning flex items-start gap-3">
+                <span className="material-symbols-outlined text-warning mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-on-warning-container">Осторожно!</p>
+                  <p className="text-xs text-on-warning-container/80 mt-1">После взноса свободных средств останется: {formatMoney(fundWarning.afterContribution)} ₽</p>
+                  <p className="text-xs text-on-warning-container/60">Порог предупреждения: {formatMoney(fundWarning.threshold)} ₽</p>
+                </div>
+              </div>
+            )}
+
             <div className="bg-surface-container rounded-2xl p-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-on-surface-variant">Стоимость</span>
@@ -429,8 +470,12 @@ export default function Wishes() {
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={() => { setFundModalOpen(false); setFundWish(null); }} className="btn-ghost px-6 py-3">Отмена</button>
-              <button type="button" disabled={!fundAmount || Number(fundAmount) <= 0} onClick={() => handleFund(Number(fundAmount))} className="btn-primary px-8 py-3 disabled:opacity-50 disabled:cursor-not-allowed">Пополнить</button>
+              <button type="button" onClick={() => { setFundModalOpen(false); setFundWish(null); setFundWarning(null); }} className="btn-ghost px-6 py-3">Отмена</button>
+              {fundWarning ? (
+                <button type="button" onClick={() => handleFund(Number(fundAmount), true)} className="btn-primary px-8 py-3 bg-error hover:bg-error/90">Всё равно выделить</button>
+              ) : (
+                <button type="button" disabled={!fundAmount || Number(fundAmount) <= 0} onClick={() => handleFund(Number(fundAmount))} className="btn-primary px-8 py-3 disabled:opacity-50 disabled:cursor-not-allowed">Выделить</button>
+              )}
             </div>
           </div>
         )}

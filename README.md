@@ -1,6 +1,6 @@
-# 💰 Семейный финансовый трекер — Equilibrium
+# 💰 Финансы — Семейный финансовый трекер
 
-Полнофункциональное веб-приложение для управления семейными финансами с премиальным дизайном, поддержкой нескольких пользователей, целей накоплений, желаний, бюджетов и аналитики.
+Веб-приложение для управления семейными и личными финансами. Поддержка нескольких пользователей в семье, целей накоплений, желаний, бюджетов, регулярных операций, подушки безопасности и аналитики.
 
 ![License](https://img.shields.io/badge/license-ISC-blue.svg)
 ![Node](https://img.shields.io/badge/node-%3E%3D18-green.svg)
@@ -13,88 +13,116 @@
 ## 📋 Оглавление
 
 - [Возможности](#-возможности)
+- [Архитектура данных](#-архитектура-данных)
 - [Дизайн-система](#-дизайн-система)
 - [Технологический стек](#-технологический-стек)
 - [Установка](#-установка)
 - [Настройка БД](#-настройка-бд)
 - [Запуск](#-запуск)
-- [Тесты](#-тесты)
 - [Структура проекта](#-структура-проекта)
 - [API](#-api)
-- [Миграции](#-миграции)
+- [Сущности и модели](#-сущности-и-модели)
 - [Лицензия](#-лицензия)
 
 ---
 
 ## ✨ Возможности
 
+### 🔐 Аккаунт и восстановление
+- Регистрация и авторизация (JWT)
+- **Восстановление пароля** — отправка ссылки на email (SMTP) с токеном (1 час)
+- Смена пароля в настройках
+
 ### 👨‍👩‍👧 Семья
-- Создание семьи и приглашение участников по коду
-- Роли: Владелец / Участник
-- Переключение контекста между членами семьи
-- Управление составом (удаление участников, передача владения)
+- Создание семьи и приглашение участников по коду (7 дней)
+- Роли: **Владелец** / **Участник**
+- Переключение контекста между членами семьи (dropdown в sidebar)
+- Удаление участников, передача владения
+- **Выход из семьи** — все данные (транзакции, бюджеты) остаются личными; цели, желания и регулярные операции сохраняются за счётой FK `SET NULL`
 
 ### 💳 Операции
 - Доходы и расходы с категориями
-- Сегментированный переключатель Доход/Расход в модалке
-- Крупный ввод суммы с символом ₽
-- Приватные операции («Сюрприз») — скрыты от других членов семьи
-- Toggle-переключатели вместо чекбоксов
-- Фильтрация по дате, типу, категории, поиску
-- Пагинация с «Загрузить ещё»
-- Предупреждение о превышении бюджета
+- Приватные операции — скрыты от других членов семьи
+- Фильтрация по дате, типу, категории, видимости
+- Предупреждение при превышении бюджета
+- Редактирование и удаление (с проверкой владельца)
 
 ### 🎯 Цели накоплений
-- Создание целей с целевой суммой, сроком, категорией и процентной ставкой
+- Семейные и личные цели (табы)
+- Целевая сумма, срок, категория
 - **Автозачисление** — автоматическое пополнение из доходов (% или фикс. сумма)
-- **Процентная ставка** — ежемесячное начисление сложных процентов через cron
-- **Прогнозный калькулятор** — «сколько откладывать» и «через сколько накоплю»
-- Архивирование выполненных целей с анимацией 🎉
-- Bento-style карточки с иконками, прогресс-барами и статистикой
+- **Процентная ставка** — сложные проценты через cron (1-го числа)
+- Прогнозный калькулятор
+- Архивирование выполненных целей
+- Пополнение с предупреждением о риске уйти в минус
 
 ### ⭐ Желания
-- Приоритет (звёзды) и статус (активно / выполнено / отложено)
-- Категория желания при создании
-- Пополнение из свободных средств с выбором долей (1/2, 1/3, 2/3, 1/4, полностью)
-- Bento-статистика: общий бюджет желаний + доступно к распределению
-- Архив выполненных желаний
-
-### 🛡️ Подушка безопасности
-- Расчёт: среднемесячные расходы × N месяцев
-- Три уровня: Минимальная (3 мес), Комфортная (6 мес), Оптимальная (12 мес)
-- Пресеты выбора периода (3, 6, 9, 12, 18, 24 мес) + произвольный ввод
-- Рекомендация по ежемесячному взносу
-- История изменений с графиками
-- Expense breakdown по категориям
-
-### 📊 Аналитика
-- Линейный график доходов/расходов с gradient fill
-- Donut-диаграммы расходов и доходов с суммой в центре
-- Список категорий с процентами под диаграммами
-- Сегментированный переключатель периода (3, 6, 12 мес, свой)
-- Градиентная карточка динамики подушки безопасности
-- Экспорт в **CSV** и **Excel (.xlsx)**
+- Семейные и личные желания (табы)
+- Приоритет (звёзды), статус (активно/выполнено/отложено)
+- Пополнение из свободных средств с быстрыми долями
+- Bento-статистика: общий бюджет + доступно
 
 ### 💰 Бюджеты
 - Лимиты расходов по категориям на месяц
-- Bento-метрики: Доходы, Расходы, Накопления, Свободно
-- Предупреждение при превышении бюджета
+- Семейные и личные бюджеты
+- Фильтрация по участнику
+- Предупреждение при превышении
+
+### 🛡️ Подушка безопасности
+- Ликвидные средства = доходы − расходы − резервы (цели + желания)
+- Три уровня: Минимальная (3 мес), Комфортная (6 мес), Оптимальная (12 мес)
+- Рекомендация по ежемесячному взносу
+- Топ расходов за 3 месяца
+- История изменений
+- Поддержка solo и family режима
+
+### 📊 Аналитика
+- Линейный график доходов/расходов по месяцам
+- Doughnut-диаграммы расходов и доходов по категориям
+- График динамики подушки безопасности
+- Экспорт в **CSV** и **Excel (.xlsx)**
 
 ### 🔄 Регулярные операции
-- Ежемесячные регулярные платежи
-- Статистика: прогноз/мес, ближайший платёж, кол-во активных
-- Автоматическое создание через cron-задачу
+- Ежемесячные регулярные платежи (1-28 числа)
+- Автоматическое создание транзакций через cron
+- Семейные и личные (в семье видны оба типа)
 
 ### 🔔 Уведомления
-- Достижение целей, превышение бюджета, регулярные платежи
-- Колокольчик с бейджем непрочитанных в шапке
-- Polling каждые 30 секунд
-- Настройка в разделе «Настройки»
+- Достижение целей, выполнение желаний, превышение бюджета
+- Колокольчик с бейджем непрочитанных
+- Настройка категорий уведомлений
 
 ### 🌙 Тёмная тема
-- Material 3 дизайн-система
-- Автоматическое переключение + ручной выбор
-- Все компоненты адаптированы под обе темы
+- Material Design 3 дизайн-система
+- Material Symbols Outlined иконки
+- Glassmorphism-эффекты, ambient-тени
+
+---
+
+## 🏗 Архитектура данных
+
+### Семейный и Solo режим
+
+Каждая финансовая сущность имеет поле `family_id` (`allowNull: true`) и `user_id`:
+
+| Сущность | Семейная | Личная | Примечание |
+|:---|:---:|:---:|---|
+| Transaction | `family_id = N` | `family_id = NULL` | При выходе из семьи → личная |
+| Goal | `family_id = N, user_id = creator` | `family_id = NULL` | Автопополнение — только свои цели |
+| Wish | `family_id = N, user_id = creator` | `family_id = NULL` | По умолчанию `is_private: true` |
+| Budget | `family_id = N` | `family_id = NULL` | |
+| RecurringTransaction | `family_id = N` | `family_id = NULL` | |
+
+### Логика для членов семьи
+- Видят **семейные** транзакции (всех участников)
+- Видят **личные** транзакции только свои
+- Видят **свои** семейные цели/желания (пополнять — только автору)
+- Отчёты и аналитика учитывают обе категории
+
+### Безопасность
+- При редактировании/удалении — проверка `user_id` для личных записей
+- При автопополнении целей — пополняются только **свои** семейные цели
+- При выходе из семьи — FK `ON DELETE SET NULL` сохраняет данные
 
 ---
 
@@ -104,26 +132,25 @@
 Премиальный редакционный стиль финансов, а не банковский трекер.
 
 ### Цвета (Material 3)
-| Роль | Светлая | Тёмная |
-|:---|:---|:---|
-| Primary | `#3525cd` | `#c3c0ff` |
-| Secondary | `#006c49` | `#4edea3` |
-| Tertiary | `#960014` | `#ffb3ad` |
-| Surface | `#f8f9ff` | `#0b1c30` |
-| On Surface | `#0b1c30` | `#eaf1ff` |
+
+| Роль | Светлая | Тёмная | Использование |
+|:---|:---|:---|:---|
+| Primary | `#3525cd` | `#c3c0ff` | Кнопки, акценты, ссылки |
+| Secondary | `#006c49` | `#4edea3` | Доходы, успех |
+| Error | `#ba1a1a` | `#ffb3ad` | Расходы, ошибки |
+| Surface | `#f8f9ff` | `#0b1c30` | Фон карточек |
+| On Surface | `#0b1c30` | `#eaf1ff` | Основной текст |
 
 ### Типографика
 - **Заголовки**: Manrope (600, 700, 800)
 - **Текст**: Inter (400, 500, 600, 700)
-
-### Иконки
-- Material Symbols Outlined (variable FILL)
+- **Иконки**: Material Symbols Outlined
 
 ### Принципы
-- **No-Line Rule**: разделение через тон фона, без 1px borders
-- **Скругления**: `2rem` для карточек, `1rem` для кнопок
+- **No-Line Rule**: разделение через тон фона
+- **Скругления**: `2rem` карточки, `1rem` кнопки, `9999px` chips
 - **Тени**: Ambient (`0 20px 40px`), Card (`0 4px 20px`), Button (`0 8px 24px`)
-- **Glassmorphism**: backdrop-blur для навигации
+- **Glassmorphism**: `backdrop-blur` для навигации
 
 ---
 
@@ -131,14 +158,14 @@
 
 | Слой | Технологии |
 |:---|:---|
-| **Бэкенд** | Node.js, Express 5, Sequelize ORM |
+| **Бэкенд** | Node.js, Express, Sequelize ORM |
 | **База данных** | MySQL 8.0 |
 | **Фронтенд** | React 18, React Router, Tailwind CSS, Chart.js |
-| **Аутентификация** | JWT (jsonwebtoken) |
-| **Тесты** | Jest, Supertest |
-| **Экспорт** | exceljs |
+| **Аутентификация** | JWT (jsonwebtoken), bcrypt |
+| **Email** | Nodemailer (SMTP) |
+| **Экспорт** | ExcelJS |
 | **Cron** | node-cron |
-| **Безопасность** | Helmet, bcrypt, rate limiting |
+| **Безопасность** | Helmet, rate limiting, input sanitization |
 
 ---
 
@@ -147,26 +174,20 @@
 ### Требования
 - Node.js >= 18
 - MySQL >= 8.0
-- npm
 
-### 1. Клонирование
+### 1. Клонирование и установка
 ```bash
 git clone <repository-url>
 cd Finance
-```
 
-### 2. Установка зависимостей
-```bash
 # Бэкенд
 npm install
 
 # Фронтенд
-cd client
-npm install
-cd ..
+cd client && npm install && cd ..
 ```
 
-### 3. Настройка окружения
+### 2. Настройка переменных окружения
 Создайте файл `.env` в корне проекта:
 ```env
 PORT=5000
@@ -176,6 +197,15 @@ DB_USER=root
 DB_PASSWORD=your_password
 DB_NAME=finance_db
 DB_DIALECT=mysql
+
+# SMTP для восстановления пароля (опционально)
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your@email.com
+SMTP_PASS=your_password
+SMTP_FROM="Finance <noreply@example.com>"
+FRONTEND_URL=http://localhost:5173
 ```
 
 ---
@@ -189,28 +219,26 @@ CREATE DATABASE finance_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 ### 2. Примените миграции
 ```bash
-mysql -u root -p finance_db < sql/migrations/20260401_auto_contrib.sql
-mysql -u root -p finance_db < sql/migrations/20260412_create_notifications.sql
-mysql -u root -p finance_db < sql/migrations/20260413_index_transactions.sql
-mysql -u root -p finance_db < sql/migrations/20260414_archive_goals_and_wishes.sql
-mysql -u root -p finance_db < sql/migrations/20260415_alter_wishes_add_categoryid.sql
-mysql -u root -p finance_db < sql/migrations/20260416_cleanup_and_constraints.sql
-mysql -u root -p finance_db < sql/migrations/20260417_goals_category.sql
-mysql -u root -p finance_db < sql/migrations/20260418_notifications.sql
+mysql -u root -p finance_db < migrations/fix_solo_users.sql
 ```
+
+Эта миграция:
+- Удаляет FK `fk_transactions_family_id` (cascade → нет)
+- Делает `family_id` nullable для всех таблиц
+- Меняет `ON DELETE CASCADE` на `SET NULL` для целей, желаний и регулярных операций
+- Исправляет данные пользователя Ly (user_id=1)
 
 ---
 
 ## 🚀 Запуск
 
-### Режим разработки
+### Разработка
 ```bash
 # Бэкенд (порт 5000)
 npm run dev
 
-# Фронтенд (порт 3000) — в отдельном терминале
-cd client
-npm start
+# Фронтенд (порт 5173) — в отдельном терминале
+cd client && npm run dev && cd ..
 ```
 
 ### Продакшн
@@ -218,26 +246,11 @@ npm start
 # Бэкенд
 npm start
 
-# Фронтенд (сборка)
-cd client
-npm run build
+# Фронтенд
+cd client && npm run build
 ```
 
-Откройте [http://localhost:3000](http://localhost:3000) в браузере.
-
----
-
-## 🧪 Тесты
-
-```bash
-# Запуск всех тестов
-npm test
-
-# Режим наблюдения
-npm run test:watch
-```
-
-Тесты покрывают: аутентификацию, транзакции, цели, желания, дашборд, категории, уведомления.
+Откройте [http://localhost:5173](http://localhost:5173) (dev) или сконфигурируйте веб-сервер для `/client/build`.
 
 ---
 
@@ -245,26 +258,72 @@ npm run test:watch
 
 ```
 Finance/
-├── client/                     # React фронтенд
-│   ├── src/
-│   │   ├── components/         # UI компоненты (Layout, Modal, NotificationBell...)
-│   │   ├── components/ui/      # Базовые UI элементы (Button, Card, Input...)
-│   │   ├── pages/              # Страницы (Dashboard, Goals, Wishes, Analytics...)
-│   │   ├── services/           # API клиент + бизнес-логика
-│   │   └── utils/              # Утилиты (format.js)
-│   └── package.json
-├── controllers/                # Express контроллеры
-├── models/                     # Sequelize модели (12 моделей)
-├── routes/                     # Маршруты API (11 роутов)
-├── services/                   # Бизнес-логика
-├── jobs/                       # Cron задачи (recurring, interest)
-├── middleware/                 # Express middleware (auth)
-├── sql/
-│   └── migrations/             # SQL миграции (8 файлов)
-├── tests/                      # Интеграционные тесты
-├── new_design/                 # Дизайн-макеты (HTML)
-├── server.js                   # Точка входа
-├── testApp.js                  # App для тестов
+├── client/                          # React фронтенд (Vite)
+│   └── src/
+│       ├── components/
+│       │   └── Layout.jsx           # Основной layout + sidebar + bottom nav
+│       ├── pages/
+│       │   ├── Login.jsx            # Вход / регистрация
+│       │   ├── ForgotPassword.jsx   # Восстановление пароля
+│       │   ├── Dashboard.jsx         # Главная страница
+│       │   ├── Transactions.jsx     # Операции
+│       │   ├── Goals.jsx            # Цели накоплений
+│       │   ├── Wishes.jsx           # Желания
+│       │   ├── Budgets.jsx          # Бюджеты
+│       │   ├── SafetyPillow.jsx     # Подушка безопасности
+│       │   ├── Recurring.jsx        # Регулярные операции
+│       │   ├── Analytics.jsx        # Аналитика
+│       │   ├── Family.jsx           # Управление семьёй
+│       │   └── Settings.jsx         # Настройки
+│       ├── services/api.js         # Axios клиент
+│       ├── utils/format.js          # Форматирование денег
+│       └── App.js                   # Роутинг
+├── controllers/                     # Express контроллеры
+│   ├── authController.js            # Аутентификация, семья, восстановление пароля
+│   ├── transactionController.js
+│   ├── goalController.js
+│   ├── wishController.js
+│   ├── budgetController.js
+│   ├── dashboardController.js
+│   ├── safetyPillowController.js
+│   ├── recurringController.js
+│   ├── reportController.js          # Аналитика и экспорт
+│   ├── categoryController.js
+│   └── notificationController.js
+├── models/                          # Sequelize модели
+│   ├── index.js                    # Загрузка и ассоциации
+│   ├── user.js
+│   ├── family.js
+│   ├── transaction.js
+│   ├── goal.js
+│   ├── wish.js
+│   ├── budget.js
+│   ├── recurringTransaction.js
+│   ├── goalContribution.js
+│   ├── wishContribution.js
+│   ├── category.js
+│   ├── familyInvite.js
+│   ├── passwordResetToken.js
+│   ├── safetyPillowSetting.js
+│   ├── safetyPillowHistory.js
+│   └── notification.js
+├── routes/                          # Express маршруты
+├── services/                        # Бизнес-логика
+│   ├── transactionService.js         # Создание, автопополнение, бюджет-чека
+│   ├── safetyPillowService.js       # Расчёт подушки безопасности
+│   └── emailService.js              # Отправка email (nodemailer)
+├── jobs/                            # Cron задачи
+│   ├── recurringJob.js              # Создание регулярных транзакций (03:05)
+│   └── interestJob.js               # Начисление процентов на цели (1-го числа)
+├── middleware/
+│   ├── auth.js                       # JWT верификация + подгрузка Family
+│   └── errorHandler.js
+├── migrations/
+│   └── fix_solo_users.sql           # Основная миграция для solo/family логики
+├── config/
+│   ├── database.js                   # Sequelize конфиг
+│   └── config.js                     # Sequelize CLI конфиг
+├── server.js                         # Точка входа
 └── package.json
 ```
 
@@ -277,8 +336,14 @@ Finance/
 |:---|:---|:---|
 | POST | `/api/auth/register` | Регистрация |
 | POST | `/api/auth/login` | Вход |
-| GET | `/api/auth/me` | Текущий пользователь |
+| POST | `/api/auth/forgot-password` | Запрос восстановления (email) |
+| POST | `/api/auth/reset-password` | Сброс пароля по токену |
+| GET | `/api/auth/me` | Текущий пользователь + семья |
 | POST | `/api/auth/change-password` | Смена пароля |
+
+### Семья
+| Метод | Путь | Описание |
+|:---|:---|:---|
 | POST | `/api/auth/family/create` | Создать семью |
 | POST | `/api/auth/family/join` | Присоединиться по коду |
 | POST | `/api/auth/family/leave` | Покинуть семью |
@@ -290,45 +355,47 @@ Finance/
 ### Операции
 | Метод | Путь | Описание |
 |:---|:---|:---|
-| GET | `/api/transactions` | Список операций |
-| POST | `/api/transactions` | Создать операцию |
+| GET | `/api/transactions` | Список (с фильтрами) |
+| POST | `/api/transactions` | Создать |
 | PUT | `/api/transactions/:id` | Обновить |
 | DELETE | `/api/transactions/:id` | Удалить |
 
 ### Цели
 | Метод | Путь | Описание |
 |:---|:---|:---|
-| GET | `/api/goals` | Список целей |
-| POST | `/api/goals` | Создать цель |
-| PUT | `/api/goals/:id` | Обновить цель |
-| DELETE | `/api/goals/:id` | Удалить цель |
-| POST | `/api/goals/:id/contribute` | Пополнить цель |
-| GET | `/api/goals/:id/forecast` | Прогнозный калькулятор |
-| GET | `/api/goals/export` | Экспорт CSV |
+| GET | `/api/goals` | Список (семейные + личные) |
+| POST | `/api/goals` | Создать |
+| PUT | `/api/goals/:id` | Обновить |
+| DELETE | `/api/goals/:id` | Удалить |
+| POST | `/api/goals/:id/contribute` | Пополнить |
+| GET | `/api/goals/:id/forecast` | Прогноз |
 
 ### Желания
 | Метод | Путь | Описание |
 |:---|:---|:---|
-| GET | `/api/wishes` | Список желаний |
-| POST | `/api/wishes` | Создать желание |
-| PUT | `/api/wishes/:id` | Обновить желание |
-| DELETE | `/api/wishes/:id` | Удалить желание |
-| POST | `/api/wishes/:id/fund` | Пополнить желание |
+| GET | `/api/wishes` | Список |
+| POST | `/api/wishes` | Создать |
+| PUT | `/api/wishes/:id` | Обновить |
+| DELETE | `/api/wishes/:id` | Удалить |
+| POST | `/api/wishes/:id/fund` | Пополнить (с предупреждением) |
+| POST | `/api/wishes/:id/contribute` | Пополнить (с транзакцией) |
 | GET | `/api/wishes/export` | Экспорт CSV |
 
-### Аналитика
+### Бюджеты
 | Метод | Путь | Описание |
 |:---|:---|:---|
-| GET | `/api/reports/dynamics` | Динамика доходов/расходов |
-| GET | `/api/reports/expenses-by-category` | Расходы по категориям |
-| GET | `/api/reports/income-by-category` | Доходы по категориям |
-| GET | `/api/reports/export` | Экспорт CSV |
-| GET | `/api/reports/export/excel` | Экспорт Excel |
+| GET | `/api/budgets` | Список |
+| POST | `/api/budgets` | Создать |
+| PUT | `/api/budgets/:id` | Обновить |
+| DELETE | `/api/budgets/:id` | Удалить |
 
-### Дашборд
+### Регулярные операции
 | Метод | Путь | Описание |
 |:---|:---|:---|
-| GET | `/api/dashboard` | Сводка для главной страницы |
+| GET | `/api/recurring` | Список |
+| POST | `/api/recurring` | Создать |
+| PUT | `/api/recurring/:id` | Обновить |
+| DELETE | `/api/recurring/:id` | Удалить |
 
 ### Подушка безопасности
 | Метод | Путь | Описание |
@@ -338,10 +405,31 @@ Finance/
 | PUT | `/api/safety-pillow/settings` | Обновить настройки |
 | GET | `/api/safety-pillow/history` | История |
 
+### Дашборд
+| Метод | Путь | Описание |
+|:---|:---|:---|
+| GET | `/api/dashboard` | Сводка (семейный + личный баланс, вклады участников) |
+
+### Аналитика
+| Метод | Путь | Описание |
+|:---|:---|:---|
+| GET | `/api/reports/dynamics` | Динамика доходов/расходов |
+| GET | `/api/reports/expenses-by-category` | Расходы по категориям |
+| GET | `/api/reports/income-by-category` | Доходы по категориям |
+| GET | `/api/reports/export` | Экспорт CSV |
+| GET | `/api/reports/export/excel` | Экспорт Excel (.xlsx) |
+
+### Категории
+| Метод | Путь | Описание |
+|:---|:---|:---|
+| GET | `/api/categories` | Список |
+| POST | `/api/categories` | Создать |
+| DELETE | `/api/categories/:id` | Удалить |
+
 ### Уведомления
 | Метод | Путь | Описание |
 |:---|:---|:---|
-| GET | `/api/notifications` | Список уведомлений |
+| GET | `/api/notifications` | Список |
 | GET | `/api/notifications/unread-count` | Счётчик непрочитанных |
 | PUT | `/api/notifications/:id/read` | Прочитать |
 | PUT | `/api/notifications/read-all` | Прочитать все |
@@ -350,33 +438,30 @@ Finance/
 
 ---
 
-## 🔄 Миграции
+## 🗃 Сущности и модели
 
-Все SQL-миграции находятся в `sql/migrations/`. Применяйте их в порядке номеров:
+### Основные таблицы
 
-| Файл | Описание |
+| Таблица | Описание |
 |:---|:---|
-| `20260401_auto_contrib.sql` | Автопополнение целей (automatic, source_transaction_id, type) |
-| `20260412_create_notifications.sql` | Таблица уведомлений |
-| `20260413_index_transactions.sql` | Индексы для транзакций |
-| `20260414_archive_goals_and_wishes.sql` | Архивирование целей/желаний |
-| `20260415_alter_wishes_add_categoryid.sql` | Категория желаний |
-| `20260416_cleanup_and_constraints.sql` | Очистка дублей + уникальные ограничения |
-| `20260417_goals_category.sql` | Категория целей |
-| `20260418_notifications.sql` | Полная система уведомлений |
+| `users` | Пользователи (`family_id` nullable) |
+| `families` | Семьи (имя, invite_code, owner_user_id) |
+| `family_invites` | Приглашения с кодом и сроком действия |
+| `transactions` | Операции (`family_id` nullable) |
+| `categories` | Категории (системные + пользовательские) |
+| `goals` | Цели (`family_id` nullable) |
+| `goal_contributions` | Пополнения целей (FK → Transaction) |
+| `wishes` | Желания (`family_id` nullable, `is_private` default true) |
+| `wish_contributions` | Пополнения желаний (FK → Transaction) |
+| `budgets` | Бюджеты (`family_id` nullable) |
+| `recurring_transactions` | Регулярные операции (`family_id` nullable) |
+| `safety_pillow_settings` | Настройки подушки (per-user) |
+| `safety_pillow_history` | История расчётов подушки |
+| `notifications` | Уведомления |
+| `password_reset_tokens` | Токены восстановления пароля (1 час TTL) |
 
----
-
-## 📊 Статус проекта
-
-| Область | Готовность |
-|:---|:---:|
-| Бэкенд (API) | ✅ ~98% |
-| Фронтенд (UI/UX) | ✅ ~95% |
-| Дизайн-система | ✅ 100% |
-| База данных | ✅ ~98% |
-| Тесты | ✅ ~60% |
-| **Общая** | **✅ ~96%** |
+### FK constraints (SET NULL)
+При удалении семьи (`DELETE FROM families`) все связанные записи получают `family_id = NULL`, данные сохраняются как личные.
 
 ---
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
 
 export default function Login() {
@@ -118,7 +118,7 @@ export default function Login() {
                   <div className="flex justify-between items-center mb-2 ml-1">
                     <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest">Пароль</label>
                     {isLogin && (
-                      <a href="#" className="text-xs font-semibold text-primary hover:opacity-80 transition-colors">Забыли?</a>
+                      <Link to="/forgot-password" className="text-xs font-semibold text-primary hover:opacity-80 transition-colors">Забыли?</Link>
                     )}
                   </div>
                   <div className="relative group">

@@ -3,7 +3,7 @@ const { DataTypes } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
   const RecurringTransaction = sequelize.define('RecurringTransaction', {
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-    family_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
+    family_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     user_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     category_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     amount: { type: DataTypes.DECIMAL(12, 2), allowNull: false },

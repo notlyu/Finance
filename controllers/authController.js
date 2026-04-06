@@ -2,7 +2,8 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { Op } = require('sequelize');
-const { User, Family, FamilyInvite } = require('../models');
+const { User, Family, FamilyInvite, PasswordResetToken, Transaction, Budget } = require('../models');
+const { sendPasswordResetEmail } = require('../services/emailService');
 
 function generateSecureInviteCode(length = 10) {
   // url-safe base64, trimmed and uppercased for readability
@@ -244,7 +245,7 @@ exports.getMe = async (req, res) => {
     let family = null;
     if (user.family_id) {
       family = await Family.findByPk(user.family_id, {
-        include: [{ model: User, as: 'Members', attributes: ['id', 'name', 'email'] }],
+        include: [{ model: User, as: 'Members', attributes: ['id', 'name'] }],
       });
     }
     res.json({
@@ -256,7 +257,8 @@ exports.getMe = async (req, res) => {
         id: family.id,
         name: family.name,
         invite_code: family.invite_code,
-        members: family.Members, // ← также обратите внимание на регистр при обращении
+        owner_user_id: family.owner_user_id,
+        members: family.Members,
       } : null,
     });
   } catch (error) {
@@ -274,17 +276,19 @@ exports.leaveFamily = async (req, res) => {
 
     const family = await Family.findByPk(user.family_id);
     if (family.owner_user_id === user.id && (await family.countMembers()) === 1) {
-      // Если владелец и в семье только он, можно удалить семью или запретить выход
+      await Transaction.update({ family_id: null }, { where: { user_id: user.id } });
+      await Budget.update({ family_id: null }, { where: { user_id: user.id } });
       await family.destroy();
       await user.update({ family_id: null });
       return res.json({ message: 'Семья удалена, вы вышли из неё' });
     }
 
-    // Проверим, не единственный ли владелец
     if (family.owner_user_id === user.id) {
       return res.status(400).json({ message: 'Вы владелец семьи. Сначала передайте права другому участнику.' });
     }
 
+    await Transaction.update({ family_id: null }, { where: { user_id: user.id } });
+    await Budget.update({ family_id: null }, { where: { user_id: user.id } });
     await user.update({ family_id: null });
     res.json({ message: 'Вы покинули семью' });
   } catch (error) {
@@ -337,6 +341,8 @@ exports.removeFamilyMember = async (req, res) => {
       return res.status(400).json({ message: 'Нельзя удалить владельца семьи' });
     }
 
+    await Transaction.update({ family_id: null }, { where: { user_id: member.id } });
+    await Budget.update({ family_id: null }, { where: { user_id: member.id } });
     await member.update({ family_id: null });
     res.json({ message: `Участник ${member.name} удалён из семьи` });
   } catch (error) {
@@ -369,6 +375,54 @@ exports.transferOwnership = async (req, res) => {
 
     await family.update({ owner_user_id: newOwnerId });
     res.json({ message: `Владение передано участнику ${newOwner.name}` });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+};
+
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Укажите email' });
+
+    const user = await User.findOne({ where: { email } });
+    if (!user) return res.json({ message: 'Если email существует, ссылка для сброса отправлена' });
+
+    await PasswordResetToken.destroy({ where: { user_id: user.id } });
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+    await PasswordResetToken.create({
+      user_id: user.id,
+      token,
+      expires_at: expiresAt,
+    });
+
+    await sendPasswordResetEmail(email, token);
+    res.json({ message: 'Если email существует, ссылка для сброса отправлена' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) return res.status(400).json({ message: 'Укажите токен и новый пароль' });
+
+    const resetToken = await PasswordResetToken.findOne({
+      where: { token, expires_at: { [Op.gt]: new Date() } },
+    });
+    if (!resetToken) return res.status(400).json({ message: 'Недействительный или истёкший токен' });
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await User.update({ password_hash: hashed }, { where: { id: resetToken.user_id } });
+    await PasswordResetToken.destroy({ where: { id: resetToken.id } });
+
+    res.json({ message: 'Пароль успешно изменён' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Ошибка сервера' });

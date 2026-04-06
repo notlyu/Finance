@@ -13,26 +13,42 @@ export default function Budgets() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [memberFilter, setMemberFilter] = useState(null);
+  const [members, setMembers] = useState([]);
+  const [memberContributions, setMemberContributions] = useState({});
   const { register, handleSubmit, reset } = useForm();
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [budgetsRes, catRes] = await Promise.all([
-        api.get('/budgets', { params: { month } }),
+      const params = { month };
+      if (memberFilter) params.memberId = memberFilter;
+      const [budgetsRes, catRes, dashRes] = await Promise.all([
+        api.get('/budgets', { params }),
         api.get('/categories'),
+        api.get('/dashboard'),
       ]);
       setItems(budgetsRes.data?.items || []);
       setCategories(catRes.data || []);
-    } catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
+      setMemberContributions(budgetsRes.data?.memberContributions || {});
+      if (dashRes.data?.family?.memberStats) {
+        setMembers(dashRes.data.family.memberStats);
+      }
+    } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchData(); }, [month]);
+  useEffect(() => { fetchData(); }, [month, memberFilter]);
 
   const onCreate = async (data) => {
     try {
-      await api.post('/budgets', { month, type: data.type, category_id: Number(data.category_id), limit_amount: Number(data.limit_amount) });
+      await api.post('/budgets', {
+        month,
+        type: data.type,
+        category_id: Number(data.category_id),
+        limit_amount: Number(data.limit_amount),
+        is_personal: data.is_personal === 'true',
+      });
       setModalOpen(false); reset(); fetchData();
     } catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
   };
@@ -54,42 +70,43 @@ export default function Budgets() {
     return byType;
   }, [items]);
 
-  if (loading) return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
-        <p className="text-on-surface-variant text-sm font-medium">Загрузка...</p>
-      </div>
-    </div>
-  );
+  const colors = ['bg-primary', 'bg-secondary', 'bg-tertiary', 'bg-error'];
 
   return (
     <div className="space-y-8">
-      {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-on-surface-variant">
         <Link to="/" className="hover:text-primary transition-colors">Главная</Link>
         <span className="material-symbols-outlined text-sm">chevron_right</span>
         <span className="text-on-surface font-medium">Бюджеты</span>
       </div>
 
-      {/* Section Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2 className="text-3xl font-extrabold tracking-tight text-on-surface font-headline">Бюджеты</h2>
           <p className="text-on-surface-variant text-sm mt-1">План/факт по категориям за месяц</p>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
+          {members.length > 1 && (
+            <select
+              value={memberFilter || ''}
+              onChange={e => setMemberFilter(e.target.value ? Number(e.target.value) : null)}
+              className="select-ghost py-2.5 text-sm"
+            >
+              <option value="">Все участники</option>
+              {members.map(m => (
+                <option key={m.userId} value={m.userId}>{m.name}</option>
+              ))}
+            </select>
+          )}
           <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="select-ghost py-2.5 text-sm" />
-          <button onClick={() => { reset({ type: 'expense' }); setModalOpen(true); }} className="btn-primary px-6 py-2.5 flex items-center gap-2 text-sm">
+          <button onClick={() => { reset({ type: 'expense', is_personal: 'false' }); setModalOpen(true); }} className="btn-primary px-6 py-2.5 flex items-center gap-2 text-sm">
             <span className="material-symbols-outlined text-sm">add</span>
             Добавить
           </button>
         </div>
       </div>
 
-      {/* Summary Cards - Bento Grid 4-column */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Income */}
         <div className="bg-surface-container-lowest p-5 rounded-3xl shadow-card">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center text-secondary">
@@ -102,7 +119,6 @@ export default function Budgets() {
             {totals.income.limit > 0 ? `${Math.round((totals.income.actual / totals.income.limit) * 100)}% от плана` : 'Без плана'}
           </p>
         </div>
-        {/* Expenses */}
         <div className="bg-surface-container-lowest p-5 rounded-3xl shadow-card">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-lg bg-error/10 flex items-center justify-center text-error">
@@ -115,7 +131,6 @@ export default function Budgets() {
             <div className={`progress-bar-fill ${totals.expense.limit > 0 && totals.expense.actual > totals.expense.limit ? 'bg-error' : 'bg-primary'}`} style={{ width: `${totals.expense.limit > 0 ? Math.min(100, (totals.expense.actual / totals.expense.limit) * 100) : 0}%` }}></div>
           </div>
         </div>
-        {/* Savings */}
         <div className="bg-surface-container-lowest p-5 rounded-3xl shadow-card">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
@@ -126,7 +141,6 @@ export default function Budgets() {
           <p className="text-xl font-extrabold font-headline text-on-surface">{formatMoney(Math.max(0, totals.income.actual - totals.expense.actual))} ₽</p>
           <p className="text-xs text-on-surface-variant mt-1">Доходы − Расходы</p>
         </div>
-        {/* Free Cash */}
         <div className="bg-gradient-to-br from-primary to-primary-container text-white p-5 rounded-3xl shadow-button relative overflow-hidden">
           <div className="absolute -top-6 -right-6 w-20 h-20 bg-white/10 rounded-full blur-xl"></div>
           <div className="flex items-center gap-2 mb-2 relative">
@@ -140,7 +154,6 @@ export default function Budgets() {
         </div>
       </div>
 
-      {/* Budget Table */}
       <div className="bg-surface-container-lowest rounded-3xl shadow-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full">
@@ -158,6 +171,7 @@ export default function Budgets() {
               {items.map((b, i) => {
                 const progress = Math.min(100, Math.round(Number(b.progress || 0)));
                 const isOver = Number(b.actual_amount || 0) > Number(b.limit_amount || 0);
+                const hasMembers = b.spent_by_members && b.spent_by_members.length > 1 && b.spent_by_members.some(m => m.amount > 0);
                 return (
                   <tr key={b.id} className={`transition-colors hover:bg-surface-container ${i % 2 === 0 ? 'bg-surface-container-lowest' : 'bg-surface-container-low'}`}>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -168,16 +182,42 @@ export default function Budgets() {
                         {b.type === 'expense' ? 'Расход' : 'Доход'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-on-surface">{b.category_name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm font-semibold text-on-surface">{b.category_name}</span>
+                      {hasMembers && (
+                        <div className="flex items-center gap-1 mt-1">
+                          {b.spent_by_members.filter(m => m.amount > 0).map((m, idx) => (
+                            <span key={m.userId} className="text-[10px] px-1.5 py-0.5 bg-surface-container rounded-full text-on-surface-variant flex items-center gap-1">
+                              <span className={`w-1.5 h-1.5 rounded-full ${colors[idx % colors.length]}`}></span>
+                              {m.name}: {formatMoney(m.amount)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-on-surface-variant">{formatMoney(b.limit_amount)} ₽</td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${isOver ? 'text-error' : 'text-on-surface'}`}>
                       {formatMoney(b.actual_amount)} ₽
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
-                        <div className="progress-bar flex-1 w-32">
-                          <div className={`progress-bar-fill ${isOver ? 'bg-error' : 'bg-primary'}`} style={{ width: `${progress}%` }}></div>
-                        </div>
+                        {hasMembers ? (
+                          <div className="flex-1 h-3 rounded-full overflow-hidden flex" style={{ minWidth: 128 }}>
+                            {b.spent_by_members.filter(m => m.amount > 0).map((m, idx) => (
+                              <div
+                                key={m.userId}
+                                className={`h-full ${colors[idx % colors.length]} transition-all`}
+                                style={{ width: `${m.percentage}%` }}
+                                title={`${m.name}: ${m.percentage}%`}
+                              ></div>
+                            ))}
+                            <div className="h-full bg-surface-container flex-1"></div>
+                          </div>
+                        ) : (
+                          <div className="progress-bar flex-1 w-32">
+                            <div className={`progress-bar-fill ${isOver ? 'bg-error' : 'bg-primary'}`} style={{ width: `${progress}%` }}></div>
+                          </div>
+                        )}
                         <span className={`text-xs font-bold ${isOver ? 'text-error' : 'text-on-surface-variant'}`}>{progress}%</span>
                       </div>
                     </td>
@@ -208,7 +248,6 @@ export default function Budgets() {
         </div>
       </div>
 
-      {/* Modal */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Новый бюджет">
         <form onSubmit={handleSubmit(onCreate)} className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
@@ -226,6 +265,13 @@ export default function Budgets() {
                 {categories.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.type === 'income' ? 'Доход' : 'Расход'})</option>)}
               </select>
             </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Бюджет</label>
+            <select {...register('is_personal')} className="select-ghost">
+              <option value="false">Семейный</option>
+              <option value="true">Личный</option>
+            </select>
           </div>
           <div>
             <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">План (₽)</label>

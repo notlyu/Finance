@@ -49,7 +49,7 @@ const updateTransaction = async (req, res, next) => {
         return res.status(401).json({ message: "Unauthorized" });
     }
     try {
-        const transaction = await transactionService.updateTransaction(req.params.id, req.user.family_id, req.body);
+        const transaction = await transactionService.updateTransaction(req.params.id, req.user.family_id, req.user.id, req.body);
         res.json(transaction);
     } catch (error) {
         next(error);
@@ -61,7 +61,7 @@ const deleteTransaction = async (req, res, next) => {
         return res.status(401).json({ message: "Unauthorized" });
     }
     try {
-        await transactionService.deleteTransaction(req.params.id, req.user.family_id);
+        await transactionService.deleteTransaction(req.params.id, req.user.family_id, req.user.id);
         res.status(204).send();
     } catch (error) {
         next(error);

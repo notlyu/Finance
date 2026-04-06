@@ -14,9 +14,6 @@ exports.getDynamics = async (req, res) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
-    if (!familyId) {
-      return res.status(400).json({ message: 'Вы не состоите в семье' });
-    }
 
     // Default: last 12 months (to align with analytics expectations)
     const today = new Date();
@@ -38,11 +35,23 @@ exports.getDynamics = async (req, res) => {
     endExclusive.setDate(endExclusive.getDate() + 1);
     const memberId = req.query.memberId ? Number(req.query.memberId) : null;
     const txWhere = {
-      family_id: familyId,
       date: { [Op.gte]: start, [Op.lt]: endExclusive.toISOString().slice(0, 10) },
-      [Op.or]: [{ is_private: false }, { user_id: user.id }],
     };
-    if (memberId) txWhere.user_id = memberId;
+    if (memberId) {
+      txWhere[Op.or] = familyId
+        ? [
+            { family_id: familyId, user_id: memberId, [Op.or]: [{ is_private: false }, { user_id: memberId }] },
+            { family_id: null, user_id: memberId },
+          ]
+        : { family_id: null, user_id: memberId };
+    } else {
+      txWhere[Op.or] = familyId
+        ? [
+            { family_id: familyId, [Op.or]: [{ is_private: false }, { user_id: user.id }] },
+            { family_id: null, user_id: user.id },
+          ]
+        : { family_id: null, user_id: user.id };
+    }
     const rows = await Transaction.findAll({
       where: txWhere,
       attributes: [
@@ -105,20 +114,29 @@ exports.getExpensesByCategory = async (req, res) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
-    if (!familyId) {
-      return res.status(400).json({ message: 'Вы не состоите в семье' });
-    }
 
     const { startDate, endDate } = req.query;
     const memberId = req.query.memberId ? Number(req.query.memberId) : null;
-    const where = { family_id: familyId, type: 'expense' };
-    if (memberId) where.user_id = memberId;
-    if (startDate && endDate) {
-      where.date = { [Op.between]: [startDate, endDate] };
-    } else if (startDate) {
-      where.date = { [Op.gte]: startDate };
-    } else if (endDate) {
-      where.date = { [Op.lte]: endDate };
+    const dateFilter = {};
+    if (startDate && endDate) dateFilter[Op.between] = [startDate, endDate];
+    else if (startDate) dateFilter[Op.gte] = startDate;
+    else if (endDate) dateFilter[Op.lte] = endDate;
+
+    const where = { type: 'expense', ...dateFilter };
+    if (memberId) {
+      where[Op.or] = familyId
+        ? [
+            { family_id: familyId, user_id: memberId, [Op.or]: [{ is_private: false }, { user_id: memberId }] },
+            { family_id: null, user_id: memberId },
+          ]
+        : { family_id: null, user_id: memberId };
+    } else {
+      where[Op.or] = familyId
+        ? [
+            { family_id: familyId, [Op.or]: [{ is_private: false }, { user_id: user.id }] },
+            { family_id: null, user_id: user.id },
+          ]
+        : { family_id: null, user_id: user.id };
     }
 
     const transactions = await Transaction.findAll({
@@ -146,20 +164,29 @@ exports.getIncomeByCategory = async (req, res) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
-    if (!familyId) {
-      return res.status(400).json({ message: 'Вы не состоите в семье' });
-    }
 
     const { startDate, endDate } = req.query;
     const memberId = req.query.memberId ? Number(req.query.memberId) : null;
-    const where = { family_id: familyId, type: 'income' };
-    if (memberId) where.user_id = memberId;
-    if (startDate && endDate) {
-      where.date = { [Op.between]: [startDate, endDate] };
-    } else if (startDate) {
-      where.date = { [Op.gte]: startDate };
-    } else if (endDate) {
-      where.date = { [Op.lte]: endDate };
+    const dateFilter = {};
+    if (startDate && endDate) dateFilter[Op.between] = [startDate, endDate];
+    else if (startDate) dateFilter[Op.gte] = startDate;
+    else if (endDate) dateFilter[Op.lte] = endDate;
+
+    const where = { type: 'income', ...dateFilter };
+    if (memberId) {
+      where[Op.or] = familyId
+        ? [
+            { family_id: familyId, user_id: memberId, [Op.or]: [{ is_private: false }, { user_id: memberId }] },
+            { family_id: null, user_id: memberId },
+          ]
+        : { family_id: null, user_id: memberId };
+    } else {
+      where[Op.or] = familyId
+        ? [
+            { family_id: familyId, [Op.or]: [{ is_private: false }, { user_id: user.id }] },
+            { family_id: null, user_id: user.id },
+          ]
+        : { family_id: null, user_id: user.id };
     }
 
     const transactions = await Transaction.findAll({
@@ -187,18 +214,15 @@ exports.exportReport = async (req, res) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
-    if (!familyId) {
-      return res.status(400).json({ message: 'Вы не состоите в семье' });
-    }
     const { startDate, endDate } = req.query;
-    const where = { family_id: familyId };
-    if (startDate && endDate) {
-      where.date = { [Op.between]: [startDate, endDate] };
-    } else if (startDate) {
-      where.date = { [Op.gte]: startDate };
-    } else if (endDate) {
-      where.date = { [Op.lte]: endDate };
-    }
+    const dateFilter = {};
+    if (startDate && endDate) dateFilter[Op.between] = [startDate, endDate];
+    else if (startDate) dateFilter[Op.gte] = startDate;
+    else if (endDate) dateFilter[Op.lte] = endDate;
+
+    const where = familyId
+      ? { [Op.or]: [{ family_id: familyId, [Op.or]: [{ is_private: false }, { user_id: user.id }] }, { family_id: null, user_id: user.id }], ...dateFilter }
+      : { family_id: null, user_id: user.id, ...dateFilter };
 
     const transactions = await Transaction.findAll({ where, include: [
       { model: Category, as: 'Category', attributes: ['name'] },
@@ -206,8 +230,8 @@ exports.exportReport = async (req, res) => {
     ], order: [['date','DESC']] });
 
     // Build CSV header and rows
-    const header = ['date','type','amount','category','user','comment','is_private'];
-    const rows = transactions.map(t => [t.date, t.type, t.amount, t.Category?.name ?? '', t.User?.name ?? '', t.comment ?? '', t.is_private ? 'true' : 'false']);
+    const header = ['date','type','amount','category','user','comment'];
+    const rows = transactions.map(t => [t.date, t.type, t.amount, t.Category?.name ?? '', t.User?.name ?? '', t.comment ?? '']);
     const csv = [header.join(','), ...rows.map(r => r.map(v => {
       if (v == null) return '';
       const s = String(v);
@@ -231,18 +255,15 @@ exports.exportExcel = async (req, res) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
-    if (!familyId) {
-      return res.status(400).json({ message: 'Вы не состоите в семье' });
-    }
     const { startDate, endDate } = req.query;
-    const where = { family_id: familyId };
-    if (startDate && endDate) {
-      where.date = { [Op.between]: [startDate, endDate] };
-    } else if (startDate) {
-      where.date = { [Op.gte]: startDate };
-    } else if (endDate) {
-      where.date = { [Op.lte]: endDate };
-    }
+    const dateFilter = {};
+    if (startDate && endDate) dateFilter[Op.between] = [startDate, endDate];
+    else if (startDate) dateFilter[Op.gte] = startDate;
+    else if (endDate) dateFilter[Op.lte] = endDate;
+
+    const where = familyId
+      ? { [Op.or]: [{ family_id: familyId, [Op.or]: [{ is_private: false }, { user_id: user.id }] }, { family_id: null, user_id: user.id }], ...dateFilter }
+      : { family_id: null, user_id: user.id, ...dateFilter };
 
     const transactions = await Transaction.findAll({ where, include: [
       { model: Category, as: 'Category', attributes: ['name'] },
@@ -259,7 +280,6 @@ exports.exportExcel = async (req, res) => {
       { header: 'Сумма (₽)', key: 'amount', width: 15 },
       { header: 'Автор', key: 'user', width: 15 },
       { header: 'Комментарий', key: 'comment', width: 30 },
-      { header: 'Приватность', key: 'is_private', width: 12 },
     ];
 
     // Style header
@@ -276,7 +296,6 @@ exports.exportExcel = async (req, res) => {
         amount: isHidden ? 0 : Number(t.amount),
         user: t.User?.name || '',
         comment: isHidden ? '' : (t.comment || ''),
-        is_private: t.is_private ? 'Да' : 'Нет',
       });
     });
 

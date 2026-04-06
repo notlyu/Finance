@@ -6,9 +6,10 @@ module.exports = (sequelize, DataTypes) => {
     family_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     user_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     category_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
-    month: { type: DataTypes.STRING(7), allowNull: false }, // YYYY-MM
+    month: { type: DataTypes.STRING(7), allowNull: false },
     type: { type: DataTypes.ENUM('income', 'expense'), allowNull: false, defaultValue: 'expense' },
     limit_amount: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
+    is_personal: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     created_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
     updated_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
   }, {

@@ -46,9 +46,6 @@ exports.getSafetyPillow = async (req, res) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
-    if (!familyId) {
-      return res.status(400).json({ message: 'Вы не состоите в семье' });
-    }
 
     const result = await pillowService.calculateSafetyPillow(user.id, familyId);
     res.json(result);

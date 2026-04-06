@@ -32,11 +32,11 @@ export default function Dashboard() {
     </div>
   );
 
-  const { month, totalBalance, reservedTotal, availableFunds, lastTransactions, activeGoals } = data;
+  const { family, personal, lastTransactions, activeGoals, warning } = data;
+  const isFamily = !!family;
 
   return (
     <div className="space-y-8">
-      {/* Section Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between mb-2 gap-4">
         <div>
           <h2 className="text-3xl font-extrabold tracking-tight text-on-surface font-headline">Главная</h2>
@@ -58,70 +58,131 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Metric Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
-        {/* Decorative blur */}
-        <div className="absolute -top-12 -right-12 w-64 h-64 bg-primary/5 rounded-full blur-3xl -z-10 pointer-events-none"></div>
-        <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-secondary/5 rounded-full blur-3xl -z-10 pointer-events-none"></div>
-        {/* Income */}
-        <div className="bg-surface-container-lowest p-6 rounded-2xl shadow-card relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-secondary/5 -mr-8 -mt-8 rounded-full transition-transform group-hover:scale-110"></div>
-          <p className="text-on-surface-variant text-sm font-medium mb-1">Доходы за месяц</p>
-          <h3 className="text-2xl font-bold text-secondary font-headline">+{formatMoney(month.income)} ₽</h3>
-          <div className="mt-4 flex items-center gap-1 text-[10px] font-bold text-secondary uppercase tracking-wider">
-            <span className="material-symbols-outlined text-xs">trending_up</span>
-            За текущий месяц
+      {warning && (
+        <div className={`p-4 rounded-2xl flex items-start gap-3 border-l-4 ${warning.type === 'no_funds' ? 'bg-error-container border-error' : 'bg-warning-container border-warning'}`}>
+          <span className="material-symbols-outlined text-warning mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+          <div>
+            <p className={`text-sm font-semibold ${warning.type === 'no_funds' ? 'text-on-error-container' : 'text-on-warning-container'}`}>{warning.message}</p>
+            <p className={`text-xs ${warning.type === 'no_funds' ? 'text-on-error-container/80' : 'text-on-warning-container/80'}`}>Свободных средств: {formatMoney(warning.available)} ₽</p>
           </div>
         </div>
+      )}
 
-        {/* Expenses */}
-        <div className="bg-surface-container-lowest p-6 rounded-2xl shadow-card relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-error/5 -mr-8 -mt-8 rounded-full transition-transform group-hover:scale-110"></div>
-          <p className="text-on-surface-variant text-sm font-medium mb-1">Расходы за месяц</p>
-          <h3 className="text-2xl font-bold text-error font-headline">-{formatMoney(month.expenses)} ₽</h3>
-          <div className="mt-4 flex items-center gap-1 text-[10px] font-bold text-error uppercase tracking-wider">
-            <span className="material-symbols-outlined text-xs">trending_down</span>
-            За текущий месяц
-          </div>
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {isFamily && (
+          <div className="bg-surface-container-lowest p-6 rounded-2xl shadow-card relative overflow-hidden">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 bg-primary-container/20 rounded-xl flex items-center justify-center">
+                <span className="material-symbols-outlined text-primary-container" style={{ fontVariationSettings: "'FILL' 1" }}>family_restroom</span>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-on-surface font-headline">Семейные финансы</h3>
+                <p className="text-xs text-on-surface-variant">Общий бюджет семьи</p>
+              </div>
+            </div>
 
-        {/* Available */}
-        <div className="bg-gradient-to-br from-primary to-primary-container text-white p-6 rounded-2xl shadow-button relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-on-primary/10 -mr-8 -mt-8 rounded-full transition-transform group-hover:scale-110"></div>
-          <p className="text-white/70 text-sm font-medium mb-1">Свободные средства</p>
-          <h3 className="text-2xl font-bold font-headline">{formatMoney(availableFunds)} ₽</h3>
-          <div className="mt-4 flex items-center gap-1 text-[10px] font-bold text-white/80 uppercase tracking-wider">
-            <span className="material-symbols-outlined text-xs">account_balance_wallet</span>
-            Доступно к тратам
+            <div className="space-y-4">
+              <div className="flex justify-between items-center p-3 bg-surface-container rounded-xl">
+                <span className="text-sm text-on-surface-variant">Баланс семьи</span>
+                <span className={`font-bold text-base ${family.balance >= 0 ? 'text-on-surface' : 'text-error'}`}>
+                  {formatMoney(family.balance)} ₽
+                </span>
+              </div>
+              <div className="flex justify-between items-center p-3 bg-surface-container rounded-xl">
+                <span className="text-sm text-on-surface-variant">Доход за месяц</span>
+                <span className="font-bold text-base text-secondary">+{formatMoney(family.monthIncome)} ₽</span>
+              </div>
+              <div className="flex justify-between items-center p-3 bg-surface-container rounded-xl">
+                <span className="text-sm text-on-surface-variant">Расход за месяц</span>
+                <span className="font-bold text-base text-error">-{formatMoney(family.monthExpenses)} ₽</span>
+              </div>
+              <div className="flex justify-between items-center p-3 bg-surface-container rounded-xl">
+                <span className="text-sm text-on-surface-variant">Зарезервировано</span>
+                <span className="font-bold text-base text-on-surface">{formatMoney(family.reserved)} ₽</span>
+              </div>
+              <div className="flex justify-between items-center p-3 bg-gradient-to-r from-primary to-primary-container text-white rounded-xl">
+                <span className="text-sm font-medium text-white/80">Свободные средства</span>
+                <span className="font-bold text-base text-white">{formatMoney(family.available)} ₽</span>
+              </div>
+            </div>
+
+            {family.memberStats && family.memberStats.length > 1 && (
+              <div className="mt-5 pt-5 border-t border-surface-container">
+                <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-3">Вклад участников за месяц</p>
+                <div className="space-y-2">
+                  {family.memberStats.map(m => (
+                    <div key={m.userId} className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-primary-container/30 flex items-center justify-center text-xs font-bold text-primary-container">
+                          {m.name.charAt(0)}
+                        </div>
+                        <span className="text-sm text-on-surface">{m.name}</span>
+                      </div>
+                      <div className="flex gap-4">
+                        <span className="text-xs text-secondary">+{formatMoney(m.income)}</span>
+                        <span className="text-xs text-error">-{formatMoney(m.expenses)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
+        )}
+
+        <div className={`${isFamily ? '' : 'lg:col-span-2'} bg-surface-container-lowest p-6 rounded-2xl shadow-card relative overflow-hidden`}>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 bg-secondary/20 rounded-xl flex items-center justify-center">
+              <span className="material-symbols-outlined text-secondary" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-on-surface font-headline">Ваши финансы</h3>
+              <p className="text-xs text-on-surface-variant">{isFamily ? 'Ваш личный вклад' : 'Ваш личный бюджет'}</p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex justify-between items-center p-3 bg-surface-container rounded-xl">
+              <span className="text-sm text-on-surface-variant">Ваш баланс</span>
+              <span className={`font-bold text-base ${personal.balance >= 0 ? 'text-on-surface' : 'text-error'}`}>
+                {formatMoney(personal.balance)} ₽
+              </span>
+            </div>
+            {isFamily && (
+              <>
+                <div className="flex justify-between items-center p-3 bg-surface-container rounded-xl">
+                  <span className="text-sm text-on-surface-variant">Ваш доход за месяц</span>
+                  <span className="font-bold text-base text-secondary">+{formatMoney(personal.monthIncome)} ₽</span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-surface-container rounded-xl">
+                  <span className="text-sm text-on-surface-variant">Ваши расходы за месяц</span>
+                  <span className="font-bold text-base text-error">-{formatMoney(personal.monthExpenses)} ₽</span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-surface-container rounded-xl">
+                  <span className="text-sm text-on-surface-variant">Ваши накопления</span>
+                  <span className="font-bold text-base text-on-surface">{formatMoney(personal.reserved)} ₽</span>
+                </div>
+              </>
+            )}
+            <div className={`flex justify-between items-center p-3 ${isFamily ? 'bg-gradient-to-r from-secondary to-secondary/70' : 'bg-gradient-to-r from-primary to-primary-container'} text-white rounded-xl`}>
+              <span className="text-sm font-medium text-white/80">Ваши свободные средства</span>
+              <span className="font-bold text-base text-white">{formatMoney(personal.available)} ₽</span>
+            </div>
+          </div>
+
+          {!isFamily && (
+            <div className="mt-5 pt-5 border-t border-surface-container">
+              <p className="text-xs text-on-surface-variant mb-3">Создайте семью, чтобы объединить финансы</p>
+              <Link to="/family" className="btn-primary px-4 py-2 text-sm inline-flex items-center gap-2">
+                <span className="material-symbols-outlined text-sm">add</span>
+                Создать семью
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Secondary Metrics */}
-      <div className="bg-surface-container p-6 rounded-3xl">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="space-y-1">
-            <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Общий баланс</p>
-            <h4 className={`text-2xl font-bold font-headline ${totalBalance >= 0 ? 'text-on-surface' : 'text-error'}`}>
-              {formatMoney(totalBalance)} ₽
-            </h4>
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Зарезервировано</p>
-            <h4 className="text-2xl font-bold font-headline text-on-surface">{formatMoney(reservedTotal)} ₽</h4>
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Разница за месяц</p>
-            <h4 className={`text-2xl font-bold font-headline ${month.diff >= 0 ? 'text-secondary' : 'text-error'}`}>
-              {month.diff >= 0 ? '+' : ''}{formatMoney(month.diff)} ₽
-            </h4>
-          </div>
-        </div>
-      </div>
-
-      {/* Bento Grid: Transactions + Goals */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Recent Transactions */}
         <div className="lg:col-span-8 bg-surface-container-lowest p-8 rounded-3xl shadow-card">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-xl font-bold font-headline">Последние операции</h3>
@@ -131,30 +192,37 @@ export default function Dashboard() {
             </Link>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-4">
             {lastTransactions && lastTransactions.length > 0 ? lastTransactions.map(t => (
-              <div key={t.id} className="flex items-center justify-between group cursor-pointer">
-                <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
+              <div key={t.id} className="flex items-center justify-between group cursor-pointer p-3 hover:bg-surface-container rounded-xl transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
                     t.is_hidden
                       ? 'bg-surface-container-high text-slate-400'
                       : t.type === 'income'
                         ? 'bg-secondary/10 text-secondary'
                         : 'bg-surface-container-high text-primary group-hover:bg-primary-container group-hover:text-white'
                   }`}>
-                    <span className="material-symbols-outlined">
+                    <span className="material-symbols-outlined text-sm">
                       {t.is_hidden ? 'lock' : t.type === 'income' ? 'payments' : 'shopping_cart'}
                     </span>
                   </div>
                   <div>
-                    <h4 className="font-bold text-on-surface text-sm">
-                      {t.is_hidden ? '🔒 Сюрприз' : (t.Category?.name || t.category_name || 'Без категории')}
-                    </h4>
-                    <p className="text-xs text-on-surface-variant">{new Date(t.date).toLocaleDateString('ru-RU')} • {t.User?.name || ''}</p>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-on-surface text-sm">
+                        {t.is_hidden ? '🔒 Сюрприз' : (t.Category?.name || t.category_name || 'Без категории')}
+                      </h4>
+                      {!t.is_hidden && t.User && (
+                        <span className="text-[10px] px-1.5 py-0.5 bg-surface-container rounded-full text-on-surface-variant font-medium">
+                          {t.User.name}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-on-surface-variant">{new Date(t.date).toLocaleDateString('ru-RU')}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className={`font-bold ${t.type === 'income' ? 'text-secondary' : 'text-on-surface'}`}>
+                  <span className={`font-bold text-sm ${t.type === 'income' ? 'text-secondary' : 'text-on-surface'}`}>
                     {t.type === 'income' ? '+' : '-'}{t.is_hidden ? '••••' : formatMoney(t.amount)} ₽
                   </span>
                 </div>
@@ -168,9 +236,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Goals + Empty State */}
         <div className="lg:col-span-4 space-y-6">
-          {/* Goals */}
           <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card">
             <div className="flex items-center justify-between mb-8">
               <h3 className="text-xl font-bold font-headline">Цели</h3>
@@ -211,19 +277,9 @@ export default function Dashboard() {
               )}
             </div>
           </div>
-
-          {/* Empty State / CTA */}
-          <div className="bg-surface-container-lowest p-8 rounded-3xl border-2 border-dashed border-outline-variant/30 flex flex-col items-center justify-center text-center">
-            <div className="w-16 h-16 bg-surface-container rounded-2xl flex items-center justify-center mb-4 text-outline">
-              <span className="material-symbols-outlined text-3xl">event_busy</span>
-            </div>
-            <h4 className="text-sm font-bold text-on-surface mb-1">Нет ближайших списаний</h4>
-            <p className="text-xs text-on-surface-variant max-w-[200px]">Все счета оплачены. Наслаждайтесь финансовым спокойствием.</p>
-          </div>
         </div>
       </div>
 
-      {/* Mobile CTA */}
       <div className="md:hidden mt-8">
         <Link
           to="/transactions"

@@ -1,4 +1,4 @@
-const { Goal, GoalContribution, Transaction, User, Family, Category } = require('../models');
+const { Goal, GoalContribution, Transaction, User, Family, Category, Wish } = require('../models');
 const { Op } = require('sequelize');
 
 // Вспомогательная функция для расчёта необходимого ежемесячного взноса
@@ -22,18 +22,11 @@ exports.getGoals = async (req, res) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
-    if (!familyId) {
-      return res.status(400).json({ message: 'Вы не состоите в семье' });
-    }
 
-    // Archive filtering support: default to non-archived goals
     const archiveFilter = req.query.archived;
-    const where = {
-      [Op.or]: [
-        { family_id: familyId },
-        { user_id: user.id, family_id: null } // личные цели пользователя
-      ]
-    };
+    const where = familyId
+      ? { [Op.or]: [{ family_id: familyId }, { user_id: user.id, family_id: null }] }
+      : { user_id: user.id, family_id: null };
     if (archiveFilter === 'true') {
       where.archived = true;
     } else if (archiveFilter === 'false') {
@@ -210,7 +203,7 @@ exports.updateGoal = async (req, res) => {
     }
 
     // Проверка прав: только создатель цели или владелец семьи
-    if (goal.user_id !== user.id && user.family?.owner_user_id !== user.id) {
+    if (goal.user_id !== user.id && user.Family?.owner_user_id !== user.id) {
       return res.status(403).json({ message: 'Нет прав на редактирование' });
     }
 
@@ -242,7 +235,7 @@ exports.deleteGoal = async (req, res) => {
       return res.status(404).json({ message: 'Цель не найдена' });
     }
 
-    if (goal.user_id !== user.id && user.family?.owner_user_id !== user.id) {
+    if (goal.user_id !== user.id && user.Family?.owner_user_id !== user.id) {
       return res.status(403).json({ message: 'Нет прав на удаление' });
     }
 
@@ -254,12 +247,35 @@ exports.deleteGoal = async (req, res) => {
   }
 };
 
+// Проверка предупреждения перед расходом
+async function checkContributionWarning(userId, familyId, amount) {
+  if (!familyId) {
+    const income = await Transaction.sum('amount', { where: { user_id: userId, family_id: null, type: 'income' } }) || 0;
+    const expense = await Transaction.sum('amount', { where: { user_id: userId, family_id: null, type: 'expense' } }) || 0;
+    const balance = Number(income) - Number(expense);
+    const reserved = ((await Goal.sum('current_amount', { where: { user_id: userId, family_id: null } }) || 0) + (await Wish.sum('saved_amount', { where: { user_id: userId } }) || 0));
+    const available = balance - reserved;
+    const afterContribution = available - Number(amount);
+    const threshold = balance * 0.1;
+    return afterContribution < threshold ? { warning: true, available, afterContribution, threshold } : null;
+  }
+
+  const income = await Transaction.sum('amount', { where: { family_id: familyId, type: 'income' } }) || 0;
+  const expense = await Transaction.sum('amount', { where: { family_id: familyId, type: 'expense' } }) || 0;
+  const balance = Number(income) - Number(expense);
+  const reserved = ((await Goal.sum('current_amount', { where: { family_id: familyId } }) || 0) + (await Wish.sum('saved_amount', { where: { family_id: familyId } }) || 0));
+  const available = balance - reserved;
+  const afterContribution = available - Number(amount);
+  const threshold = balance * 0.1;
+  return afterContribution < threshold ? { warning: true, available, afterContribution, threshold } : null;
+}
+
 // Ручное пополнение цели
 exports.contributeToGoal = async (req, res) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    const { amount, date, createTransaction, category_id, comment, is_private } = req.body;
+    const { amount, date, createTransaction, category_id, comment, is_private, skipWarning } = req.body;
 
     if (!amount || amount <= 0) {
       return res.status(400).json({ message: 'Сумма должна быть положительным числом' });
@@ -279,21 +295,27 @@ exports.contributeToGoal = async (req, res) => {
       return res.status(404).json({ message: 'Цель не найдена' });
     }
 
+    const fundsForGoal = goal.family_id ? user.family_id : null;
+    const warning = await checkContributionWarning(user.id, fundsForGoal, amount);
+    if (warning && !skipWarning) {
+      return res.status(200).json({ warning });
+    }
+
     const result = await Goal.sequelize.transaction(async (t) => {
       let transactionId = null;
       if (createTransaction) {
         let catId = category_id;
         if (!catId) {
           const [cat] = await Category.findOrCreate({
-            where: { name: 'Пополнение целей', family_id: user.family_id },
-            defaults: { name: 'Пополнение целей', family_id: user.family_id, type: 'expense' },
+            where: { name: 'Пополнение целей', family_id: goal.family_id },
+            defaults: { name: 'Пополнение целей', family_id: goal.family_id, type: 'expense' },
             transaction: t
           });
           catId = cat.id;
         }
         const tx = await Transaction.create({
           user_id: user.id,
-          family_id: user.family_id,
+          family_id: goal.family_id,
           amount,
           type: 'expense',
           category_id: catId,
@@ -335,7 +357,8 @@ exports.contributeToGoal = async (req, res) => {
       message: 'Цель пополнена',
       contribution: result.contribution,
       current_amount: result.newCurrentAmount,
-      transaction_id: result.transactionId
+      transaction_id: result.transactionId,
+      warning: skipWarning ? warning : null,
     });
   } catch (error) {
     console.error(error);

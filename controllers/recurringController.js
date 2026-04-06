@@ -1,4 +1,5 @@
 const { RecurringTransaction, Category } = require('../models');
+const { Op } = require('sequelize');
 
 function currentMonth() {
   return new Date().toISOString().slice(0, 7);
@@ -8,10 +9,13 @@ exports.getRecurring = async (req, res) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
-    if (!familyId) return res.status(400).json({ message: 'Вы не состоите в семье' });
+
+    const where = familyId
+      ? { [Op.or]: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+      : { user_id: user.id, family_id: null };
 
     const items = await RecurringTransaction.findAll({
-      where: { family_id: familyId },
+      where,
       include: [{ model: Category, as: 'Category', attributes: ['id', 'name'] }],
       order: [['active', 'DESC'], ['type', 'ASC'], ['id', 'DESC']],
     });
@@ -39,7 +43,6 @@ exports.createRecurring = async (req, res) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
-    if (!familyId) return res.status(400).json({ message: 'Вы не состоите в семье' });
 
     const {
       type,
@@ -60,7 +63,7 @@ exports.createRecurring = async (req, res) => {
     if (!category_id) return res.status(400).json({ message: 'category_id обязателен' });
 
     const item = await RecurringTransaction.create({
-      family_id: familyId,
+      family_id: familyId || null,
       user_id: user.id,
       category_id,
       amount: a,
@@ -82,13 +85,15 @@ exports.updateRecurring = async (req, res) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
-    if (!familyId) return res.status(400).json({ message: 'Вы не состоите в семье' });
 
     const { id } = req.params;
-    const item = await RecurringTransaction.findOne({ where: { id, family_id: familyId } });
+    const item = await RecurringTransaction.findOne({
+      where: familyId
+        ? { id, [Op.or]: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        : { id, user_id: user.id, family_id: null },
+    });
     if (!item) return res.status(404).json({ message: 'Не найдено' });
 
-    // Only creator can edit (simple rule)
     if (item.user_id !== user.id) return res.status(403).json({ message: 'Нет прав' });
 
     const patch = {};
@@ -120,10 +125,13 @@ exports.deleteRecurring = async (req, res) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
-    if (!familyId) return res.status(400).json({ message: 'Вы не состоите в семье' });
 
     const { id } = req.params;
-    const item = await RecurringTransaction.findOne({ where: { id, family_id: familyId } });
+    const item = await RecurringTransaction.findOne({
+      where: familyId
+        ? { id, [Op.or]: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        : { id, user_id: user.id, family_id: null },
+    });
     if (!item) return res.status(404).json({ message: 'Не найдено' });
     if (item.user_id !== user.id) return res.status(403).json({ message: 'Нет прав' });
 
