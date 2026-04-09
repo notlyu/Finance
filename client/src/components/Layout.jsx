@@ -130,12 +130,12 @@ export default function Layout() {
       <aside className="fixed left-0 top-0 bottom-0 z-40 flex flex-col p-4 bg-surface-container-low w-64 h-full hidden md:flex">
         {/* Logo */}
         <div className="flex items-center gap-3 mb-8 px-2">
-          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white overflow-hidden shadow-lg">
-            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>account_balance_wallet</span>
+          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white overflow-hidden shadow-vault">
+            <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>account_balance_wallet</span>
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-primary font-headline">Финансы</h1>
-            <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">Семейный капитал</p>
+            <h1 className="text-xl font-black tracking-tighter text-primary font-headline">Финансы</h1>
+            <p className="text-[10px] text-on-surface-variant font-medium tracking-wide">Premium Capital</p>
           </div>
         </div>
 
@@ -145,16 +145,16 @@ export default function Layout() {
             <Link
               key={item.path}
               to={item.path}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${
                 isActive(item.path)
-                  ? 'bg-surface-container-lowest text-primary font-bold shadow-card'
-                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
+                  ? 'bg-primary/5 text-primary font-bold border-r-4 border-primary'
+                  : 'text-on-surface-variant hover:text-primary hover:bg-surface-container'
               }`}
             >
               <span className="material-symbols-outlined" style={{ fontVariationSettings: isActive(item.path) ? "'FILL' 1" : "'FILL' 0" }}>
                 {item.icon}
               </span>
-              <span className="font-headline text-sm font-medium tracking-tight">{item.name}</span>
+              <span className="font-headline text-sm font-semibold tracking-tight">{item.name}</span>
             </Link>
           ))}
         </nav>
@@ -163,7 +163,7 @@ export default function Layout() {
         <div className="mt-auto space-y-1">
           <Link
             to="/transactions"
-            className="w-full mb-6 py-3 px-4 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 active:opacity-80 transition-opacity"
+            className="w-full mb-6 py-3 px-4 bg-gradient-to-br from-primary to-primary-container text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-vault hover:opacity-90 active:scale-[0.98] transition-all"
           >
             <span className="material-symbols-outlined text-sm">add</span>
             Добавить операцию
@@ -235,7 +235,7 @@ export default function Layout() {
       {/* Main Content */}
       <main className="md:ml-64 pt-20 pb-24 px-6 min-h-screen">
         <div className="mx-auto w-full max-w-7xl">
-          <Outlet context={{ selectedMember }} />
+          <Outlet context={{ selectedMember, currentUser: user }} />
         </div>
       </main>
 

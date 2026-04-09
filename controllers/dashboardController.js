@@ -123,6 +123,36 @@ async function getPersonalAvailable(familyId, userId) {
   return balance - reserved;
 }
 
+async function getAllocation(familyId, userId, monthStartStr, todayStr, privacyFilter) {
+  const txWhere = familyId
+    ? { family_id: familyId, type: 'expense', date: { [Op.gte]: monthStartStr, [Op.lte]: todayStr }, ...privacyFilter }
+    : { user_id: userId, family_id: null, type: 'expense', date: { [Op.gte]: monthStartStr, [Op.lte]: todayStr }, ...privacyFilter };
+
+  const Category = require('../models').Category;
+  const expenses = await Transaction.findAll({
+    where: txWhere,
+    attributes: ['category_id', 'amount'],
+    include: [{ model: Category, as: 'Category', attributes: ['name'] }],
+    raw: true,
+  });
+
+  const totals = {};
+  expenses.forEach(t => {
+    const name = t['Category.name'] || 'Без категории';
+    totals[name] = (totals[name] || 0) + Number(t.amount);
+  });
+
+  const total = Object.values(totals).reduce((s, v) => s + v, 0);
+  return Object.entries(totals)
+    .map(([name, amount]) => ({
+      name,
+      total: Math.round(amount * 100) / 100,
+      pct: total > 0 ? Math.round((amount / total) * 100) : 0,
+    }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5);
+}
+
 exports.getDashboard = async (req, res) => {
   try {
     const user = req.user;
@@ -152,6 +182,8 @@ exports.getDashboard = async (req, res) => {
         limit: 3,
       });
 
+      const allocation = await getAllocation(null, user.id, monthStartStr, todayStr, {});
+
       return res.json({
         family: null,
         personal: {
@@ -160,10 +192,12 @@ exports.getDashboard = async (req, res) => {
           expenses: Number(personalBalance.expense),
           reserved: Number(personalReserved),
           available: Number(personalAvailable),
+          user_id: user.id,
         },
         lastTransactions: lastTxs,
         activeGoals,
         warning: null,
+        allocation,
       });
     }
 
@@ -212,6 +246,8 @@ exports.getDashboard = async (req, res) => {
       ? { type: 'no_funds', message: 'Свободные средства закончились', available: Number(familyAvailable) }
       : null;
 
+    const allocation = await getAllocation(familyId, user.id, monthStartStr, todayStr, privacyFilter);
+
     res.json({
       family: {
         balance: Number(familyBalance.balance),
@@ -231,11 +267,13 @@ exports.getDashboard = async (req, res) => {
         available: Number(personalAvailable),
         monthIncome: Number(personalMonthIncome),
         monthExpenses: Number(personalMonthExpenses),
+        user_id: user.id,
       },
       lastTransactions: lastTxs,
       activeGoals,
       warning,
       viewingMemberId: memberId || null,
+      allocation,
     });
   } catch (error) {
     console.error(error);

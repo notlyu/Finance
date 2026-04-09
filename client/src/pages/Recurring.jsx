@@ -68,16 +68,13 @@ export default function Recurring() {
 
   return (
     <div className="space-y-8">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-on-surface-variant">
-        <Link to="/" className="hover:text-primary transition-colors">Главная</Link>
-        <span className="material-symbols-outlined text-sm">chevron_right</span>
-        <span className="text-on-surface font-medium">Регулярные</span>
-      </div>
-
       {/* Section Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
+          <Link to="/" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors mb-2">
+            <span className="material-symbols-outlined text-sm">arrow_back</span>
+            Назад
+          </Link>
           <h2 className="text-3xl font-extrabold tracking-tight text-on-surface font-headline">Регулярные операции</h2>
           <p className="text-on-surface-variant text-sm mt-1">Автоматически создаются раз в месяц (день 1–28)</p>
         </div>

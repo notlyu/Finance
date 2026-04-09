@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
+import { Link } from 'react-router-dom';
 import api from '../services/api';
 
 export default function Settings() {
@@ -100,6 +101,10 @@ export default function Settings() {
     <div className="space-y-8">
       {/* Section Header */}
       <div>
+        <Link to="/" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors mb-2">
+          <span className="material-symbols-outlined text-sm">arrow_back</span>
+          Назад
+        </Link>
         <h2 className="text-3xl font-extrabold tracking-tight text-on-surface font-headline">Настройки</h2>
         <p className="text-on-surface-variant text-sm mt-1">Управление аккаунтом и приложением</p>
       </div>

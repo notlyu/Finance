@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
+import { Link } from 'react-router-dom';
 import api from '../services/api';
 import Modal from '../components/Modal';
 import { formatMoney } from '../utils/format';
@@ -179,6 +180,10 @@ export default function Transactions() {
       {/* Section Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
+          <Link to="/" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors mb-2">
+            <span className="material-symbols-outlined text-sm">arrow_back</span>
+            Назад
+          </Link>
           <h2 className="text-3xl font-extrabold tracking-tight text-on-surface font-headline">Операции</h2>
           <p className="text-on-surface-variant text-sm mt-1">
             {transactions.length} операций за период

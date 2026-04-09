@@ -64,10 +64,16 @@ export default function Family() {
     </div>
   );
 
-  if (!family) {
+  if (!user.family_id) {
     return (
       <div className="space-y-8">
-        <h2 className="text-3xl font-extrabold tracking-tight text-on-surface font-headline">Семья</h2>
+        <div>
+          <Link to="/" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors mb-2">
+            <span className="material-symbols-outlined text-sm">arrow_back</span>
+            Назад
+          </Link>
+          <h2 className="text-3xl font-extrabold tracking-tight text-on-surface font-headline">Семья</h2>
+        </div>
         <div className="bg-surface-container-lowest p-12 rounded-3xl shadow-card text-center">
           <div className="w-20 h-20 mx-auto rounded-3xl bg-primary/10 flex items-center justify-center mb-6">
             <span className="material-symbols-outlined text-4xl text-primary">groups</span>
@@ -93,15 +99,12 @@ export default function Family() {
 
   return (
     <div className="space-y-8">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-on-surface-variant">
-        <Link to="/" className="hover:text-primary transition-colors">Главная</Link>
-        <span className="material-symbols-outlined text-sm">chevron_right</span>
-        <span className="text-on-surface font-medium">Семья</span>
-      </div>
-
       {/* Section Header */}
       <div>
+        <Link to="/" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors mb-2">
+          <span className="material-symbols-outlined text-sm">arrow_back</span>
+          Назад
+        </Link>
         <h2 className="text-3xl font-extrabold tracking-tight text-on-surface font-headline">Семья</h2>
         <p className="text-on-surface-variant text-sm mt-1">Управление семейным аккаунтом</p>
       </div>

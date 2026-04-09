@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
+import { Link } from 'react-router-dom';
 import api from '../services/api';
 import Modal from '../components/Modal';
 import ForecastModal from '../components/ForecastModal';
@@ -39,6 +40,7 @@ export default function Goals() {
   const [forecastOpen, setForecastOpen] = useState(false);
   const [forecastGoal, setForecastGoal] = useState(null);
   const [goalTab, setGoalTab] = useState('family');
+  const [contribLoading, setContribLoading] = useState(false);
   const { register, handleSubmit, reset, setValue, watch } = useForm();
 
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -103,7 +105,8 @@ export default function Goals() {
   const openForecast = (goal) => { setForecastGoal(goal); setForecastOpen(true); };
 
   const handleContribute = async (amount, skipWarning = false) => {
-    if (!contribGoal || !amount || amount <= 0) return;
+    if (!contribGoal || !amount || amount <= 0 || contribLoading) return;
+    setContribLoading(true);
     try {
       const res = await api.post(`/goals/${contribGoal.id}/contribute`, {
         amount, createTransaction: true, comment: `Пополнение цели: ${contribGoal.name}`, skipWarning,
@@ -118,6 +121,7 @@ export default function Goals() {
         setTimeout(() => setShowCelebration(null), 3000);
       }
     } catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
+    finally { setContribLoading(false); }
   };
 
   const contribOptions = useMemo(() => {
@@ -161,11 +165,10 @@ export default function Goals() {
       {/* Section Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <nav className="flex gap-2 text-xs font-medium text-on-surface-variant/50 mb-2 uppercase tracking-widest">
-            <span>Сбережения</span>
-            <span>/</span>
-            <span className="text-primary">Цели</span>
-          </nav>
+          <Link to="/" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors mb-2">
+            <span className="material-symbols-outlined text-sm">arrow_back</span>
+            Назад
+          </Link>
           <h2 className="text-4xl md:text-5xl font-headline font-extrabold text-on-surface tracking-tight">Цели накоплений</h2>
         </div>
         <div className="flex gap-2">
@@ -419,7 +422,9 @@ export default function Goals() {
               {contribWarning ? (
                 <button type="button" onClick={() => handleContribute(Number(contribAmount), true)} className="btn-primary px-8 py-3 bg-error hover:bg-error/90">Всё равно пополнить</button>
               ) : (
-                <button type="button" disabled={!contribAmount || Number(contribAmount) <= 0} onClick={() => handleContribute(Number(contribAmount))} className="btn-primary px-8 py-3 disabled:opacity-50 disabled:cursor-not-allowed">Пополнить</button>
+                <button type="button" disabled={!contribAmount || Number(contribAmount) <= 0 || contribLoading} onClick={() => handleContribute(Number(contribAmount))} className="btn-primary px-8 py-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                  {contribLoading ? 'Загрузка...' : 'Пополнить'}
+                </button>
               )}
             </div>
           </div>

@@ -41,6 +41,11 @@ module.exports = {
         'error-container': 'var(--md-error-container)',
         'on-error-container': 'var(--md-on-error-container)',
 
+        // Warning
+        warning: 'var(--md-warning)',
+        'on-warning-container': 'var(--md-on-warning-container)',
+        'warning-container': 'var(--md-warning-container)',
+
         // Surface & Background
         surface: 'var(--md-surface)',
         'surface-dim': 'var(--md-surface-dim)',
@@ -111,6 +116,7 @@ module.exports = {
         'ambient': '0 20px 40px var(--md-shadow)',
         'card': '0 4px 20px var(--md-shadow)',
         'button': '0 8px 24px var(--md-shadow-strong)',
+        'vault': '0 20px 40px var(--md-shadow-vault)',
       },
     },
   },

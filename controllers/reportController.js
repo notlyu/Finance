@@ -34,6 +34,21 @@ exports.getDynamics = async (req, res) => {
     const endExclusive = new Date(end);
     endExclusive.setDate(endExclusive.getDate() + 1);
     const memberId = req.query.memberId ? Number(req.query.memberId) : null;
+
+    // IDOR protection: validate memberId belongs to user's family
+    if (memberId && familyId) {
+      const { User } = require('../models');
+      const member = await User.findByPk(memberId, { attributes: ['id', 'family_id'] });
+      if (!member || member.family_id !== familyId) {
+        return res.status(403).json({ message: 'Доступ запрещён' });
+      }
+    } else if (memberId && !familyId) {
+      // Solo user can only view their own data
+      if (memberId !== user.id) {
+        return res.status(403).json({ message: 'Доступ запрещён' });
+      }
+    }
+
     const txWhere = {
       date: { [Op.gte]: start, [Op.lt]: endExclusive.toISOString().slice(0, 10) },
     };
@@ -117,10 +132,24 @@ exports.getExpensesByCategory = async (req, res) => {
 
     const { startDate, endDate } = req.query;
     const memberId = req.query.memberId ? Number(req.query.memberId) : null;
+
+    // IDOR protection
+    if (memberId && familyId) {
+      const { User } = require('../models');
+      const member = await User.findByPk(memberId, { attributes: ['id', 'family_id'] });
+      if (!member || member.family_id !== familyId) {
+        return res.status(403).json({ message: 'Доступ запрещён' });
+      }
+    } else if (memberId && !familyId) {
+      if (memberId !== user.id) {
+        return res.status(403).json({ message: 'Доступ запрещён' });
+      }
+    }
+
     const dateFilter = {};
-    if (startDate && endDate) dateFilter[Op.between] = [startDate, endDate];
-    else if (startDate) dateFilter[Op.gte] = startDate;
-    else if (endDate) dateFilter[Op.lte] = endDate;
+    if (startDate && endDate) dateFilter.date = { [Op.between]: [startDate, endDate] };
+    else if (startDate) dateFilter.date = { [Op.gte]: startDate };
+    else if (endDate) dateFilter.date = { [Op.lte]: endDate };
 
     const where = { type: 'expense', ...dateFilter };
     if (memberId) {
@@ -167,10 +196,24 @@ exports.getIncomeByCategory = async (req, res) => {
 
     const { startDate, endDate } = req.query;
     const memberId = req.query.memberId ? Number(req.query.memberId) : null;
+
+    // IDOR protection
+    if (memberId && familyId) {
+      const { User } = require('../models');
+      const member = await User.findByPk(memberId, { attributes: ['id', 'family_id'] });
+      if (!member || member.family_id !== familyId) {
+        return res.status(403).json({ message: 'Доступ запрещён' });
+      }
+    } else if (memberId && !familyId) {
+      if (memberId !== user.id) {
+        return res.status(403).json({ message: 'Доступ запрещён' });
+      }
+    }
+
     const dateFilter = {};
-    if (startDate && endDate) dateFilter[Op.between] = [startDate, endDate];
-    else if (startDate) dateFilter[Op.gte] = startDate;
-    else if (endDate) dateFilter[Op.lte] = endDate;
+    if (startDate && endDate) dateFilter.date = { [Op.between]: [startDate, endDate] };
+    else if (startDate) dateFilter.date = { [Op.gte]: startDate };
+    else if (endDate) dateFilter.date = { [Op.lte]: endDate };
 
     const where = { type: 'income', ...dateFilter };
     if (memberId) {
@@ -216,9 +259,9 @@ exports.exportReport = async (req, res) => {
     const familyId = user.family_id;
     const { startDate, endDate } = req.query;
     const dateFilter = {};
-    if (startDate && endDate) dateFilter[Op.between] = [startDate, endDate];
-    else if (startDate) dateFilter[Op.gte] = startDate;
-    else if (endDate) dateFilter[Op.lte] = endDate;
+    if (startDate && endDate) dateFilter.date = { [Op.between]: [startDate, endDate] };
+    else if (startDate) dateFilter.date = { [Op.gte]: startDate };
+    else if (endDate) dateFilter.date = { [Op.lte]: endDate };
 
     const where = familyId
       ? { [Op.or]: [{ family_id: familyId, [Op.or]: [{ is_private: false }, { user_id: user.id }] }, { family_id: null, user_id: user.id }], ...dateFilter }
@@ -257,9 +300,9 @@ exports.exportExcel = async (req, res) => {
     const familyId = user.family_id;
     const { startDate, endDate } = req.query;
     const dateFilter = {};
-    if (startDate && endDate) dateFilter[Op.between] = [startDate, endDate];
-    else if (startDate) dateFilter[Op.gte] = startDate;
-    else if (endDate) dateFilter[Op.lte] = endDate;
+    if (startDate && endDate) dateFilter.date = { [Op.between]: [startDate, endDate] };
+    else if (startDate) dateFilter.date = { [Op.gte]: startDate };
+    else if (endDate) dateFilter.date = { [Op.lte]: endDate };
 
     const where = familyId
       ? { [Op.or]: [{ family_id: familyId, [Op.or]: [{ is_private: false }, { user_id: user.id }] }, { family_id: null, user_id: user.id }], ...dateFilter }

@@ -17,6 +17,7 @@ export default function Wishes() {
   const [fundAmount, setFundAmount] = useState('');
   const [fundAvailable, setFundAvailable] = useState(0);
   const [fundWarning, setFundWarning] = useState(null);
+  const [fundLoading, setFundLoading] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
   const [showCelebration, setShowCelebration] = useState(null);
@@ -78,7 +79,8 @@ export default function Wishes() {
   };
 
   const handleFund = async (amount, skipWarning = false) => {
-    if (!fundWish || !amount || amount <= 0) return;
+    if (!fundWish || !amount || amount <= 0 || fundLoading) return;
+    setFundLoading(true);
     try {
       const res = await api.post(`/wishes/${fundWish.id}/fund`, { amount: Number(amount), skipWarning });
       if (res.data.warning && !skipWarning) {
@@ -91,6 +93,7 @@ export default function Wishes() {
         setTimeout(() => setShowCelebration(null), 3000);
       }
     } catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
+    finally { setFundLoading(false); }
   };
 
   const fundOptions = useMemo(() => {
@@ -137,16 +140,13 @@ export default function Wishes() {
         </div>
       )}
 
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-on-surface-variant">
-        <Link to="/" className="hover:text-primary transition-colors">Главная</Link>
-        <span className="material-symbols-outlined text-sm">chevron_right</span>
-        <span className="text-on-surface font-medium">Желания</span>
-      </div>
-
-      {/* Section Header */}
+      {/* Section Header - Navigation Style */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
+          <Link to="/" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors mb-2">
+            <span className="material-symbols-outlined text-sm">arrow_back</span>
+            Назад
+          </Link>
           <h2 className="text-3xl font-extrabold tracking-tight text-on-surface font-headline">Желания</h2>
           <p className="text-on-surface-variant text-sm mt-1">
             {activeWishes.length} активных, {archivedWishes.length} выполненных
@@ -275,7 +275,7 @@ export default function Wishes() {
                         <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Быстрое пополнение</p>
                         <div className="flex gap-1.5 flex-wrap">
                           {fundOptions.slice(1, 5).map(f => (
-                            <button key={f.label} onClick={() => handleFund(f.value)} className="chip hover:bg-tertiary-container hover:text-on-tertiary-container">
+                            <button key={f.label} onClick={() => handleFund(f.value, false)} disabled={fundLoading} className="chip hover:bg-tertiary-container hover:text-on-tertiary-container disabled:opacity-50">
                               {f.label} ({formatMoney(f.value)} ₽)
                             </button>
                           ))}
@@ -474,7 +474,9 @@ export default function Wishes() {
               {fundWarning ? (
                 <button type="button" onClick={() => handleFund(Number(fundAmount), true)} className="btn-primary px-8 py-3 bg-error hover:bg-error/90">Всё равно выделить</button>
               ) : (
-                <button type="button" disabled={!fundAmount || Number(fundAmount) <= 0} onClick={() => handleFund(Number(fundAmount))} className="btn-primary px-8 py-3 disabled:opacity-50 disabled:cursor-not-allowed">Выделить</button>
+                <button type="button" disabled={!fundAmount || Number(fundAmount) <= 0 || fundLoading} onClick={() => handleFund(Number(fundAmount))} className="btn-primary px-8 py-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                  {fundLoading ? 'Загрузка...' : 'Выделить'}
+                </button>
               )}
             </div>
           </div>
