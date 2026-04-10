@@ -1,16 +1,14 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
 export default function ForgotPassword() {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const resetToken = searchParams.get('token');
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
-  const [step, setStep] = useState(resetToken ? 'reset' : 'request');
+  const [step, setStep] = useState('request');
   const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -28,7 +26,8 @@ export default function ForgotPassword() {
     setLoading(true);
     try {
       await api.post('/auth/forgot-password', { email });
-      setSuccess('Письмо со ссылкой отправлено на email');
+      setSuccess('Код отправлен на email');
+      setStep('verify');
     } catch (err) {
       setError(err.response?.data?.message || 'Ошибка');
     } finally {
@@ -36,24 +35,16 @@ export default function ForgotPassword() {
     }
   };
 
-  const handleResetPassword = async (e) => {
+  const handleVerifyCode = async (e) => {
     e.preventDefault();
     setError('');
-    if (password !== confirmPassword) {
-      setError('Пароли не совпадают');
-      return;
-    }
-    if (password.length < 6) {
-      setError('Пароль должен быть не менее 6 символов');
-      return;
-    }
     setLoading(true);
     try {
-      await api.post('/auth/reset-password', { token: resetToken, newPassword: password });
+      await api.post('/auth/reset-password', { code, newPassword: password });
       setSuccess('Пароль изменён. Теперь можете войти.');
       setTimeout(() => navigate('/login'), 2000);
     } catch (err) {
-      setError(err.response?.data?.message || 'Ошибка');
+      setError(err.response?.data?.message || 'Неверный или истёкший код');
     } finally {
       setLoading(false);
     }
@@ -82,12 +73,14 @@ export default function ForgotPassword() {
             <div className="p-8 md:p-10">
               <div className="mb-10">
                 <h1 className="text-3xl font-extrabold tracking-tight mb-2 text-on-surface leading-tight font-headline">
-                  {step === 'request' ? 'Восстановление пароля' : 'Новый пароль'}
+                  {step === 'request' ? 'Восстановление пароля' : step === 'verify' ? 'Введите код' : 'Пароль изменён'}
                 </h1>
                 <p className="text-on-surface-variant text-base">
                   {step === 'request' 
-                    ? 'Введите email для отправки ссылки' 
-                    : 'Введите новый пароль'}
+                    ? 'Введите email для отправки кода' 
+                    : step === 'verify'
+                    ? 'Код отправлен на ' + email + '. Введите код и новый пароль'
+                    : 'Теперь можете войти с новым паролем'}
                 </p>
               </div>
 
@@ -111,8 +104,8 @@ export default function ForgotPassword() {
                 </div>
               )}
 
-              {!success && (
-                <form className="space-y-6" onSubmit={step === 'request' ? handleRequestReset : handleResetPassword}>
+              {(step === 'request' || step === 'verify') && (
+                <form className="space-y-6" onSubmit={step === 'request' ? handleRequestReset : handleVerifyCode}>
                   {step === 'request' ? (
                     <div>
                       <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Email</label>
@@ -133,6 +126,22 @@ export default function ForgotPassword() {
                   ) : (
                     <>
                       <div>
+                        <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Код из письма</label>
+                        <div className="relative group">
+                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <span className="material-symbols-outlined text-outline group-focus-within:text-primary transition-colors">pin</span>
+                          </div>
+                          <input
+                            type="text"
+                            required
+                            value={code}
+                            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                            className="input-ghost pl-12 text-center tracking-[0.5em] text-xl"
+                            placeholder="000000"
+                          />
+                        </div>
+                      </div>
+                      <div>
                         <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Новый пароль</label>
                         <div className="relative group">
                           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -151,22 +160,6 @@ export default function ForgotPassword() {
                           </button>
                         </div>
                       </div>
-                      <div>
-                        <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Подтвердите пароль</label>
-                        <div className="relative group">
-                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <span className="material-symbols-outlined text-outline group-focus-within:text-primary transition-colors">lock</span>
-                          </div>
-                          <input
-                            type={showPassword ? 'text' : 'password'}
-                            required
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            className="input-ghost pl-12"
-                            placeholder="Повторите пароль"
-                          />
-                        </div>
-                      </div>
                     </>
                   )}
 
@@ -176,7 +169,7 @@ export default function ForgotPassword() {
                       disabled={loading}
                       className="w-full py-4 bg-gradient-to-r from-primary to-primary-container text-white font-bold text-lg rounded-2xl shadow-button hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50"
                     >
-                      {loading ? 'Отправка...' : step === 'request' ? 'Отправить ссылку' : 'Изменить пароль'}
+                      {loading ? 'Отправка...' : step === 'request' ? 'Отправить код' : 'Изменить пароль'}
                     </button>
                   </div>
                 </form>

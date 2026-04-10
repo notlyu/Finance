@@ -387,21 +387,21 @@ exports.forgotPassword = async (req, res) => {
     if (!email) return res.status(400).json({ message: 'Укажите email' });
 
     const user = await User.findOne({ where: { email } });
-    if (!user) return res.json({ message: 'Если email существует, ссылка для сброса отправлена' });
+    if (!user) return res.json({ message: 'Если email существует, код для сброса отправлен' });
 
     await PasswordResetToken.destroy({ where: { user_id: user.id } });
 
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
     await PasswordResetToken.create({
       user_id: user.id,
-      token,
+      token: code,
       expires_at: expiresAt,
     });
 
-    await sendPasswordResetEmail(email, token);
-    res.json({ message: 'Если email существует, ссылка для сброса отправлена' });
+    await sendPasswordResetEmail(email, code);
+    res.json({ message: 'Если email существует, код для сброса отправлен' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Ошибка сервера' });
@@ -410,13 +410,13 @@ exports.forgotPassword = async (req, res) => {
 
 exports.resetPassword = async (req, res) => {
   try {
-    const { token, newPassword } = req.body;
-    if (!token || !newPassword) return res.status(400).json({ message: 'Укажите токен и новый пароль' });
+    const { code, newPassword } = req.body;
+    if (!code || !newPassword) return res.status(400).json({ message: 'Укажите код и новый пароль' });
 
     const resetToken = await PasswordResetToken.findOne({
-      where: { token, expires_at: { [Op.gt]: new Date() } },
+      where: { token: code, expires_at: { [Op.gt]: new Date() } },
     });
-    if (!resetToken) return res.status(400).json({ message: 'Недействительный или истёкший токен' });
+    if (!resetToken) return res.status(400).json({ message: 'Недействительный или истёкший код' });
 
     const hashed = await bcrypt.hash(newPassword, 10);
     await User.update({ password_hash: hashed }, { where: { id: resetToken.user_id } });

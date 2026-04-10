@@ -14,30 +14,27 @@ transporter.verify().catch(() => {
   console.warn('Email transport not configured. Reset emails will be logged to console.');
 });
 
-async function sendPasswordResetEmail(email, resetToken) {
-  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
-
+async function sendPasswordResetEmail(email, code) {
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
       <h2 style="color: #1a1a1a;">Восстановление пароля</h2>
-      <p style="color: #555;">Вы запросили восстановление пароля для аккаунта ${email}.</p>
-      <p style="color: #555;">Перейдите по ссылке для создания нового пароля:</p>
-      <a href="${resetUrl}" style="display: inline-block; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 16px 0;">Сбросить пароль</a>
-      <p style="color: #888; font-size: 14px;">Ссылка действительна 1 час. Если вы не запрашивали восстановление — проигнорируйте это письмо.</p>
+      <p style="color: #555;">Код для сброса пароля:</p>
+      <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; text-align: center; padding: 20px; background: #f5f5f5; border-radius: 8px; margin: 16px 0;">${code}</div>
+      <p style="color: #888; font-size: 14px;">Код действителен 15 минут. Если вы не запрашивали восстановление — проигнорируйте это письмо.</p>
     </div>
   `;
 
   const mailOptions = {
     from: `"Финансы" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
     to: email,
-    subject: 'Восстановление пароля',
+    subject: 'Код для восстановления пароля',
     html,
   };
 
   if (!process.env.SMTP_HOST) {
-    console.log('\n=== PASSWORD RESET EMAIL (DEV MODE) ===');
+    console.log('\n=== PASSWORD RESET CODE (DEV MODE) ===');
     console.log(`To: ${email}`);
-    console.log(`Reset URL: ${resetUrl}`);
+    console.log(`Code: ${code}`);
     console.log('========================================\n');
     return;
   }
