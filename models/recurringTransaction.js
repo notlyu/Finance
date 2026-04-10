@@ -8,7 +8,7 @@ module.exports = (sequelize, DataTypes) => {
     category_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
     amount: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
     type: { type: DataTypes.ENUM('income', 'expense'), allowNull: false },
-    day_of_month: { type: DataTypes.TINYINT.UNSIGNED, allowNull: false, defaultValue: 1 }, // 1..28 (safe)
+    day_of_month: { type: DataTypes.SMALLINT.UNSIGNED, allowNull: false, defaultValue: 1 }, // 1..28 (safe)
     start_month: { type: DataTypes.STRING(7), allowNull: false }, // YYYY-MM
     comment: { type: DataTypes.TEXT, allowNull: true },
     is_private: { type: DataTypes.BOOLEAN, defaultValue: false },

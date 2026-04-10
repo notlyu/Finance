@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const sequelize = require('./config/database');
+const { sequelize } = require('./models');
 const errorHandler = require('./middleware/errorHandler');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -67,8 +67,13 @@ app.use(errorHandler);
 
 // Проверка подключения к БД
 sequelize.authenticate()
-  .then(() => console.log(' Подключение к MySQL успешно!'))
-  .catch(err => console.error(' Ошибка подключения к MySQL:', err));
+  .then(() => console.log('✅ Подключение к PostgreSQL успешно!'))
+  .catch(err => console.error('❌ Ошибка подключения к PostgreSQL:', err));
+
+// Создание таблиц
+sequelize.sync({ alter: true })
+  .then(() => console.log('✅ Таблицы синхронизированы'))
+  .catch(err => console.error('❌ Ошибка синхронизации:', err));
 
 // Daily recurring transactions job (03:05 server time)
 if (process.env.ENABLE_RECURRING_JOB !== 'false') {

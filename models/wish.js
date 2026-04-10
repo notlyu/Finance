@@ -7,7 +7,7 @@ module.exports = (sequelize, DataTypes) => {
     family_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: true },
     name: { type: DataTypes.STRING(200), allowNull: false },
     cost: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
-    priority: { type: DataTypes.TINYINT.UNSIGNED, defaultValue: 3 },
+    priority: { type: DataTypes.SMALLINT.UNSIGNED, defaultValue: 3 },
     status: { type: DataTypes.ENUM('active', 'completed', 'postponed'), defaultValue: 'active' },
     saved_amount: { type: DataTypes.DECIMAL(12, 2), defaultValue: 0.0 },
     // Archiving/completion state
