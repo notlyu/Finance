@@ -1,5 +1,5 @@
-const { Notification, NotificationSetting, Goal, Wish, Budget, Transaction, User } = require('../models');
-const { Op } = require('sequelize');
+const { Notification, NotificationSetting, Goal, Wish, Budget, Transaction, User } = require('../lib/models');
+const { Op } = require('../lib/models');
 
 // Создать уведомление для пользователя
 async function createNotification(userId, type, title, message, relatedId = null, relatedType = null) {
@@ -88,7 +88,7 @@ async function notifyUpcomingRecurring(userId, recurringOps) {
 // Получить все уведомления пользователя
 async function getUserNotifications(userId, { limit = 20, offset = 0, unreadOnly = false } = {}) {
   const where = { user_id: userId };
-  if (unreadOnly) where.is_read = false;
+  if (unreadOnly) where.read = false;
 
   return await Notification.findAndCountAll({
     where,
@@ -102,13 +102,13 @@ async function getUserNotifications(userId, { limit = 20, offset = 0, unreadOnly
 async function markAsRead(notificationId, userId) {
   const notification = await Notification.findOne({ where: { id: notificationId, user_id: userId } });
   if (!notification) return false;
-  await notification.update({ is_read: true });
+  await notification.update({ read: true });
   return true;
 }
 
 // Пометить все уведомления как прочитанные
 async function markAllAsRead(userId) {
-  await Notification.update({ is_read: true }, { where: { user_id: userId, is_read: false } });
+  await Notification.update({ read: true }, { where: { user_id: userId, read: false } });
 }
 
 // Удалить уведомление
@@ -121,7 +121,7 @@ async function deleteNotification(notificationId, userId) {
 
 // Получить количество непрочитанных
 async function getUnreadCount(userId) {
-  return await Notification.count({ where: { user_id: userId, is_read: false } });
+  return await Notification.count({ where: { user_id: userId, read: false } });
 }
 
 module.exports = {

@@ -64,7 +64,7 @@ export default function Family() {
     </div>
   );
 
-  if (!user.family_id) {
+  if (!user?.family_id) {
     return (
       <div className="space-y-8">
         <div>

@@ -1,9 +1,9 @@
-const { Transaction, Category, User, Goal, GoalContribution, Budget } = require('../models');
-const { Op } = require('sequelize');
+const { Transaction, Category, User, Goal, GoalContribution, Budget } = require('../lib/models');
+const { Op } = require('../lib/models');
 
 exports.getTransactions = async (userId, familyId, query = {}) => {
     const whereClause = familyId
-        ? { [Op.or]: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
+        ? { OR: [{ family_id: familyId }, { AND: [{ family_id: null }, { user_id: userId }] }] }
         : { family_id: null, user_id: userId };
 
     // Filter by specific member if requested
@@ -16,28 +16,28 @@ exports.getTransactions = async (userId, familyId, query = {}) => {
 
     const categoryIds = parseIdList(query.categoryIds);
     if (categoryIds.length) {
-        whereClause.category_id = { [Op.in]: categoryIds };
+        whereClause.category_id = { in: categoryIds };
     } else if (query.categoryId) {
         whereClause.category_id = query.categoryId;
     }
 
     if (query.minAmount || query.maxAmount) {
         whereClause.amount = {};
-        if (query.minAmount) whereClause.amount[Op.gte] = Number(query.minAmount);
-        if (query.maxAmount) whereClause.amount[Op.lte] = Number(query.maxAmount);
+        if (query.minAmount) whereClause.amount.gte = Number(query.minAmount);
+        if (query.maxAmount) whereClause.amount.lte = Number(query.maxAmount);
     }
 
     if (query.q) {
-        whereClause.comment = { [Op.like]: `%${String(query.q)}%` };
+        whereClause.comment = { contains: String(query.q) };
     }
 
     // Date filtering
     if (query.startDate && query.endDate) {
-        whereClause.date = { [Op.between]: [query.startDate, query.endDate] };
+        whereClause.date = { gte: new Date(query.startDate), lte: new Date(query.endDate) };
     } else if (query.startDate) {
-        whereClause.date = { [Op.gte]: query.startDate };
+        whereClause.date = { gte: new Date(query.startDate) };
     } else if (query.endDate) {
-        whereClause.date = { [Op.lte]: query.endDate };
+        whereClause.date = { lte: new Date(query.endDate) };
     }
 
     // Privacy filtering:
@@ -48,7 +48,7 @@ exports.getTransactions = async (userId, familyId, query = {}) => {
         whereClause.is_private = true;
         whereClause.user_id = userId;
     } else if (includePrivate === 'only_visible') {
-        whereClause[Op.or] = [
+        whereClause.OR = [
             { is_private: false },
             { user_id: userId },
         ];
@@ -137,7 +137,7 @@ exports.createTransaction = async (userId, familyId, data) => {
             const month = txDate.slice(0, 7); // "YYYY-MM"
             const budgetWhere = familyId
                 ? {
-                    [Op.or]: [
+                    OR: [
                         { family_id: familyId, category_id: data.category_id, type: 'expense', month },
                         { family_id: null, user_id: userId, category_id: data.category_id, type: 'expense', month },
                     ],
@@ -152,12 +152,12 @@ exports.createTransaction = async (userId, familyId, data) => {
 
                 const spentWhere = familyId
                     ? {
-                        [Op.or]: [
-                            { family_id: familyId, category_id: data.category_id, type: 'expense', date: { [Op.gte]: monthStart, [Op.lt]: monthEnd } },
-                            { family_id: null, user_id: userId, category_id: data.category_id, type: 'expense', date: { [Op.gte]: monthStart, [Op.lt]: monthEnd } },
+                        OR: [
+                            { family_id: familyId, category_id: data.category_id, type: 'expense', date: { gte: new Date(monthStart), lt: new Date(monthEnd) } },
+                            { family_id: null, user_id: userId, category_id: data.category_id, type: 'expense', date: { gte: new Date(monthStart), lt: new Date(monthEnd) } },
                         ],
                       }
-                    : { family_id: null, user_id: userId, category_id: data.category_id, type: 'expense', date: { [Op.gte]: monthStart, [Op.lt]: monthEnd } };
+                    : { family_id: null, user_id: userId, category_id: data.category_id, type: 'expense', date: { gte: new Date(monthStart), lt: new Date(monthEnd) } };
                 const spent = await Transaction.sum('amount', { where: spentWhere }) || 0;
 
                 const newTotal = Number(spent) + Number(data.amount);
@@ -195,7 +195,7 @@ exports.createTransaction = async (userId, familyId, data) => {
             const goals = await Goal.findAll({
                 where: familyId
                     ? {
-                        [Op.or]: [
+                        OR: [
                             { family_id: familyId, user_id: userId },
                             { user_id: userId, family_id: null }
                         ],
@@ -264,12 +264,8 @@ exports.createTransaction = async (userId, familyId, data) => {
 exports.getTransactionById = async (id, familyId, userId) => {
     const t = await Transaction.findOne({
         where: familyId
-            ? { id, [Op.or]: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
+            ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
             : { id, family_id: null, user_id: userId },
-        include: [
-            { model: Category, as: 'Category', attributes: ['id', 'name'] },
-            { model: User, as: 'User', attributes: ['id', 'name'] },
-        ],
     });
     if (!t) return null;
 
@@ -307,7 +303,7 @@ exports.getTransactionById = async (id, familyId, userId) => {
 
 exports.updateTransaction = async (id, familyId, userId, data) => {
     const where = familyId
-        ? { id, [Op.or]: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
+        ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
         : { id, family_id: null, user_id: userId };
     const transaction = await Transaction.findOne({ where });
     if (!transaction) throw new Error('Transaction not found');
@@ -333,7 +329,7 @@ exports.updateTransaction = async (id, familyId, userId, data) => {
 
 exports.deleteTransaction = async (id, familyId, userId) => {
     const where = familyId
-        ? { id, [Op.or]: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
+        ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
         : { id, family_id: null, user_id: userId };
     const transaction = await Transaction.findOne({ where });
     if (!transaction) throw new Error('Transaction not found');

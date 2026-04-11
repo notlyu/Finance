@@ -1,5 +1,5 @@
-const { Goal, GoalContribution } = require('../models');
-const { Op } = require('sequelize');
+const { Goal, GoalContribution } = require('../lib/models');
+const { Op } = require('../lib/models');
 
 // Monthly interest accrual for goals with interest_rate > 0
 async function runInterestMonthly() {

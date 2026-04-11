@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { sequelize } = require('./models');
+const prisma = require('./lib/prisma');
 const errorHandler = require('./middleware/errorHandler');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -66,14 +66,9 @@ app.use('/api/notifications', notificationRoutes);
 app.use(errorHandler);
 
 // Проверка подключения к БД
-sequelize.authenticate()
-  .then(() => console.log('✅ Подключение к PostgreSQL успешно!'))
+prisma.$connect()
+  .then(() => console.log('✅ Подключение к PostgreSQL (Prisma) успешно!'))
   .catch(err => console.error('❌ Ошибка подключения к PostgreSQL:', err));
-
-// Создание таблиц
-sequelize.sync({ alter: true })
-  .then(() => console.log('✅ Таблицы синхронизированы'))
-  .catch(err => console.error('❌ Ошибка синхронизации:', err));
 
 // Daily recurring transactions job (03:05 server time)
 if (process.env.ENABLE_RECURRING_JOB !== 'false') {
@@ -97,9 +92,20 @@ if (process.env.ENABLE_INTEREST_JOB !== 'false') {
   });
 }
 
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
 // Тестовый маршрут
 app.get('/', (req, res) => {
   res.send('Сервер работает!');
+});
+
+// Basic health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
 app.listen(PORT, () => {

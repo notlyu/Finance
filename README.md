@@ -242,17 +242,23 @@ mysql -u root -p finance_db < migrations/fix_solo_users.sql
 
 ## 🚀 Запуск
 
-### Разработка
+### Требования
+- Node.js >= 18
+- PostgreSQL >= 14 (или Docker)
+
+### Вариант 1: С Docker (рекомендуется)
 ```bash
-# Одной командой (backend + frontend)
+# Запуск PostgreSQL одной командой
+docker compose up -d
+
+# Запуск приложения
 npm run dev:all
+```
 
-# Или вручную в двух терминалах:
-# Терминал 1: бэкенд (порт 5000)
-npm run dev
-
-# Терминал 2: фронтенд (порт 5173)
-cd client && npm start
+### Вариант 2: Без Docker (PostgreSQL установлен локально)
+```bash
+# Запуск приложения
+npm run dev:all
 ```
 
 ### Продакшн
@@ -264,7 +270,7 @@ npm start
 cd client && npm run build
 ```
 
-Откройте [http://localhost:5173](http://localhost:5173) (dev) или сконфигурируйте веб-сервер для `/client/build`.
+Откройте [http://localhost:3000](http://localhost:3000) (dev) — фронтенд запускается на порту 3000.
 
 ---
 

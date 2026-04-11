@@ -1,4 +1,4 @@
-const { SafetyPillowSetting, SafetyPillowHistory } = require('../models');
+const { SafetyPillowSetting, SafetyPillowHistory } = require('../lib/models');
 const pillowService = require('../services/safetyPillowService');
 
 // Получить настройки подушки пользователя

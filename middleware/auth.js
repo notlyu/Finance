@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { User, Family } = require('../models');
+const { User, Family } = require('../lib/models');
 
 module.exports = async (req, res, next) => {
   try {

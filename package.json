@@ -8,13 +8,17 @@
     "dev": "nodemon server.js",
     "dev:all": "node dev-all.js",
     "test": "jest --forceExit --detectOpenHandles",
-    "test:watch": "jest --watch --forceExit --detectOpenHandles"
+    "test:watch": "jest --watch --forceExit --detectOpenHandles",
+    "test:smoke": "node tests/smoke.js",
+    "test:e2e": "npx playwright test"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@prisma/adapter-pg": "^7.7.0",
+    "@prisma/client": "^7.7.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
@@ -28,11 +32,13 @@
     "nodemailer": "^8.0.4",
     "pg": "^8.20.0",
     "pg-hstore": "^2.3.4",
+    "prisma": "^7.7.0",
     "sequelize": "^6.37.8"
   },
   "devDependencies": {
     "jest": "^30.3.0",
     "nodemon": "^3.1.14",
-    "supertest": "^7.2.2"
+    "supertest": "^7.2.2",
+    "playwright": "^1.40.0"
   }
 }

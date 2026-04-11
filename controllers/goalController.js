@@ -1,5 +1,5 @@
-const { Goal, GoalContribution, Transaction, User, Family, Category, Wish } = require('../models');
-const { Op } = require('sequelize');
+const { Goal, GoalContribution, Transaction, User, Family, Category, Wish } = require('../lib/models');
+const { Op } = require('../lib/models');
 
 // Вспомогательная функция для расчёта необходимого ежемесячного взноса
 const calculateMonthlyContribution = (targetAmount, currentAmount, monthsRemaining, interestRate = 0) => {
@@ -25,12 +25,12 @@ exports.getGoals = async (req, res) => {
 
     const archiveFilter = req.query.archived;
     const where = familyId
-      ? { [Op.or]: [{ family_id: familyId }, { user_id: user.id, family_id: null }] }
+      ? { OR: [{ family_id: familyId }, { user_id: user.id, family_id: null }] }
       : { user_id: user.id, family_id: null };
     if (archiveFilter === 'true') {
-      where.archived = true;
+      where.is_archived = true;
     } else if (archiveFilter === 'false') {
-      where.archived = false;
+      where.is_archived = false;
     }
 
     const goals = await Goal.findAll({
@@ -42,12 +42,23 @@ exports.getGoals = async (req, res) => {
       order: [['created_at', 'DESC']]
     });
 
-    const mapped = goals.map(g => {
-      const obj = g.toJSON();
-      obj.achieved = !!obj.archived || (Number(obj.current_amount || 0) >= Number(obj.target_amount || 0));
-      obj.progress = (Number(obj.target_amount || 0) > 0) ? Math.min(100, Math.max(0, (Number(obj.current_amount || 0) / Number(obj.target_amount || 0)) * 100)) : 0;
-      return obj;
-    });
+     const mapped = goals.map(g => {
+       // Compute auto_contribute_percent for frontend compatibility
+       let auto_contribute_percent = null;
+       if (g.auto_contribute_type === 'percentage' && g.auto_contribute_value !== null) {
+         auto_contribute_percent = parseFloat(g.auto_contribute_value);
+       }
+       
+      const achieved = !!g.is_archived || (Number(g.current_amount || 0) >= Number(g.target_amount || 0));
+       const progress = (Number(g.target_amount || 0) > 0) ? Math.min(100, Math.max(0, (Number(g.current_amount || 0) / Number(g.target_amount || 0)) * 100)) : 0;
+       
+       return {
+         ...g,
+         auto_contribute_percent,
+         achieved,
+         progress
+       };
+     });
     res.json(mapped);
   } catch (error) {
     console.error(error);
@@ -64,7 +75,7 @@ exports.getGoalById = async (req, res) => {
     const goal = await Goal.findOne({
       where: {
         id,
-        [Op.or]: [
+        OR: [
           { family_id: user.family_id },
           { user_id: user.id, family_id: null }
         ]
@@ -117,7 +128,7 @@ exports.getGoalById = async (req, res) => {
     res.json({
       ...goal.toJSON(),
       forecast,
-      achieved: !!goal.archived || (Number(goal.current_amount || 0) >= Number(goal.target_amount || 0))
+       achieved: !!goal.is_archived || (Number(goal.current_amount || 0) >= Number(goal.target_amount || 0))
     });
   } catch (error) {
     console.error(error);
@@ -160,8 +171,8 @@ exports.createGoal = async (req, res) => {
 
     // If initial amount already meets target, archive immediately
     if ((Number(target_amount) || 0) > 0 && (Number(current_amount) || 0) >= Number(target_amount)) {
-      goalData.archived = true;
-      goalData.archived_at = new Date();
+        goalData.is_archived = true;
+       goalData.archived_at = new Date();
       goalData.status = 'completed';
     }
 
@@ -191,7 +202,7 @@ exports.updateGoal = async (req, res) => {
     const goal = await Goal.findOne({
       where: {
         id,
-        [Op.or]: [
+        OR: [
           { family_id: user.family_id },
           { user_id: user.id, family_id: null }
         ]
@@ -222,13 +233,13 @@ exports.deleteGoal = async (req, res) => {
     const { id } = req.params;
 
     const goal = await Goal.findOne({
-      where: {
-        id,
-        [Op.or]: [
-          { family_id: user.family_id },
-          { user_id: user.id, family_id: null }
-        ]
-      }
+       where: {
+         id,
+         OR: [
+           { family_id: user.family_id },
+           { user_id: user.id, family_id: null }
+         ]
+       }
     });
 
     if (!goal) {
@@ -284,7 +295,7 @@ exports.contributeToGoal = async (req, res) => {
     const goal = await Goal.findOne({
       where: {
         id,
-        [Op.or]: [
+        OR: [
           { family_id: user.family_id },
           { user_id: user.id, family_id: null }
         ]
@@ -340,7 +351,7 @@ exports.contributeToGoal = async (req, res) => {
       // Archive if reached target
       const reached = newCurrentAmount >= parseFloat(goal.target_amount);
       if (reached) {
-        await goal.update({ archived: true, archived_at: new Date(), status: 'completed' }, { transaction: t });
+          await goal.update({ is_archived: true, archived_at: new Date(), status: 'completed' }, { transaction: t });
       }
 
       return { contribution, newCurrentAmount, transactionId, reached };
@@ -383,7 +394,7 @@ exports.getForecast = async (req, res) => {
     const goal = await Goal.findOne({
       where: {
         id,
-        [Op.or]: [
+        OR: [
           { family_id: user.family_id },
           { user_id: user.id, family_id: null }
         ]
@@ -421,8 +432,8 @@ exports.exportGoals = async (req, res) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
-    const where = {
-      [Op.or]: [
+const where = {
+      OR: [
         { family_id: familyId },
         { user_id: user.id, family_id: null }
       ]

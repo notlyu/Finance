@@ -1,4 +1,4 @@
-const { Notification, NotificationSetting } = require('../models');
+const { Notification, NotificationSetting } = require('../lib/models');
 const notifService = require('../services/notificationService');
 
 // Получить настройки уведомлений

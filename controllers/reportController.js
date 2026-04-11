@@ -1,5 +1,5 @@
-const { Transaction, Category, User } = require('../models');
-const { Op, fn, col } = require('sequelize');
+const { Transaction, Category, User } = require('../lib/models');
+const { Op, fn, col } = require('../lib/models');
 const ExcelJS = require('exceljs');
 
 function toMonthKeyFromDateOnly(dateOnly) {
@@ -37,7 +37,7 @@ exports.getDynamics = async (req, res) => {
 
     // IDOR protection: validate memberId belongs to user's family
     if (memberId && familyId) {
-      const { User } = require('../models');
+      const { User } = require('../lib/models');
       const member = await User.findByPk(memberId, { attributes: ['id', 'family_id'] });
       if (!member || member.family_id !== familyId) {
         return res.status(403).json({ message: 'Доступ запрещён' });
@@ -50,34 +50,25 @@ exports.getDynamics = async (req, res) => {
     }
 
     const txWhere = {
-      date: { [Op.gte]: start, [Op.lt]: endExclusive.toISOString().slice(0, 10) },
+      date: { gte: new Date(start), lt: new Date(endExclusive.toISOString().slice(0, 10)) },
     };
     if (memberId) {
-      txWhere[Op.or] = familyId
+      txWhere.OR = familyId
         ? [
-            { family_id: familyId, user_id: memberId, [Op.or]: [{ is_private: false }, { user_id: memberId }] },
+            { family_id: familyId, user_id: memberId, OR: [{ is_private: false }, { user_id: memberId }] },
             { family_id: null, user_id: memberId },
           ]
         : { family_id: null, user_id: memberId };
     } else {
-      txWhere[Op.or] = familyId
+      txWhere.OR = familyId
         ? [
-            { family_id: familyId, [Op.or]: [{ is_private: false }, { user_id: user.id }] },
+            { family_id: familyId, OR: [{ is_private: false }, { user_id: user.id }] },
             { family_id: null, user_id: user.id },
           ]
         : { family_id: null, user_id: user.id };
     }
-    const rows = await Transaction.findAll({
-      where: txWhere,
-      attributes: [
-        [fn('DATE_FORMAT', col('date'), '%Y-%m'), 'month'],
-        'type',
-        [fn('SUM', col('amount')), 'total'],
-      ],
-      group: ['month', 'type'],
-      order: [[col('month'), 'ASC']],
-      raw: true,
-    });
+    // Retrieve transactions in the range and aggregate on the application side
+    const rows = await Transaction.findAll({ where: txWhere, include: [{ model: Category, as: 'Category', attributes: ['name'] }], order: [['date', 'ASC']] });
 
     const months = [];
     const incomeByMonth = {};
@@ -98,11 +89,11 @@ exports.getDynamics = async (req, res) => {
     }
 
     rows.forEach(r => {
-      const key = r.month;
-      if (!incomeByMonth.hasOwnProperty(key)) return;
-      const val = parseFloat(r.total || 0);
-      if (r.type === 'income') incomeByMonth[key] += val;
-      else expenseByMonth[key] += val;
+      const monthKey = toMonthKeyFromDateOnly(r.date);
+      if (!monthKey) return;
+      const val = parseFloat(r.amount || 0);
+      if (r.type === 'income') incomeByMonth[monthKey] = (incomeByMonth[monthKey] || 0) + val;
+      if (r.type === 'expense') expenseByMonth[monthKey] = (expenseByMonth[monthKey] || 0) + val;
     });
 
     // Extend response with a defaultRange hint for UI date pickers
@@ -135,7 +126,7 @@ exports.getExpensesByCategory = async (req, res) => {
 
     // IDOR protection
     if (memberId && familyId) {
-      const { User } = require('../models');
+      const { User } = require('../lib/models');
       const member = await User.findByPk(memberId, { attributes: ['id', 'family_id'] });
       if (!member || member.family_id !== familyId) {
         return res.status(403).json({ message: 'Доступ запрещён' });
@@ -147,26 +138,26 @@ exports.getExpensesByCategory = async (req, res) => {
     }
 
     const dateFilter = {};
-    if (startDate && endDate) dateFilter.date = { [Op.between]: [startDate, endDate] };
-    else if (startDate) dateFilter.date = { [Op.gte]: startDate };
-    else if (endDate) dateFilter.date = { [Op.lte]: endDate };
+    if (startDate && endDate) dateFilter.date = { gte: new Date(startDate), lte: new Date(endDate) };
+    else if (startDate) dateFilter.date = { gte: new Date(startDate) };
+    else if (endDate) dateFilter.date = { lte: new Date(endDate) };
 
-    const where = { type: 'expense', ...dateFilter };
-    if (memberId) {
-      where[Op.or] = familyId
-        ? [
-            { family_id: familyId, user_id: memberId, [Op.or]: [{ is_private: false }, { user_id: memberId }] },
-            { family_id: null, user_id: memberId },
-          ]
-        : { family_id: null, user_id: memberId };
-    } else {
-      where[Op.or] = familyId
-        ? [
-            { family_id: familyId, [Op.or]: [{ is_private: false }, { user_id: user.id }] },
-            { family_id: null, user_id: user.id },
-          ]
-        : { family_id: null, user_id: user.id };
-    }
+     const where = { type: 'expense', ...dateFilter };
+     if (memberId) {
+       where.OR = familyId
+         ? [
+             { family_id: familyId, user_id: memberId, OR: [{ is_private: false }, { user_id: memberId }] },
+             { family_id: null, user_id: memberId },
+           ]
+         : { family_id: null, user_id: memberId };
+     } else {
+       where.OR = familyId
+         ? [
+             { family_id: familyId, OR: [{ is_private: false }, { user_id: user.id }] },
+             { family_id: null, user_id: user.id },
+           ]
+         : { family_id: null, user_id: user.id };
+     }
 
     const transactions = await Transaction.findAll({
       where,
@@ -211,26 +202,26 @@ exports.getIncomeByCategory = async (req, res) => {
     }
 
     const dateFilter = {};
-    if (startDate && endDate) dateFilter.date = { [Op.between]: [startDate, endDate] };
-    else if (startDate) dateFilter.date = { [Op.gte]: startDate };
-    else if (endDate) dateFilter.date = { [Op.lte]: endDate };
+    if (startDate && endDate) dateFilter.date = { gte: new Date(startDate), lte: new Date(endDate) };
+    else if (startDate) dateFilter.date = { gte: new Date(startDate) };
+    else if (endDate) dateFilter.date = { lte: new Date(endDate) };
 
-    const where = { type: 'income', ...dateFilter };
-    if (memberId) {
-      where[Op.or] = familyId
-        ? [
-            { family_id: familyId, user_id: memberId, [Op.or]: [{ is_private: false }, { user_id: memberId }] },
-            { family_id: null, user_id: memberId },
-          ]
-        : { family_id: null, user_id: memberId };
-    } else {
-      where[Op.or] = familyId
-        ? [
-            { family_id: familyId, [Op.or]: [{ is_private: false }, { user_id: user.id }] },
-            { family_id: null, user_id: user.id },
-          ]
-        : { family_id: null, user_id: user.id };
-    }
+     const where = { type: 'income', ...dateFilter };
+     if (memberId) {
+       where.OR = familyId
+         ? [
+             { family_id: familyId, user_id: memberId, OR: [{ is_private: false }, { user_id: memberId }] },
+             { family_id: null, user_id: memberId },
+           ]
+         : { family_id: null, user_id: memberId };
+     } else {
+       where.OR = familyId
+         ? [
+             { family_id: familyId, OR: [{ is_private: false }, { user_id: user.id }] },
+             { family_id: null, user_id: user.id },
+           ]
+         : { family_id: null, user_id: user.id };
+     }
 
     const transactions = await Transaction.findAll({
       where,
@@ -259,12 +250,12 @@ exports.exportReport = async (req, res) => {
     const familyId = user.family_id;
     const { startDate, endDate } = req.query;
     const dateFilter = {};
-    if (startDate && endDate) dateFilter.date = { [Op.between]: [startDate, endDate] };
-    else if (startDate) dateFilter.date = { [Op.gte]: startDate };
-    else if (endDate) dateFilter.date = { [Op.lte]: endDate };
+    if (startDate && endDate) dateFilter.date = { gte: new Date(startDate), lte: new Date(endDate) };
+    else if (startDate) dateFilter.date = { gte: new Date(startDate) };
+    else if (endDate) dateFilter.date = { lte: new Date(endDate) };
 
     const where = familyId
-      ? { [Op.or]: [{ family_id: familyId, [Op.or]: [{ is_private: false }, { user_id: user.id }] }, { family_id: null, user_id: user.id }], ...dateFilter }
+      ? { OR: [{ family_id: familyId, OR: [{ is_private: false }, { user_id: user.id }] }, { family_id: null, user_id: user.id }], ...dateFilter }
       : { family_id: null, user_id: user.id, ...dateFilter };
 
     const transactions = await Transaction.findAll({ where, include: [
@@ -300,12 +291,12 @@ exports.exportExcel = async (req, res) => {
     const familyId = user.family_id;
     const { startDate, endDate } = req.query;
     const dateFilter = {};
-    if (startDate && endDate) dateFilter.date = { [Op.between]: [startDate, endDate] };
-    else if (startDate) dateFilter.date = { [Op.gte]: startDate };
-    else if (endDate) dateFilter.date = { [Op.lte]: endDate };
+    if (startDate && endDate) dateFilter.date = { gte: new Date(startDate), lte: new Date(endDate) };
+    else if (startDate) dateFilter.date = { gte: new Date(startDate) };
+    else if (endDate) dateFilter.date = { lte: new Date(endDate) };
 
     const where = familyId
-      ? { [Op.or]: [{ family_id: familyId, [Op.or]: [{ is_private: false }, { user_id: user.id }] }, { family_id: null, user_id: user.id }], ...dateFilter }
+      ? { OR: [{ family_id: familyId, OR: [{ is_private: false }, { user_id: user.id }] }, { family_id: null, user_id: user.id }], ...dateFilter }
       : { family_id: null, user_id: user.id, ...dateFilter };
 
     const transactions = await Transaction.findAll({ where, include: [

@@ -1,5 +1,5 @@
-const { RecurringTransaction, Transaction } = require('../models');
-const { Op } = require('sequelize');
+const { RecurringTransaction, Transaction } = require('../lib/models');
+const { Op } = require('../lib/models');
 
 function currentMonth() {
   return new Date().toISOString().slice(0, 7);
@@ -14,11 +14,11 @@ function monthsBetween(startMonth, endMonth) {
 async function runRecurringOnce() {
   const month = currentMonth();
   const items = await RecurringTransaction.findAll({
-    where: {
-      active: true,
-      start_month: { [Op.lte]: month },
-      [Op.or]: [{ last_run_month: null }, { last_run_month: { [Op.lt]: month } }],
-    },
+   where: {
+     active: true,
+     start_month: { lte: month },
+     OR: [{ last_run_month: null }, { last_run_month: { lt: month } }],
+   },
   });
 
   let totalCreated = 0;

@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: finance_db
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm ci
+        env:
+          NODE_OPTIONS: --max-old-space-size=2048
+      - name: Prepare DB and migrations
+        run: |
+          export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/finance_db?schema=public"
+          npx prisma migrate deploy
+          npx prisma generate
+          node prisma-seed.js
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db?schema=public
+      - name: Run unit tests (Jest)
+        run: npm test
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+      - name: Run smoke tests
+        run: npm run test:smoke
+        env:
+          CI: true
+      - name: Run End-to-End tests (Playwright)
+        run: npm run test:e2e
+        env:
+          CI: true

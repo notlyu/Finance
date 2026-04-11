@@ -1,5 +1,5 @@
-const { Budget, Transaction, Category, User } = require('../models');
-const { Op, fn, col } = require('sequelize');
+const { Budget, Transaction, Category, User } = require('../lib/models');
+const { Op, fn, col } = require('../lib/models');
 
 function monthStartEnd(month) {
   const [y, m] = String(month).split('-').map(Number);
@@ -23,11 +23,14 @@ exports.getBudgets = async (req, res) => {
 
     const { start, end } = monthStartEnd(month);
 
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    
     let txWhere = familyId
-      ? { family_id: familyId, date: { [Op.gte]: start, [Op.lt]: end } }
-      : { family_id: null, user_id: user.id, date: { [Op.gte]: start, [Op.lt]: end } };
+      ? { family_id: familyId, date: { gte: startDate, lt: endDate } }
+      : { family_id: null, user_id: user.id, date: { gte: startDate, lt: endDate } };
 
-    const privacyFilter = { [Op.or]: [{ is_private: false }, { user_id: user.id }] };
+    const privacyFilter = { OR: [{ is_private: false }, { user_id: user.id }] };
     txWhere = { ...txWhere, ...privacyFilter };
 
     if (memberId) {
@@ -145,7 +148,7 @@ exports.updateBudget = async (req, res) => {
 
     const budget = await Budget.findOne({
       where: familyId
-        ? { id, [Op.or]: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
         : { id, family_id: null, user_id: user.id },
     });
     if (!budget) return res.status(404).json({ message: 'Бюджет не найден' });
@@ -169,7 +172,7 @@ exports.deleteBudget = async (req, res) => {
 
     const budget = await Budget.findOne({
       where: familyId
-        ? { id, [Op.or]: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
         : { id, family_id: null, user_id: user.id },
     });
     if (!budget) return res.status(404).json({ message: 'Бюджет не найден' });

@@ -1,9 +1,10 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { Op } = require('sequelize');
-const { User, Family, FamilyInvite, PasswordResetToken, Transaction, Budget } = require('../models');
+const { models, Op, prisma } = require('../lib/models');
 const { sendPasswordResetEmail } = require('../services/emailService');
+
+const { User, Family, FamilyInvite, PasswordResetToken, Transaction, Budget } = models;
 
 function generateSecureInviteCode(length = 10) {
   // url-safe base64, trimmed and uppercased for readability
@@ -113,33 +114,30 @@ exports.createFamily = async (req, res) => {
 exports.joinFamily = async (req, res) => {
   try {
     const inviteCode = String(req.body.inviteCode || req.body.code || '').trim().toUpperCase();
-    const user = req.user;
-
-    if (user.family_id) {
+    
+    if (!inviteCode) {
+      return res.status(400).json({ message: 'Укажите код приглашения' });
+    }
+    
+    if (req.user.family_id) {
       return res.status(400).json({ message: 'Вы уже состоите в семье' });
     }
 
-    if (!inviteCode) return res.status(400).json({ message: 'Укажите код приглашения' });
-
-    // 1) Prefer new flow: family_invites
-    const invite = await FamilyInvite.findOne({
-      where: {
-        code: inviteCode,
-        [Op.or]: [{ expires_at: null }, { expires_at: { [Op.gt]: new Date() } }],
-      },
+    const { prisma } = require('../lib/models');
+    
+    const family = await prisma.family.findFirst({
+      where: { invite_code: inviteCode }
     });
-
-    let family = null;
-    if (invite) {
-      family = await Family.findByPk(invite.family_id);
-    } else {
-      // 2) Backward compatibility: families.invite_code
-      family = await Family.findOne({ where: { invite_code: inviteCode } });
+    
+    if (!family) {
+      return res.status(404).json({ message: 'Код не найден' });
     }
-    if (!family) return res.status(404).json({ message: 'Код не найден или истёк' });
-
-    await user.update({ family_id: family.id });
-
+    
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: { family_id: family.id }
+    });
+    
     res.json({ message: 'Вы присоединились к семье', family_id: family.id });
   } catch (error) {
     console.error(error);
@@ -200,14 +198,14 @@ exports.listFamilyInvites = async (req, res) => {
     const user = req.user;
     if (!user.family_id) return res.status(400).json({ message: 'Вы не состоите в семье' });
 
-    const invites = await FamilyInvite.findAll({
-      where: {
-        family_id: user.family_id,
-        [Op.or]: [{ expires_at: null }, { expires_at: { [Op.gt]: new Date() } }],
-      },
-      order: [['created_at', 'DESC']],
-      attributes: ['id', 'code', 'created_by', 'expires_at', 'created_at'],
-    });
+     const invites = await FamilyInvite.findAll({
+       where: {
+         family_id: user.family_id,
+         OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
+       },
+       order: [['created_at', 'DESC']],
+       attributes: ['id', 'code', 'created_by', 'expires_at', 'created_at'],
+     });
     res.json(invites);
   } catch (error) {
     console.error(error);
@@ -275,7 +273,7 @@ exports.leaveFamily = async (req, res) => {
     }
 
     const family = await Family.findByPk(user.family_id);
-    if (family.owner_user_id === user.id && (await family.countMembers()) === 1) {
+    if (family.owner_user_id === user.id && (await Family.countMembers(family.id)) === 1) {
       await Transaction.update({ family_id: null }, { where: { user_id: user.id } });
       await Budget.update({ family_id: null }, { where: { user_id: user.id } });
       await family.destroy();
@@ -413,9 +411,9 @@ exports.resetPassword = async (req, res) => {
     const { code, newPassword } = req.body;
     if (!code || !newPassword) return res.status(400).json({ message: 'Укажите код и новый пароль' });
 
-    const resetToken = await PasswordResetToken.findOne({
-      where: { token: code, expires_at: { [Op.gt]: new Date() } },
-    });
+     const resetToken = await PasswordResetToken.findOne({
+       where: { token: code, expires_at: { gt: new Date() } },
+     });
     if (!resetToken) return res.status(400).json({ message: 'Недействительный или истёкший код' });
 
     const hashed = await bcrypt.hash(newPassword, 10);

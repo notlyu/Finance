@@ -1,5 +1,5 @@
-const { Wish, WishContribution, User, Family, Transaction, Category, Goal } = require('../models');
-const { Op } = require('sequelize');
+const { Wish, WishContribution, User, Family, Transaction, Category, Goal } = require('../lib/models');
+const { Op } = require('../lib/models');
 
 async function calcAvailableFunds(userId, familyId) {
   if (!familyId) {
@@ -25,7 +25,7 @@ exports.fundWish = async (req, res) => {
 
     const wish = await Wish.findOne({
       where: familyId
-        ? { id, [Op.or]: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
         : { id, family_id: null, user_id: user.id },
     });
     if (!wish) {
@@ -78,7 +78,7 @@ exports.fundWish = async (req, res) => {
     await wish.update({ saved_amount: newSaved });
 
     if (newSaved >= parseFloat(wish.cost)) {
-      await wish.update({ status: 'completed', archived: true, archived_at: new Date() });
+        await wish.update({ status: 'completed', archived: true, archived_at: new Date() });
     }
 
     res.status(201).json({
@@ -102,16 +102,16 @@ exports.getWishes = async (req, res) => {
     // Показываем: личные желания пользователя (family_id=null) И семейные желания (family_id=familyId)
     const where = familyId
       ? {
-          [Op.or]: [
+          OR: [
             { family_id: null, user_id: user.id },      // личные желания
             { family_id: familyId, is_private: false }  // семейные (не приватные)
           ]
         }
       : { family_id: null, user_id: user.id };         // solo — только личные
 
-    if (String(req.query.showArchived || '') !== 'true') {
-      where.archived = false;
-    }
+     if (String(req.query.showArchived || '') !== 'true') {
+        where.archived = false;
+     }
 
     const wishes = await Wish.findAll({
       where,
@@ -169,7 +169,7 @@ exports.getWishById = async (req, res) => {
 
     const wish = await Wish.findOne({
       where: familyId
-        ? { id, [Op.or]: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
         : { id, family_id: null, user_id: user.id },
       include: [
         { model: User, as: 'User', attributes: ['id', 'name'] },
@@ -265,7 +265,7 @@ exports.updateWish = async (req, res) => {
 
     const wish = await Wish.findOne({
       where: familyId
-        ? { id, [Op.or]: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
         : { id, family_id: null, user_id: user.id }
     });
 
@@ -295,7 +295,7 @@ exports.deleteWish = async (req, res) => {
 
     const wish = await Wish.findOne({
       where: familyId
-        ? { id, [Op.or]: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
         : { id, family_id: null, user_id: user.id }
     });
 
@@ -330,7 +330,7 @@ exports.contributeToWish = async (req, res) => {
 
     const wish = await Wish.findOne({
       where: familyId
-        ? { id, [Op.or]: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
         : { id, family_id: null, user_id: user.id }
     });
 
@@ -383,7 +383,7 @@ exports.contributeToWish = async (req, res) => {
       await wish.update({ saved_amount: newSavedAmount }, { transaction: t });
       // Archive wish if completed via manual contribution
       if (newSavedAmount >= parseFloat(wish.cost)) {
-        await wish.update({ archived: true, archived_at: new Date(), status: 'completed' }, { transaction: t });
+         await wish.update({ archived: true, archived_at: new Date(), status: 'completed' }, { transaction: t });
       }
 
       return { contribution, newSavedAmount, transactionId };
@@ -410,7 +410,7 @@ exports.exportWishes = async (req, res) => {
     const user = req.user;
     const familyId = user.family_id;
     const where = familyId
-      ? { [Op.or]: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+      ? { OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
       : { family_id: null, user_id: user.id };
     const wishes = await Wish.findAll({ where, include: [{ model: User, as: 'User', attributes: ['name'] }] });
     const header = ['id', 'name', 'cost', 'saved_amount', 'priority', 'status', 'is_private', 'user', 'family'];
