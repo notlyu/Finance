@@ -1,5 +1,4 @@
-const { Goal, GoalContribution, Transaction, User, Family, Category, Wish } = require('../lib/models');
-const { Op } = require('../lib/models');
+const { GoalContribution, Transaction, User, Family, Category, Wish, prisma } = require('../lib/models');
 
 // Вспомогательная функция для расчёта необходимого ежемесячного взноса
 const calculateMonthlyContribution = (targetAmount, currentAmount, monthsRemaining, interestRate = 0) => {
@@ -24,41 +23,36 @@ exports.getGoals = async (req, res) => {
     const familyId = user.family_id;
 
     const archiveFilter = req.query.archived;
-    const where = familyId
-      ? { OR: [{ family_id: familyId }, { user_id: user.id, family_id: null }] }
-      : { user_id: user.id, family_id: null };
-    if (archiveFilter === 'true') {
-      where.is_archived = true;
-    } else if (archiveFilter === 'false') {
-      where.is_archived = false;
+    let where;
+    if (familyId) {
+      where = archiveFilter === 'true'
+        ? { is_archived: true, OR: [{ family_id: familyId }, { user_id: user.id, family_id: null }] }
+        : archiveFilter === 'false'
+        ? { is_archived: false, OR: [{ family_id: familyId }, { user_id: user.id, family_id: null }] }
+        : { OR: [{ family_id: familyId }, { user_id: user.id, family_id: null }] };
+    } else {
+      where = archiveFilter === 'true'
+        ? { is_archived: true, user_id: user.id, family_id: null }
+        : archiveFilter === 'false'
+        ? { is_archived: false, user_id: user.id, family_id: null }
+        : { user_id: user.id, family_id: null };
     }
 
-    const goals = await Goal.findAll({
+    const goals = await prisma.goal.findMany({
       where,
-      include: [
-        { model: User, as: 'User', attributes: ['id', 'name'] },
-        { model: Family, as: 'Family', attributes: ['id', 'name'] }
-      ],
-      order: [['created_at', 'DESC']]
+      include: { user: { select: { id: true, name: true } }, family: { select: { id: true, name: true } } },
+      orderBy: { created_at: 'desc' }
     });
 
-     const mapped = goals.map(g => {
-       // Compute auto_contribute_percent for frontend compatibility
-       let auto_contribute_percent = null;
-       if (g.auto_contribute_type === 'percentage' && g.auto_contribute_value !== null) {
-         auto_contribute_percent = parseFloat(g.auto_contribute_value);
-       }
-       
+    const mapped = goals.map(g => {
+      let auto_contribute_percent = null;
+      if (g.auto_contribute_type === 'percentage' && g.auto_contribute_value !== null) {
+        auto_contribute_percent = parseFloat(g.auto_contribute_value);
+      }
       const achieved = !!g.is_archived || (Number(g.current_amount || 0) >= Number(g.target_amount || 0));
-       const progress = (Number(g.target_amount || 0) > 0) ? Math.min(100, Math.max(0, (Number(g.current_amount || 0) / Number(g.target_amount || 0)) * 100)) : 0;
-       
-       return {
-         ...g,
-         auto_contribute_percent,
-         achieved,
-         progress
-       };
-     });
+      const progress = (Number(g.target_amount || 0) > 0) ? Math.min(100, Math.max(0, (Number(g.current_amount || 0) / Number(g.target_amount || 0)) * 100)) : 0;
+      return { ...g, auto_contribute_percent, achieved, progress };
+    });
     res.json(mapped);
   } catch (error) {
     console.error(error);
@@ -150,41 +144,38 @@ exports.createGoal = async (req, res) => {
       auto_contribute_enabled,
       auto_contribute_type,
       auto_contribute_value,
-      is_family_goal // флаг, что цель общая для семьи
+      is_family_goal
     } = req.body;
 
     if (!name || !target_amount) {
       return res.status(400).json({ message: 'Название и целевая сумма обязательны' });
     }
 
-    // Проверка: если цель семейная, то family_id = familyId, иначе user_id = user.id, family_id = null
-  const goalData = {
+    const goalData = {
       name,
       target_amount,
-      target_date: target_date || null,
-      interest_rate: interest_rate || null,
+      deadline: target_date ? new Date(target_date) : null,
       current_amount: current_amount || 0,
       auto_contribute_enabled: auto_contribute_enabled || false,
       auto_contribute_type: auto_contribute_type || null,
       auto_contribute_value: auto_contribute_value || null
     };
 
-    // If initial amount already meets target, archive immediately
     if ((Number(target_amount) || 0) > 0 && (Number(current_amount) || 0) >= Number(target_amount)) {
-        goalData.is_archived = true;
-       goalData.archived_at = new Date();
+      goalData.is_archived = true;
+      goalData.archived_at = new Date();
       goalData.status = 'completed';
     }
 
     if (is_family_goal && familyId) {
       goalData.family_id = familyId;
-      goalData.user_id = user.id; // создатель цели
+      goalData.user_id = user.id;
     } else {
       goalData.user_id = user.id;
       goalData.family_id = null;
     }
 
-    const goal = await Goal.create(goalData);
+    const goal = await prisma.goal.create({ data: goalData });
     res.status(201).json(goal);
   } catch (error) {
     console.error(error);
@@ -261,20 +252,54 @@ exports.deleteGoal = async (req, res) => {
 // Проверка предупреждения перед расходом
 async function checkContributionWarning(userId, familyId, amount) {
   if (!familyId) {
-    const income = await Transaction.sum('amount', { where: { user_id: userId, family_id: null, type: 'income' } }) || 0;
-    const expense = await Transaction.sum('amount', { where: { user_id: userId, family_id: null, type: 'expense' } }) || 0;
+    const incomeAgg = await prisma.transaction.aggregate({
+      where: { user_id: userId, family_id: null, type: 'income' },
+      _sum: { amount: true }
+    });
+    const expenseAgg = await prisma.transaction.aggregate({
+      where: { user_id: userId, family_id: null, type: 'expense' },
+      _sum: { amount: true }
+    });
+    const income = incomeAgg._sum?.amount || 0;
+    const expense = expenseAgg._sum?.amount || 0;
     const balance = Number(income) - Number(expense);
-    const reserved = ((await Goal.sum('current_amount', { where: { user_id: userId, family_id: null } }) || 0) + (await Wish.sum('saved_amount', { where: { user_id: userId } }) || 0));
+    
+    const goalsAgg = await prisma.goal.aggregate({
+      where: { user_id: userId, family_id: null },
+      _sum: { current_amount: true }
+    });
+    const wishesAgg = await prisma.wish.aggregate({
+      where: { user_id: userId },
+      _sum: { saved_amount: true }
+    });
+    const reserved = (goalsAgg._sum?.current_amount || 0) + (wishesAgg._sum?.saved_amount || 0);
     const available = balance - reserved;
     const afterContribution = available - Number(amount);
     const threshold = balance * 0.1;
     return afterContribution < threshold ? { warning: true, available, afterContribution, threshold } : null;
   }
 
-  const income = await Transaction.sum('amount', { where: { family_id: familyId, type: 'income' } }) || 0;
-  const expense = await Transaction.sum('amount', { where: { family_id: familyId, type: 'expense' } }) || 0;
+  const incomeAgg = await prisma.transaction.aggregate({
+    where: { family_id: familyId, type: 'income' },
+    _sum: { amount: true }
+  });
+  const expenseAgg = await prisma.transaction.aggregate({
+    where: { family_id: familyId, type: 'expense' },
+    _sum: { amount: true }
+  });
+  const income = incomeAgg._sum?.amount || 0;
+  const expense = expenseAgg._sum?.amount || 0;
   const balance = Number(income) - Number(expense);
-  const reserved = ((await Goal.sum('current_amount', { where: { family_id: familyId } }) || 0) + (await Wish.sum('saved_amount', { where: { family_id: familyId } }) || 0));
+  
+  const goalsAgg = await prisma.goal.aggregate({
+    where: { family_id: familyId },
+    _sum: { current_amount: true }
+  });
+  const wishesAgg = await prisma.wish.aggregate({
+    where: { family_id: familyId },
+    _sum: { saved_amount: true }
+  });
+  const reserved = (goalsAgg._sum?.current_amount || 0) + (wishesAgg._sum?.saved_amount || 0);
   const available = balance - reserved;
   const afterContribution = available - Number(amount);
   const threshold = balance * 0.1;
@@ -312,46 +337,54 @@ exports.contributeToGoal = async (req, res) => {
       return res.status(200).json({ warning });
     }
 
-    const result = await Goal.sequelize.transaction(async (t) => {
+const result = await prisma.$transaction(async (tx) => {
       let transactionId = null;
       if (createTransaction) {
         let catId = category_id;
         if (!catId) {
-          const [cat] = await Category.findOrCreate({
-            where: { name: 'Пополнение целей', family_id: goal.family_id },
-            defaults: { name: 'Пополнение целей', family_id: goal.family_id, type: 'expense' },
-            transaction: t
-          });
+          let cat = await tx.category.findFirst({ where: { name: 'Пополнение целей', family_id: goal.family_id } });
+          if (!cat) {
+            cat = await tx.category.create({ data: { name: 'Пополнение целей', family_id: goal.family_id, type: 'expense' } });
+          }
           catId = cat.id;
         }
-        const tx = await Transaction.create({
-          user_id: user.id,
-          family_id: goal.family_id,
-          amount,
-          type: 'expense',
-          category_id: catId,
-          date: date || new Date(),
-          comment: comment || `Пополнение цели: ${goal.name}`,
-          is_private: !!is_private,
-        }, { transaction: t });
-        transactionId = tx.id;
+        const newTx = await tx.transaction.create({
+          data: {
+            user_id: user.id,
+            family_id: goal.family_id,
+            amount,
+            type: 'expense',
+            category_id: catId,
+            date: date || new Date(),
+            comment: comment || `Пополнение цели: ${goal.name}`,
+            is_private: !!is_private,
+          }
+        });
+        transactionId = newTx.id;
       }
 
-      const contribution = await GoalContribution.create({
-        goal_id: goal.id,
-        amount,
-        date: date || new Date(),
-        type: 'contribution',
-        transaction_id: transactionId,
-        automatic: false
-      }, { transaction: t });
+      const contribution = await tx.goalContribution.create({
+        data: {
+          goal_id: goal.id,
+          amount,
+          date: date || new Date(),
+          type: 'contribution',
+          transaction_id: transactionId,
+          automatic: false
+        }
+      });
 
       const newCurrentAmount = parseFloat(goal.current_amount) + parseFloat(amount);
-      await goal.update({ current_amount: newCurrentAmount }, { transaction: t });
-      // Archive if reached target
+      await tx.goal.update({
+        where: { id: goal.id },
+        data: { current_amount: newCurrentAmount }
+      });
       const reached = newCurrentAmount >= parseFloat(goal.target_amount);
       if (reached) {
-          await goal.update({ is_archived: true, archived_at: new Date(), status: 'completed' }, { transaction: t });
+        await tx.goal.update({
+          where: { id: goal.id },
+          data: { is_archived: true, archived_at: new Date(), status: 'completed' }
+        });
       }
 
       return { contribution, newCurrentAmount, transactionId, reached };

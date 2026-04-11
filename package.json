@@ -10,7 +10,9 @@
     "test": "jest --forceExit --detectOpenHandles",
     "test:watch": "jest --watch --forceExit --detectOpenHandles",
     "test:smoke": "node tests/smoke.js",
-    "test:e2e": "npx playwright test"
+    "test:e2e": "npx playwright test",
+    "db:indexes": "node scripts/add-indexes.sql",
+    "load:test": "node scripts/load-test.js"
   },
   "keywords": [],
   "author": "",
@@ -19,6 +21,7 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.7.0",
+    "@sentry/node": "^8.0.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
@@ -30,12 +33,13 @@
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.4",
     "pg": "^8.20.0",
-    "prisma": "^7.7.0",
+    "prisma": "^7.7.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "jest": "^30.3.0",
     "nodemon": "^3.1.14",
-    "supertest": "^7.2.2",
-    "playwright": "^1.40.0"
+    "playwright": "^1.40.0",
+    "supertest": "^7.2.2"
   }
 }

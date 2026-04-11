@@ -103,9 +103,75 @@ app.get('/', (req, res) => {
   res.send('Сервер работает!');
 });
 
-// Basic health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString() });
+// Health check с проверкой БД
+app.get('/health', async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ok', database: 'connected', time: new Date().toISOString() });
+  } catch (error) {
+    res.status(503).json({ status: 'error', database: 'disconnected', time: new Date().toISOString() });
+  }
+});
+
+// Prometheus метрики
+app.get('/metrics', async (req, res) => {
+  try {
+    const userCount = await prisma.user.count();
+    const transactionCount = await prisma.transaction.count();
+    const goalCount = await prisma.goal.count();
+    const wishCount = await prisma.wish.count();
+    const familyCount = await prisma.family.count();
+    
+    res.type('text/plain').send(`
+# HELP finance_users_total Total users
+# TYPE finance_users_total gauge
+finance_users_total ${userCount}
+# HELP finance_transactions_total Total transactions
+# TYPE finance_transactions_total gauge
+finance_transactions_total ${transactionCount}
+# HELP finance_goals_total Total goals
+# TYPE finance_goals_total gauge
+finance_goals_total ${goalCount}
+# HELP finance_wishes_total Total wishes
+# TYPE finance_wishes_total gauge
+finance_wishes_total ${wishCount}
+# HELP finance_families_total Total families
+# TYPE finance_families_total gauge
+finance_families_total ${familyCount}
+# HELP finance_uptime_seconds Server uptime
+# TYPE finance_uptime_seconds gauge
+finance_uptime_seconds ${process.uptime()}
+`.trim());
+  } catch (error) {
+    res.status(500).send('# Error collecting metrics');
+  }
+});
+
+// Detailed health check
+app.get('/health/detailed', async (req, res) => {
+  const checks = {
+    database: { status: 'unknown' },
+    memory: { status: 'unknown' },
+  };
+
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    checks.database.status = 'ok';
+  } catch (e) {
+    checks.database.status = 'error';
+  }
+
+  const memUsage = process.memoryUsage();
+  checks.memory = {
+    rss: `${Math.round(memUsage.rss / 1024 / 1024)}MB`,
+    heapUsed: `${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
+  };
+
+  res.json({
+    status: checks.database.status === 'ok' ? 'healthy' : 'unhealthy',
+    checks,
+    timestamp: new Date().toISOString(),
+  });
 });
 
 app.listen(PORT, () => {

@@ -6,9 +6,18 @@ module.exports = (err, req, res, next) => {
     return res.status(400).json({ message: err.message });
   }
 
-  // Ошибки БД (например, уникальные индексы)
-  if (err.name === 'SequelizeUniqueConstraintError') {
+  // Prisma и Sequelize ошибки БД (например, уникальные индексы)
+  if (err.name === 'SequelizeUniqueConstraintError' || err?.code === 'P2002') {
     return res.status(409).json({ message: 'Запись уже существует' });
+  }
+  if (err?.name === 'PrismaClientKnownRequestError') {
+    if (err.code === 'P2025') {
+      return res.status(404).json({ message: 'Запись не найдена' });
+    }
+    if (err.code === 'P2002') {
+      return res.status(409).json({ message: 'Запись уже существует' });
+    }
+    return res.status(400).json({ message: err.message });
   }
 
   // Остальное - серверная ошибка

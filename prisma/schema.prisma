@@ -85,6 +85,11 @@ model Transaction {
   family            Family?            @relation(fields: [family_id], references: [id])
   user              User               @relation(fields: [user_id], references: [id])
   wishContributions WishContribution[]
+
+  @@index([user_id, type, date])
+  @@index([family_id, type, date])
+  @@index([user_id, family_id])
+  @@index([category_id, type])
 }
 
 model Goal {
@@ -106,6 +111,9 @@ model Goal {
   family                  Family?            @relation(fields: [family_id], references: [id])
   user                    User               @relation(fields: [user_id], references: [id])
   contributions           GoalContribution[]
+
+  @@index([user_id, is_archived])
+  @@index([family_id, is_archived])
 }
 
 model GoalContribution {
@@ -151,6 +159,9 @@ model Wish {
   family        Family?            @relation(fields: [family_id], references: [id])
   user          User               @relation(fields: [user_id], references: [id])
   contributions WishContribution[]
+
+  @@index([user_id, archived])
+  @@index([family_id, archived])
 }
 
 model Budget {

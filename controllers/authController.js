@@ -44,6 +44,16 @@ exports.register = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
+    // Prisma/DB specific error mappings
+    if (error && (error.code === 'P2002' || error.name === 'SequelizeUniqueConstraintError')) {
+      return res.status(400).json({ message: 'Email уже зарегистрирован' });
+    }
+    if (error && error.code === 'P2025') {
+      return res.status(404).json({ message: 'Запись не найдена' });
+    }
+    if (error && error.name === 'PrismaClientKnownRequestError') {
+      return res.status(400).json({ message: error.message });
+    }
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 };
@@ -74,6 +84,16 @@ exports.login = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
+    // Prisma/DB specific error mappings
+    if (error && (error.code === 'P2002' || error.name === 'SequelizeUniqueConstraintError')) {
+      return res.status(400).json({ message: 'Email уже зарегистрирован' });
+    }
+    if (error && error.code === 'P2025') {
+      return res.status(404).json({ message: 'Запись не найдена' });
+    }
+    if (error && error.name === 'PrismaClientKnownRequestError') {
+      return res.status(400).json({ message: error.message });
+    }
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 };
@@ -106,6 +126,16 @@ exports.createFamily = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
+    // Prisma/DB specific error mappings
+    if (error && (error.code === 'P2002' || error.name === 'SequelizeUniqueConstraintError')) {
+      return res.status(400).json({ message: 'Email уже зарегистрирован' });
+    }
+    if (error && error.code === 'P2025') {
+      return res.status(404).json({ message: 'Запись не найдена' });
+    }
+    if (error && error.name === 'PrismaClientKnownRequestError') {
+      return res.status(400).json({ message: error.message });
+    }
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 };

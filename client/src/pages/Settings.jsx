@@ -72,7 +72,9 @@ export default function Settings() {
 
   const toggleTheme = () => {
     const d = document.documentElement.classList.toggle('dark');
-    localStorage.setItem('theme', d ? 'dark' : 'light');
+    const theme = d ? 'dark' : 'light';
+    localStorage.setItem('theme', theme);
+    console.log('theme saved:', theme);
     setIsDark(d);
   };
 

@@ -1,6 +1,6 @@
 const request = require('supertest');
 const app = require('../testApp');
-const { User, Family, Category, Goal, GoalContribution, Transaction } = require('../models');
+const { User, Family, Category, Goal, GoalContribution, Transaction, prisma } = require('../lib/models');
 
 let testUser, testFamily, testToken, testCategory, testExpenseCat;
 const testCategoryIds = [];
@@ -163,9 +163,9 @@ describe('API Tests', () => {
         .get('/api/dashboard')
         .set('Authorization', `Bearer ${testToken}`);
       expect(res.statusCode).toBe(200);
-      expect(res.body).toHaveProperty('month');
-      expect(res.body).toHaveProperty('totalBalance');
-      expect(res.body).toHaveProperty('availableFunds');
+      expect(res.body).toHaveProperty('personal');
+      expect(res.body).toHaveProperty('lastTransactions');
+      expect(res.body).toHaveProperty('activeGoals');
     });
   });
 

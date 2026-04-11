@@ -192,7 +192,10 @@ export default function Layout() {
           <div className="flex gap-2">
             <NotificationBell />
             <button
-              onClick={() => document.documentElement.classList.toggle('dark')}
+              onClick={() => {
+                const d = document.documentElement.classList.toggle('dark');
+                localStorage.setItem('theme', d ? 'dark' : 'light');
+              }}
               className="p-2 text-on-surface-variant hover:opacity-70 transition-opacity active:scale-95"
             >
               <span className="material-symbols-outlined">dark_mode</span>

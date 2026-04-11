@@ -270,6 +270,68 @@ npm start
 cd client && npm run build
 ```
 
+---
+
+## 🧪 Тестирование
+
+```bash
+# Unit и Integration тесты
+npm test
+
+# Тесты с watch
+npm run test:watch
+
+# Smoke тесты
+npm run test:smoke
+
+# E2E тесты (Playwright)
+npm run test:e2e
+```
+
+### Health и Metrics
+- `GET /health` — проверка здоровья API и БД
+- `GET /metrics` — метрики Prometheus (users, transactions, goals, wishes, families, uptime)
+
+---
+
+## 📊 Мониторинг
+
+### Настройка Sentry (error tracking)
+```bash
+SENTRY_DSN=https://...@sentry.io/...
+```
+
+### Дополнительные метрики (опционально)
+- Prometheus + Grafana для детальных дашбордов
+- Loki для логов
+
+---
+
+## 🔧 Устранение проблем
+
+### Rollback при миграциях
+```bash
+# Откат последней миграции Prisma
+npx prisma migrate rollbach
+
+# Или сброс БД (только для dev)
+npx prisma migrate reset
+```
+
+### Частые проблемы
+- **Ошибка подключения к БД**: проверьте `DATABASE_URL` в `.env`
+- **Ошибка миграции**: `npx prisma migrate deploy`
+- **Зависание тестов**: `npm test -- --forceExit`
+
+### Продакшн
+```bash
+# Бэкенд
+npm start
+
+# Фронтенд
+cd client && npm run build
+```
+
 Откройте [http://localhost:3000](http://localhost:3000) (dev) — фронтенд запускается на порту 3000.
 
 ---

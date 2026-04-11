@@ -4,12 +4,17 @@ import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 
-// Apply saved theme as early as possible (before first render)
-(() => {
-  const savedTheme = localStorage.getItem('theme');
-  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const theme = savedTheme || (prefersDark ? 'dark' : 'light');
-  document.documentElement.classList.toggle('dark', theme === 'dark');
+// Apply saved theme BEFORE React renders to prevent flash
+(function() {
+  const saved = localStorage.getItem('theme');
+  const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+  const theme = saved || (prefersDark ? 'dark' : 'light');
+  if (theme === 'dark') {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
+  console.log('Theme init:', theme);
 })();
 
 const root = ReactDOM.createRoot(document.getElementById('root'));

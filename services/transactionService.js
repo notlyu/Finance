@@ -1,4 +1,4 @@
-const { Transaction, Category, User, Goal, GoalContribution, Budget } = require('../lib/models');
+const { Transaction, Category, User, Goal, GoalContribution, Budget, prisma } = require('../lib/models');
 const { Op } = require('../lib/models');
 
 exports.getTransactions = async (userId, familyId, query = {}) => {
@@ -60,15 +60,6 @@ exports.getTransactions = async (userId, familyId, query = {}) => {
     const offset = clampInt(query.offset, 0, 0, 1_000_000);
     const paginate = String(query.paginate || '') === 'true';
 
-    const baseFind = {
-        where: whereClause,
-        include: [
-            { model: Category, as: 'Category', attributes: ['id', 'name'] },
-            { model: User, as: 'User', attributes: ['id', 'name'] },
-        ],
-        order: [['date', 'DESC'], ['id', 'DESC']],
-    };
-
     const mapTx = (t) => {
         const isOtherUsersPrivate = !!t.is_private && t.user_id !== userId;
         if (isOtherUsersPrivate) {
@@ -83,7 +74,7 @@ exports.getTransactions = async (userId, familyId, query = {}) => {
                 category_id: t.category_id,
                 category_name: 'Скрыто',
                 user_id: t.user_id,
-                user_name: t.User?.name || 'Участник',
+                user_name: t.user?.name || 'Участник',
             };
         }
 
@@ -96,18 +87,33 @@ exports.getTransactions = async (userId, familyId, query = {}) => {
             is_private: !!t.is_private,
             is_hidden: false,
             category_id: t.category_id,
-            category_name: t.Category?.name || 'Без категории',
+            category_name: t.category?.name || 'Без категории',
             user_id: t.user_id,
-            user_name: t.User?.name || '',
+            user_name: t.user?.name || '',
         };
     };
 
     if (!paginate) {
-        const rows = await Transaction.findAll({ ...baseFind, limit, offset });
+        const rows = await prisma.transaction.findMany({
+            where: whereClause,
+            include: { category: true, user: true },
+            orderBy: [{ date: 'desc' }, { id: 'desc' }],
+            take: limit,
+            skip: offset,
+        });
         return rows.map(mapTx);
     }
 
-    const { rows, count } = await Transaction.findAndCountAll({ ...baseFind, limit, offset });
+    const [rows, count] = await Promise.all([
+        prisma.transaction.findMany({
+            where: whereClause,
+            include: { category: true, user: true },
+            orderBy: [{ date: 'desc' }, { id: 'desc' }],
+            take: limit,
+            skip: offset,
+        }),
+        prisma.transaction.count({ where: whereClause }),
+    ]);
     const items = rows.map(mapTx);
     return {
         items,
@@ -158,7 +164,11 @@ exports.createTransaction = async (userId, familyId, data) => {
                         ],
                       }
                     : { family_id: null, user_id: userId, category_id: data.category_id, type: 'expense', date: { gte: new Date(monthStart), lt: new Date(monthEnd) } };
-                const spent = await Transaction.sum('amount', { where: spentWhere }) || 0;
+                const spentAgg = await prisma.transaction.aggregate({
+                    where: spentWhere,
+                    _sum: { amount: true }
+                });
+                const spent = spentAgg._sum?.amount || 0;
 
                 const newTotal = Number(spent) + Number(data.amount);
                 const limit = Number(budget.limit_amount);
@@ -262,10 +272,13 @@ exports.createTransaction = async (userId, familyId, data) => {
 };
 
 exports.getTransactionById = async (id, familyId, userId) => {
-    const t = await Transaction.findOne({
-        where: familyId
-            ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
-            : { id, family_id: null, user_id: userId },
+    const where = familyId
+        ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
+        : { id, family_id: null, user_id: userId };
+    
+    const t = await prisma.transaction.findFirst({ 
+        where,
+        include: { category: true, user: true }
     });
     if (!t) return null;
 
@@ -282,7 +295,7 @@ exports.getTransactionById = async (id, familyId, userId) => {
             category_id: t.category_id,
             category_name: 'Скрыто',
             user_id: t.user_id,
-            user_name: t.User?.name || 'Участник',
+            user_name: t.user?.name || 'Участник',
         };
     }
 
@@ -295,49 +308,71 @@ exports.getTransactionById = async (id, familyId, userId) => {
         is_private: !!t.is_private,
         is_hidden: false,
         category_id: t.category_id,
-        category_name: t.Category?.name || 'Без категории',
+        category_name: t.category?.name || 'Без категории',
         user_id: t.user_id,
-        user_name: t.User?.name || '',
+        user_name: t.user?.name || '',
     };
 };
 
 exports.updateTransaction = async (id, familyId, userId, data) => {
+    const txId = Number(id);
+    if (!Number.isInteger(txId) || txId <= 0) {
+        throw new Error('Invalid transaction ID');
+    }
+
     const where = familyId
-        ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
-        : { id, family_id: null, user_id: userId };
-    const transaction = await Transaction.findOne({ where });
-    if (!transaction) throw new Error('Transaction not found');
+        ? { id: txId, OR: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
+        : { id: txId, family_id: null, user_id: userId };
+    
+    const existing = await prisma.transaction.findFirst({ where });
+    if (!existing) throw new Error('Transaction not found');
 
     // Защита: нельзя подменить user_id или family_id
     const safeData = { ...data };
     delete safeData.user_id;
     delete safeData.family_id;
 
-    await transaction.update(safeData);
-    const updated = await Transaction.findOne({ where });
-    if (updated) {
-      // Recalculate auto contributions if this is income
-      if (updated.type === 'income') {
-        await recalculateAutoContribsFromIncome(id);
-      } else {
-        // If it's not income anymore, drop related auto contributions
-        await revertAutoContribsForIncome(id);
-      }
+    // Конвертировать типы данных
+    if (safeData.date) safeData.date = new Date(safeData.date);
+    if (safeData.amount) safeData.amount = Number(safeData.amount);
+    if (safeData.category_id) safeData.category_id = Number(safeData.category_id);
+
+    const updated = await prisma.transaction.update({
+        where: { id: txId },
+        data: safeData,
+    });
+    
+    if (updated.type === 'income') {
+        await recalculateAutoContribsFromIncome(txId);
+    } else {
+        await revertAutoContribsForIncome(txId);
     }
-    return updated;
+    
+    // Вернуть с категорией
+    return prisma.transaction.findUnique({
+        where: { id: txId },
+        include: { category: true, user: true },
+    });
 };
 
 exports.deleteTransaction = async (id, familyId, userId) => {
-    const where = familyId
-        ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
-        : { id, family_id: null, user_id: userId };
-    const transaction = await Transaction.findOne({ where });
-    if (!transaction) throw new Error('Transaction not found');
-    // If this is an income, revert any auto-contributions linked to it
-    if (transaction.type === 'income') {
-      await revertAutoContribsForIncome(transaction.id);
+    const txId = Number(id);
+    if (!Number.isInteger(txId) || txId <= 0) {
+        throw new Error('Invalid transaction ID');
     }
-    return await transaction.destroy();
+
+    const where = familyId
+        ? { id: txId, OR: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
+        : { id: txId, family_id: null, user_id: userId };
+    
+    const transaction = await prisma.transaction.findFirst({ where });
+    if (!transaction) throw new Error('Transaction not found');
+    
+    if (transaction.type === 'income') {
+        await revertAutoContribsForIncome(transaction.id);
+    }
+    
+    return await prisma.transaction.delete({ where: { id: txId } });
 };
 
 function parseIdList(value) {
@@ -358,50 +393,70 @@ function clampInt(value, fallback, min, max) {
 
 // Recalculate all auto-contributions tied to a specific income transaction
 async function recalculateAutoContribsFromIncome(transactionId) {
-  const tx = await Transaction.findOne({ where: { id: transactionId } });
-  if (!tx || tx.type !== 'income') return;
+  try {
+    const tx = await prisma.transaction.findUnique({ where: { id: transactionId } });
+    if (!tx || tx.type !== 'income') return;
 
-  const contributions = await GoalContribution.findAll({
-    where: { source_transaction_id: transactionId },
-    include: [{ model: Goal, as: 'Goal' }]
-  });
+    const contributions = await prisma.goalContribution.findMany({
+      where: { transaction_id: transactionId },
+      include: { goal: true }
+    });
 
-  for (const c of contributions) {
-    const goal = c.Goal;
-    if (!goal) continue;
+    for (const c of contributions) {
+      const goal = c.goal;
+      if (!goal) continue;
 
-    const oldAmount = parseFloat(c.amount) || 0;
-    const remaining = (parseFloat(goal.target_amount) - parseFloat(goal.current_amount || 0));
-    let newAmountAuto = 0;
-    const t = goal.auto_contribute_type;
-    const v = parseFloat(goal.auto_contribute_value || 0);
-    if (t === 'percentage' && v > 0) {
-      newAmountAuto = parseFloat(tx.amount) * (v / 100);
-    } else if (t === 'fixed' && v > 0) {
-      newAmountAuto = v;
+      const oldAmount = parseFloat(c.amount) || 0;
+      const remaining = (parseFloat(goal.target_amount) - parseFloat(goal.current_amount || 0));
+      let newAmountAuto = 0;
+      const t = goal.auto_contribute_type;
+      const v = parseFloat(goal.auto_contribute_value || 0);
+      if (t === 'percentage' && v > 0) {
+        newAmountAuto = parseFloat(tx.amount) * (v / 100);
+      } else if (t === 'fixed' && v > 0) {
+        newAmountAuto = v;
+      }
+      if (newAmountAuto > remaining) newAmountAuto = remaining > 0 ? remaining : 0;
+      if (newAmountAuto < 0) newAmountAuto = 0;
+
+      if (newAmountAuto !== oldAmount) {
+        await prisma.goalContribution.update({
+          where: { id: c.id },
+          data: { amount: newAmountAuto, date: tx.date }
+        });
+        const delta = newAmountAuto - oldAmount;
+        await prisma.goal.update({
+          where: { id: goal.id },
+          data: { current_amount: (parseFloat(goal.current_amount || 0) + delta) }
+        });
+      }
     }
-    if (newAmountAuto > remaining) newAmountAuto = remaining > 0 ? remaining : 0;
-    if (newAmountAuto < 0) newAmountAuto = 0;
-
-    if (newAmountAuto !== oldAmount) {
-      await c.update({ amount: newAmountAuto, date: tx.date });
-      const delta = newAmountAuto - oldAmount;
-      await goal.update({ current_amount: (parseFloat(goal.current_amount || 0) + delta) });
-    }
+  } catch (e) {
+    console.error('recalculateAutoContribsFromIncome error:', e.message);
   }
 }
 
 // Remove all auto-contributions tied to a specific income transaction (e.g., on delete)
 async function revertAutoContribsForIncome(transactionId) {
-  const tx = await Transaction.findOne({ where: { id: transactionId } });
-  if (!tx) return;
-  const contributions = await GoalContribution.findAll({ where: { source_transaction_id: transactionId }, include: [{ model: Goal, as: 'Goal' }] });
-  for (const c of contributions) {
-    const goal = c.Goal;
-    const amount = parseFloat(c.amount) || 0;
-    if (goal) {
-      await goal.update({ current_amount: (parseFloat(goal.current_amount || 0) - amount) });
+  try {
+    const tx = await prisma.transaction.findUnique({ where: { id: transactionId } });
+    if (!tx) return;
+    const contributions = await prisma.goalContribution.findMany({
+      where: { transaction_id: transactionId },
+      include: { goal: true }
+    });
+    for (const c of contributions) {
+      const goal = c.goal;
+      const amount = parseFloat(c.amount) || 0;
+      if (goal) {
+        await prisma.goal.update({
+          where: { id: goal.id },
+          data: { current_amount: (parseFloat(goal.current_amount || 0) - amount) }
+        });
+      }
+      await prisma.goalContribution.delete({ where: { id: c.id } });
     }
-    await c.destroy();
+  } catch (e) {
+    console.error('revertAutoContribsForIncome error:', e.message);
   }
 }

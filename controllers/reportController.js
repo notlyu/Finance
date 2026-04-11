@@ -1,12 +1,10 @@
-const { Transaction, Category, User } = require('../lib/models');
-const { Op, fn, col } = require('../lib/models');
+const { User, Category, Transaction, Goal, Wish, prisma } = require('../lib/models');
 const ExcelJS = require('exceljs');
 
 function toMonthKeyFromDateOnly(dateOnly) {
-  // Transaction.date is DATEONLY and may come as string 'YYYY-MM-DD' (or Date depending on dialect/options).
   const d = dateOnly instanceof Date ? dateOnly : new Date(`${dateOnly}T00:00:00`);
   if (Number.isNaN(d.getTime())) return null;
-  return `${d.getFullYear()}-${d.getMonth() + 1}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
 // Динамика доходов и расходов по месяцам
@@ -15,7 +13,6 @@ exports.getDynamics = async (req, res) => {
     const user = req.user;
     const familyId = user.family_id;
 
-    // Default: last 12 months (to align with analytics expectations)
     const today = new Date();
     const todayStr = today.toISOString().slice(0, 10);
     let start, end;
@@ -24,51 +21,54 @@ exports.getDynamics = async (req, res) => {
       const e = new Date(today.getFullYear(), today.getMonth() + 1, 1);
       start = s.toISOString().slice(0, 10);
       end = e.toISOString().slice(0, 10);
-      // For UI hints, provide current day as highlighted date
     } else {
       start = req.query.startDate ? String(req.query.startDate) : new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
       end = req.query.endDate ? String(req.query.endDate) : todayStr;
     }
     const defaultRange = { start: start, end: end, today: todayStr };
-    // Use end as exclusive boundary by adding one day
     const endExclusive = new Date(end);
     endExclusive.setDate(endExclusive.getDate() + 1);
     const memberId = req.query.memberId ? Number(req.query.memberId) : null;
 
-    // IDOR protection: validate memberId belongs to user's family
     if (memberId && familyId) {
-      const { User } = require('../lib/models');
-      const member = await User.findByPk(memberId, { attributes: ['id', 'family_id'] });
+      const member = await prisma.user.findUnique({ where: { id: memberId } });
       if (!member || member.family_id !== familyId) {
         return res.status(403).json({ message: 'Доступ запрещён' });
       }
     } else if (memberId && !familyId) {
-      // Solo user can only view their own data
       if (memberId !== user.id) {
         return res.status(403).json({ message: 'Доступ запрещён' });
       }
     }
 
-    const txWhere = {
-      date: { gte: new Date(start), lt: new Date(endExclusive.toISOString().slice(0, 10)) },
-    };
+    let where;
+    const dateFilter = { date: { gte: new Date(start), lt: new Date(endExclusive.toISOString().slice(0, 10)) } };
     if (memberId) {
-      txWhere.OR = familyId
-        ? [
-            { family_id: familyId, user_id: memberId, OR: [{ is_private: false }, { user_id: memberId }] },
-            { family_id: null, user_id: memberId },
-          ]
-        : { family_id: null, user_id: memberId };
+      where = familyId
+        ? {
+            ...dateFilter,
+            OR: [
+              { family_id: familyId, user_id: memberId },
+              { family_id: null, user_id: memberId },
+            ]
+          }
+        : { ...dateFilter, family_id: null, user_id: memberId };
     } else {
-      txWhere.OR = familyId
-        ? [
-            { family_id: familyId, OR: [{ is_private: false }, { user_id: user.id }] },
-            { family_id: null, user_id: user.id },
-          ]
-        : { family_id: null, user_id: user.id };
+      where = familyId
+        ? {
+            ...dateFilter,
+            OR: [
+              { family_id: familyId },
+              { family_id: null, user_id: user.id },
+            ]
+          }
+        : { ...dateFilter, family_id: null, user_id: user.id };
     }
-    // Retrieve transactions in the range and aggregate on the application side
-    const rows = await Transaction.findAll({ where: txWhere, include: [{ model: Category, as: 'Category', attributes: ['name'] }], order: [['date', 'ASC']] });
+    const rows = await prisma.transaction.findMany({
+      where,
+      include: { category: true },
+      orderBy: { date: 'asc' },
+    });
 
     const months = [];
     const incomeByMonth = {};
@@ -124,10 +124,8 @@ exports.getExpensesByCategory = async (req, res) => {
     const { startDate, endDate } = req.query;
     const memberId = req.query.memberId ? Number(req.query.memberId) : null;
 
-    // IDOR protection
     if (memberId && familyId) {
-      const { User } = require('../lib/models');
-      const member = await User.findByPk(memberId, { attributes: ['id', 'family_id'] });
+      const member = await prisma.user.findUnique({ where: { id: memberId } });
       if (!member || member.family_id !== familyId) {
         return res.status(403).json({ message: 'Доступ запрещён' });
       }
@@ -142,32 +140,25 @@ exports.getExpensesByCategory = async (req, res) => {
     else if (startDate) dateFilter.date = { gte: new Date(startDate) };
     else if (endDate) dateFilter.date = { lte: new Date(endDate) };
 
-     const where = { type: 'expense', ...dateFilter };
-     if (memberId) {
-       where.OR = familyId
-         ? [
-             { family_id: familyId, user_id: memberId, OR: [{ is_private: false }, { user_id: memberId }] },
-             { family_id: null, user_id: memberId },
-           ]
-         : { family_id: null, user_id: memberId };
-     } else {
-       where.OR = familyId
-         ? [
-             { family_id: familyId, OR: [{ is_private: false }, { user_id: user.id }] },
-             { family_id: null, user_id: user.id },
-           ]
-         : { family_id: null, user_id: user.id };
-     }
+    let where;
+    if (memberId) {
+      where = familyId
+        ? { type: 'expense', ...dateFilter, OR: [{ family_id: familyId, user_id: memberId }, { family_id: null, user_id: memberId }] }
+        : { type: 'expense', ...dateFilter, family_id: null, user_id: memberId };
+    } else {
+      where = familyId
+        ? { type: 'expense', ...dateFilter, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        : { type: 'expense', ...dateFilter, family_id: null, user_id: user.id };
+    }
 
-    const transactions = await Transaction.findAll({
+    const transactions = await prisma.transaction.findMany({
       where,
-      include: [{ model: Category, as: 'Category', attributes: ['name'] }],
-      attributes: ['amount', 'category_id'],
+      include: { category: true },
     });
 
     const categoryTotals = {};
     transactions.forEach(t => {
-      const catName = t.Category ? t.Category.name : 'Без категории';
+      const catName = t.category?.name || 'Без категории';
       categoryTotals[catName] = (categoryTotals[catName] || 0) + parseFloat(t.amount);
     });
 
@@ -179,7 +170,7 @@ exports.getExpensesByCategory = async (req, res) => {
   }
 };
 
-// Доходы по категориям (аналогично)
+// Доходы по категориям
 exports.getIncomeByCategory = async (req, res) => {
   try {
     const user = req.user;
@@ -188,10 +179,8 @@ exports.getIncomeByCategory = async (req, res) => {
     const { startDate, endDate } = req.query;
     const memberId = req.query.memberId ? Number(req.query.memberId) : null;
 
-    // IDOR protection
     if (memberId && familyId) {
-      const { User } = require('../models');
-      const member = await User.findByPk(memberId, { attributes: ['id', 'family_id'] });
+      const member = await prisma.user.findUnique({ where: { id: memberId } });
       if (!member || member.family_id !== familyId) {
         return res.status(403).json({ message: 'Доступ запрещён' });
       }
@@ -206,32 +195,25 @@ exports.getIncomeByCategory = async (req, res) => {
     else if (startDate) dateFilter.date = { gte: new Date(startDate) };
     else if (endDate) dateFilter.date = { lte: new Date(endDate) };
 
-     const where = { type: 'income', ...dateFilter };
-     if (memberId) {
-       where.OR = familyId
-         ? [
-             { family_id: familyId, user_id: memberId, OR: [{ is_private: false }, { user_id: memberId }] },
-             { family_id: null, user_id: memberId },
-           ]
-         : { family_id: null, user_id: memberId };
-     } else {
-       where.OR = familyId
-         ? [
-             { family_id: familyId, OR: [{ is_private: false }, { user_id: user.id }] },
-             { family_id: null, user_id: user.id },
-           ]
-         : { family_id: null, user_id: user.id };
-     }
+    let where;
+    if (memberId) {
+      where = familyId
+        ? { type: 'income', ...dateFilter, OR: [{ family_id: familyId, user_id: memberId }, { family_id: null, user_id: memberId }] }
+        : { type: 'income', ...dateFilter, family_id: null, user_id: memberId };
+    } else {
+      where = familyId
+        ? { type: 'income', ...dateFilter, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        : { type: 'income', ...dateFilter, family_id: null, user_id: user.id };
+    }
 
-    const transactions = await Transaction.findAll({
+    const transactions = await prisma.transaction.findMany({
       where,
-      include: [{ model: Category, as: 'Category', attributes: ['name'] }],
-      attributes: ['amount', 'category_id'],
+      include: { category: true },
     });
 
     const categoryTotals = {};
     transactions.forEach(t => {
-      const catName = t.Category ? t.Category.name : 'Без категории';
+      const catName = t.category?.name || 'Без категории';
       categoryTotals[catName] = (categoryTotals[catName] || 0) + parseFloat(t.amount);
     });
 
@@ -255,17 +237,17 @@ exports.exportReport = async (req, res) => {
     else if (endDate) dateFilter.date = { lte: new Date(endDate) };
 
     const where = familyId
-      ? { OR: [{ family_id: familyId, OR: [{ is_private: false }, { user_id: user.id }] }, { family_id: null, user_id: user.id }], ...dateFilter }
+      ? { OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }], ...dateFilter }
       : { family_id: null, user_id: user.id, ...dateFilter };
 
-    const transactions = await Transaction.findAll({ where, include: [
-      { model: Category, as: 'Category', attributes: ['name'] },
-      { model: User, as: 'User', attributes: ['name'] }
-    ], order: [['date','DESC']] });
+    const transactions = await prisma.transaction.findMany({
+      where,
+      include: { category: true, user: true },
+      orderBy: { date: 'desc' },
+    });
 
-    // Build CSV header and rows
     const header = ['date','type','amount','category','user','comment'];
-    const rows = transactions.map(t => [t.date, t.type, t.amount, t.Category?.name ?? '', t.User?.name ?? '', t.comment ?? '']);
+    const rows = transactions.map(t => [t.date, t.type, t.amount, t.category?.name ?? '', t.user?.name ?? '', t.comment ?? '']);
     const csv = [header.join(','), ...rows.map(r => r.map(v => {
       if (v == null) return '';
       const s = String(v);
@@ -296,13 +278,14 @@ exports.exportExcel = async (req, res) => {
     else if (endDate) dateFilter.date = { lte: new Date(endDate) };
 
     const where = familyId
-      ? { OR: [{ family_id: familyId, OR: [{ is_private: false }, { user_id: user.id }] }, { family_id: null, user_id: user.id }], ...dateFilter }
+      ? { OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }], ...dateFilter }
       : { family_id: null, user_id: user.id, ...dateFilter };
 
-    const transactions = await Transaction.findAll({ where, include: [
-      { model: Category, as: 'Category', attributes: ['name'] },
-      { model: User, as: 'User', attributes: ['name'] }
-    ], order: [['date','DESC']] });
+    const transactions = await prisma.transaction.findMany({
+      where,
+      include: { category: true, user: true },
+      orderBy: { date: 'desc' },
+    });
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Операции');
@@ -326,9 +309,9 @@ exports.exportExcel = async (req, res) => {
       sheet.addRow({
         date: t.date,
         type: t.type === 'income' ? 'Доход' : 'Расход',
-        category: isHidden ? '🔒 Сюрприз' : (t.Category?.name || ''),
+        category: isHidden ? '🔒 Сюрприз' : (t.category?.name || ''),
         amount: isHidden ? 0 : Number(t.amount),
-        user: t.User?.name || '',
+        user: t.user?.name || '',
         comment: isHidden ? '' : (t.comment || ''),
       });
     });

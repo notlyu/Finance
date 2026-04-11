@@ -125,7 +125,7 @@ export default function Wishes() {
 
   const familyWishes = activeWishes.filter(w => !w.is_hidden && w.family_id);
   const personalWishes = activeWishes.filter(w => !w.family_id);
-  const displayWishes = wishTab === 'family' ? familyWishes : personalWishes;
+  const displayWishes = wishTab === 'family' ? familyWishes : wishTab === 'personal' ? personalWishes : activeWishes;
 
   return (
     <div className="space-y-8">
@@ -170,10 +170,16 @@ export default function Wishes() {
 
       <div className="flex gap-2">
         <button
+          onClick={() => setWishTab('all')}
+          className={`px-5 py-2.5 rounded-2xl text-sm font-bold transition-colors ${wishTab === 'all' ? 'bg-primary text-white' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}`}
+        >
+          Все ({activeWishes.length})
+        </button>
+        <button
           onClick={() => setWishTab('family')}
           className={`px-5 py-2.5 rounded-2xl text-sm font-bold transition-colors ${wishTab === 'family' ? 'bg-primary text-white' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}`}
         >
-          Все ({familyWishes.length})
+          Семейные ({familyWishes.length})
         </button>
         <button
           onClick={() => setWishTab('personal')}

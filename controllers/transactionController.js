@@ -52,7 +52,8 @@ const updateTransaction = async (req, res, next) => {
         const transaction = await transactionService.updateTransaction(req.params.id, req.user.family_id, req.user.id, req.body);
         res.json(transaction);
     } catch (error) {
-        next(error);
+        console.error('Update transaction error:', error);
+        res.status(500).json({ message: 'Ошибка обновления: ' + error.message });
     }
 };
 

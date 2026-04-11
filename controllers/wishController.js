@@ -1,32 +1,69 @@
-const { Wish, WishContribution, User, Family, Transaction, Category, Goal } = require('../lib/models');
+const { Wish, WishContribution, User, Family, Transaction, Category, Goal, prisma } = require('../lib/models');
 const { Op } = require('../lib/models');
 
 async function calcAvailableFunds(userId, familyId) {
   if (!familyId) {
-    const income = await Transaction.sum('amount', { where: { user_id: userId, family_id: null, type: 'income' } }) || 0;
-    const expense = await Transaction.sum('amount', { where: { user_id: userId, family_id: null, type: 'expense' } }) || 0;
+    const incomeAgg = await prisma.transaction.aggregate({
+      where: { user_id: userId, family_id: null, type: 'income' },
+      _sum: { amount: true }
+    });
+    const expenseAgg = await prisma.transaction.aggregate({
+      where: { user_id: userId, family_id: null, type: 'expense' },
+      _sum: { amount: true }
+    });
+    const income = incomeAgg._sum?.amount || 0;
+    const expense = expenseAgg._sum?.amount || 0;
     const balance = Number(income) - Number(expense);
-    const reserved = ((await Goal.sum('current_amount', { where: { user_id: userId, family_id: null } }) || 0) + (await Wish.sum('saved_amount', { where: { user_id: userId } }) || 0));
+    
+    const goalsAgg = await prisma.goal.aggregate({
+      where: { user_id: userId, family_id: null },
+      _sum: { current_amount: true }
+    });
+    const wishesAgg = await prisma.wish.aggregate({
+      where: { user_id: userId },
+      _sum: { saved_amount: true }
+    });
+    const reserved = (goalsAgg._sum?.current_amount || 0) + (wishesAgg._sum?.saved_amount || 0);
     return { balance, reserved, available: balance - reserved };
   }
-  const income = await Transaction.sum('amount', { where: { family_id: familyId, type: 'income' } }) || 0;
-  const expense = await Transaction.sum('amount', { where: { family_id: familyId, type: 'expense' } }) || 0;
+  const incomeAgg = await prisma.transaction.aggregate({
+    where: { family_id: familyId, type: 'income' },
+    _sum: { amount: true }
+  });
+  const expenseAgg = await prisma.transaction.aggregate({
+    where: { family_id: familyId, type: 'expense' },
+    _sum: { amount: true }
+  });
+  const income = incomeAgg._sum?.amount || 0;
+  const expense = expenseAgg._sum?.amount || 0;
   const balance = Number(income) - Number(expense);
-  const reserved = ((await Goal.sum('current_amount', { where: { family_id: familyId } }) || 0) + (await Wish.sum('saved_amount', { where: { family_id: familyId } }) || 0));
+  
+  const goalsAgg = await prisma.goal.aggregate({
+    where: { family_id: familyId },
+    _sum: { current_amount: true }
+  });
+  const wishesAgg = await prisma.wish.aggregate({
+    where: { family_id: familyId },
+    _sum: { saved_amount: true }
+  });
+  const reserved = (goalsAgg._sum?.current_amount || 0) + (wishesAgg._sum?.saved_amount || 0);
   return { balance, reserved, available: balance - reserved };
 }
 
 exports.fundWish = async (req, res) => {
   try {
     const user = req.user;
-    const { id } = req.params;
+    const wishId = Number(req.params.id);
+    if (!Number.isInteger(wishId) || wishId <= 0) {
+      return res.status(400).json({ message: 'Неверный ID желания' });
+    }
 
     const familyId = user.family_id;
 
-    const wish = await Wish.findOne({
+    const wish = await prisma.wish.findFirst({
       where: familyId
-        ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
-        : { id, family_id: null, user_id: user.id },
+        ? { id: wishId, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        : { id: wishId, family_id: null, user_id: user.id },
     });
     if (!wish) {
       return res.status(404).json({ message: 'Желание не найдено' });
@@ -48,37 +85,50 @@ exports.fundWish = async (req, res) => {
       return res.status(200).json(warning);
     }
 
-    const [category] = await Category.findOrCreate({
-      where: { name: 'Выделение средств на желания', family_id: wish.family_id },
-      defaults: { name: 'Выделение средств на желания', family_id: wish.family_id, type: 'expense' }
-    });
+    const category = await prisma.category.findFirst({ where: { name: 'Выделение средств на желания', family_id: wish.family_id } });
+    let categoryId = category?.id;
+    if (!categoryId) {
+      const newCat = await prisma.category.create({
+        data: { name: 'Выделение средств на желания', family_id: wish.family_id, type: 'expense', is_system: false }
+      });
+      categoryId = newCat.id;
+    }
 
     const now = new Date();
-    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-    const tx = await Transaction.create({
-      user_id: user.id,
-      family_id: wish.family_id,
-      amount,
-      type: 'expense',
-      category_id: category.id,
-      date: dateStr,
-      comment: `Пополнение желания: ${wish.name}`,
-      is_private: false,
+    const tx = await prisma.transaction.create({
+      data: {
+        user_id: user.id,
+        family_id: wish.family_id,
+        amount,
+        type: 'expense',
+        category_id: categoryId,
+        date: now,
+        comment: `Пополнение желания: ${wish.name}`,
+is_private: false,
+      }
     });
 
-    await WishContribution.create({
-      wish_id: wish.id,
-      amount,
-      date: dateStr,
-      transaction_id: tx.id
+    await prisma.wishContribution.create({
+      data: {
+        wish_id: wish.id,
+        user_id: user.id,
+        amount,
+        transaction_id: tx.id
+      }
     });
 
-    const newSaved = parseFloat(wish.saved_amount) + amount;
-    await wish.update({ saved_amount: newSaved });
+    const newSaved = parseFloat(wish.saved_amount || 0) + amount;
+    await prisma.wish.update({
+      where: { id: wish.id },
+      data: { saved_amount: newSaved }
+    });
 
     if (newSaved >= parseFloat(wish.cost)) {
-        await wish.update({ status: 'completed', archived: true, archived_at: new Date() });
+      await prisma.wish.update({
+        where: { id: wish.id },
+        data: { status: 'completed', archived: true, archived_at: now }
+      });
     }
 
     res.status(201).json({
@@ -138,7 +188,7 @@ exports.getWishes = async (req, res) => {
           name: 'Скрытое желание'
         };
       }
-      const w = wish.toJSON();
+const w = { ...wish };
       w.progress = (() => {
         try {
           const c = parseFloat(w.saved_amount) || 0;
@@ -258,27 +308,34 @@ exports.createWish = async (req, res) => {
 exports.updateWish = async (req, res) => {
   try {
     const user = req.user;
-    const { id } = req.params;
+    const wishId = Number(req.params.id);
+    if (!Number.isInteger(wishId) || wishId <= 0) {
+      return res.status(400).json({ message: 'Неверный ID' });
+    }
     const updateData = req.body;
 
     const familyId = user.family_id;
 
-    const wish = await Wish.findOne({
+    const wish = await prisma.wish.findFirst({
       where: familyId
-        ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
-        : { id, family_id: null, user_id: user.id }
+        ? { id: wishId, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        : { id: wishId, family_id: null, user_id: user.id }
     });
 
     if (!wish) {
       return res.status(404).json({ message: 'Желание не найдено' });
     }
 
-    if (wish.user_id !== user.id && user.Family?.owner_user_id !== user.id) {
+    if (wish.user_id !== user.id && user.family_id && user.family_id !== familyId) {
       return res.status(403).json({ message: 'Нет прав на редактирование' });
     }
 
-    await wish.update(updateData);
-    res.json(wish);
+    const { created_at, archived_at, ...safeData } = updateData;
+    const updated = await prisma.wish.update({
+      where: { id: wishId },
+      data: safeData
+    });
+    res.json(updated);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Ошибка сервера' });
@@ -353,37 +410,46 @@ exports.contributeToWish = async (req, res) => {
       return res.status(200).json(warning);
     }
 
-    const result = await Wish.sequelize.transaction(async (t) => {
+const result = await prisma.$transaction(async (tx) => {
       let transactionId = null;
       if (createTransaction) {
         if (!category_id) {
           throw new Error('category_id обязателен для createTransaction');
         }
-        const tx = await Transaction.create({
-          user_id: user.id,
-          family_id: wish.family_id,
-          amount,
-          type: 'expense',
-          category_id,
-          date: date || new Date(),
-          comment: comment || `Пополнение желания: ${wish.name}`,
-          is_private: !!is_private,
-        }, { transaction: t });
-        transactionId = tx.id;
+        const newTx = await tx.transaction.create({
+          data: {
+            user_id: user.id,
+            family_id: wish.family_id,
+            amount,
+            type: 'expense',
+            category_id,
+            date: date || new Date(),
+            comment: comment || `Пополнение желания: ${wish.name}`,
+            is_private: !!is_private,
+          }
+        });
+        transactionId = newTx.id;
       }
 
-      const contribution = await WishContribution.create({
-        wish_id: wish.id,
-        amount,
-        date: date || new Date(),
-        transaction_id: transactionId,
-      }, { transaction: t });
+      const contribution = await tx.wishContribution.create({
+        data: {
+          wish_id: wish.id,
+          amount,
+          date: date || new Date(),
+          transaction_id: transactionId,
+        }
+      });
 
       const newSavedAmount = parseFloat(wish.saved_amount) + parseFloat(amount);
-      await wish.update({ saved_amount: newSavedAmount }, { transaction: t });
-      // Archive wish if completed via manual contribution
+      await tx.wish.update({
+        where: { id: wish.id },
+        data: { saved_amount: newSavedAmount }
+      });
       if (newSavedAmount >= parseFloat(wish.cost)) {
-         await wish.update({ archived: true, archived_at: new Date(), status: 'completed' }, { transaction: t });
+        await tx.wish.update({
+          where: { id: wish.id },
+          data: { archived: true, archived_at: new Date(), status: 'completed' }
+        });
       }
 
       return { contribution, newSavedAmount, transactionId };
