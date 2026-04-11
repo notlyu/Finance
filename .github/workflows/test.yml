@@ -33,6 +33,14 @@ jobs:
       - name: Install dependencies
         run: npm install
       
+      - name: Generate Prisma client
+        run: npx prisma generate
+      
+      - name: Setup database
+        run: npx prisma db push --accept-data-loss
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
+      
       - name: Run tests
         env:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
