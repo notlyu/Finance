@@ -1,4 +1,4 @@
-const prisma = require('./lib/prisma-client');
+const prisma = require('../lib/prisma-client');
 const bcrypt = require('bcrypt');
 
 async function seed() {
