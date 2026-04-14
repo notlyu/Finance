@@ -1,9 +1,9 @@
 const transactionService = require('../services/transactionService');
+const { logger, NotFoundError, ValidationError, UnauthorizedError } = require('../lib/errors');
 
 const getTransactions = async (req, res, next) => {
-    // Проверка доступа внутри функции
     if (!req.user) {
-        return res.status(401).json({ message: "Unauthorized" });
+        throw new UnauthorizedError();
     }
     try {
         const transactions = await transactionService.getTransactions(req.user.id, req.user.family_id, req.query);
@@ -15,10 +15,18 @@ const getTransactions = async (req, res, next) => {
 
 const createTransaction = async (req, res, next) => {
     if (!req.user) {
-        return res.status(401).json({ message: "Unauthorized" });
+        throw new UnauthorizedError();
     }
     try {
         const result = await transactionService.createTransaction(req.user.id, req.user.family_id, req.body);
+        
+        logger.info({ 
+            userId: req.user.id, 
+            transactionId: result.tx?.id, 
+            type: result.tx?.type,
+            action: 'createTransaction' 
+        });
+
         const response = { transaction: result.tx };
         if (result.budgetWarning) {
             response.budgetWarning = result.budgetWarning;
@@ -31,12 +39,12 @@ const createTransaction = async (req, res, next) => {
 
 const getTransactionById = async (req, res, next) => {
     if (!req.user) {
-        return res.status(401).json({ message: "Unauthorized" });
+        throw new UnauthorizedError();
     }
     try {
         const transaction = await transactionService.getTransactionById(req.params.id, req.user.family_id, req.user.id);
         if (!transaction) {
-            return res.status(404).json({ message: 'Transaction not found' });
+            throw new NotFoundError('Transaction not found');
         }
         res.json(transaction);
     } catch (error) {
@@ -46,23 +54,36 @@ const getTransactionById = async (req, res, next) => {
 
 const updateTransaction = async (req, res, next) => {
     if (!req.user) {
-        return res.status(401).json({ message: "Unauthorized" });
+        throw new UnauthorizedError();
     }
     try {
         const transaction = await transactionService.updateTransaction(req.params.id, req.user.family_id, req.user.id, req.body);
+        
+        logger.info({ 
+            userId: req.user.id, 
+            transactionId: transaction?.id, 
+            action: 'updateTransaction' 
+        });
+        
         res.json(transaction);
     } catch (error) {
-        console.error('Update transaction error:', error);
-        res.status(500).json({ message: 'Ошибка обновления: ' + error.message });
+        next(error);
     }
 };
 
 const deleteTransaction = async (req, res, next) => {
     if (!req.user) {
-        return res.status(401).json({ message: "Unauthorized" });
+        throw new UnauthorizedError();
     }
     try {
         await transactionService.deleteTransaction(req.params.id, req.user.family_id, req.user.id);
+        
+        logger.info({ 
+            userId: req.user.id, 
+            transactionId: req.params.id, 
+            action: 'deleteTransaction' 
+        });
+        
         res.status(204).send();
     } catch (error) {
         next(error);

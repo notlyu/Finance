@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import Modal from '../components/Modal';
+import FormattedInput from '../components/ui/FormattedInput';
 import { formatMoney } from '../utils/format';
 
 const categoryIconMap = {
@@ -439,10 +440,9 @@ export default function Transactions() {
           <div className="relative">
             <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Сумма</label>
             <div className="relative">
-              <input
-                type="number"
-                step="0.01"
-                {...register('amount', { required: true, min: 0.01 })}
+              <FormattedInput
+                value={watch('amount') || ''}
+                onChange={(v) => setValue('amount', v)}
                 className="w-full py-5 px-6 bg-surface-container-low border-2 border-transparent rounded-2xl text-3xl font-extrabold text-on-surface outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10 placeholder:text-outline/40"
                 placeholder="0"
               />

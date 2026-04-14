@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useEffect, useState, useMemo } from 'react';
 import api from '../services/api';
 import Modal from '../components/Modal';
+import FormattedInput from '../components/ui/FormattedInput';
 import { useForm } from 'react-hook-form';
 import { formatMoney } from '../utils/format';
 
@@ -203,7 +204,7 @@ export default function Recurring() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Сумма</label>
-              <input type="number" step="1" {...register('amount', { required: true, min: 1 })} className="input-ghost" placeholder="0" />
+              <FormattedInput value={watch('amount') || ''} onChange={(v) => setValue('amount', v)} className="input-ghost" placeholder="0" />
             </div>
             <div>
               <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">День месяца</label>

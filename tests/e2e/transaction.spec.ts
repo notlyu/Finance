@@ -33,7 +33,7 @@ test('Create transaction with category and verify in dashboard', async ({ reques
   });
   expect(txRes.status()).toBe(201);
   const txBody = await txRes.json();
-  expect(txBody?.id).toBeTruthy();
+  expect(txBody?.transaction?.id || txBody?.id).toBeTruthy();
 
   // Get transactions to ensure the new entry appears
   const listRes = await request.get('/api/transactions', {
@@ -41,7 +41,8 @@ test('Create transaction with category and verify in dashboard', async ({ reques
   });
   expect(listRes.ok()).toBeTruthy();
   const list = await listRes.json();
-  const hasTxn = list?.length ? list.find((t) => t.id === txBody.id) : false;
+  const txId = txBody?.transaction?.id || txBody?.id;
+  const hasTxn = list?.items?.length ? list.items.find((t) => t.id === txId) : list?.find ? list.find((t) => t.id === txId) : false;
   // Accept either the full payload or a subset depending on API shape
   expect(hasTxn || true).toBeTruthy();
 });

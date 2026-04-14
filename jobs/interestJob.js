@@ -1,33 +1,34 @@
-const { Goal, GoalContribution } = require('../lib/models');
-const { Op } = require('../lib/models');
+const prisma = require('../lib/prisma-client');
 
 // Monthly interest accrual for goals with interest_rate > 0
 async function runInterestMonthly() {
   const now = new Date();
-  // Fetch all goals with a non-null interest_rate > 0
-  const goals = await Goal.findAll({ where: { interest_rate: { [Op.gt]: 0 } } });
+  const goals = await prisma.goal.findMany({
+    where: { interest_rate: { gt: 0 } }
+  });
 
   let count = 0;
   for (const g of goals) {
     const monthlyRate = (parseFloat(g.interest_rate) || 0) / 100 / 12;
     if (monthlyRate <= 0) continue;
-    // Calculate interest on current_amount
     const current = parseFloat(g.current_amount || 0);
     if (current <= 0) continue;
     const interestAmount = current * monthlyRate;
     if (!interestAmount || interestAmount <= 0) continue;
 
-    // Create a history record as interest contribution
-    await GoalContribution.create({
-      goal_id: g.id,
-      amount: interestAmount,
-      date: now,
-      type: 'interest',
-      automatic: false
+    await prisma.goalContribution.create({
+      data: {
+        goal_id: g.id,
+        user_id: g.user_id,
+        amount: interestAmount,
+        transaction_id: null,
+      }
     });
 
-    // Update current amount of the goal
-    await g.update({ current_amount: current + interestAmount });
+    await prisma.goal.update({
+      where: { id: g.id },
+      data: { current_amount: current + interestAmount }
+    });
     count += 1;
   }
 

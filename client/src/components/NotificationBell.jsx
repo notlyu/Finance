@@ -133,7 +133,7 @@ export default function NotificationBell() {
                 <div
                   key={n.id}
                   className={`p-4 border-b border-outline-variant/10 transition ${
-                    !n.is_read ? 'bg-primary/5' : ''
+                    !n.read ? 'bg-primary/5' : ''
                   }`}
                 >
                   <div className="flex items-start gap-3">
@@ -144,7 +144,7 @@ export default function NotificationBell() {
                       <p className="text-[10px] text-on-surface-variant/50 mt-1.5">{timeAgo(n.created_at)}</p>
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      {!n.is_read && (
+                      {!n.read && (
                         <button onClick={() => markAsRead(n.id)} className="text-xs text-primary hover:underline px-1">✓</button>
                       )}
                       <button onClick={() => deleteNotif(n.id)} className="text-xs text-error hover:underline px-1">✕</button>

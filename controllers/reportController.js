@@ -1,5 +1,6 @@
-const { User, Category, Transaction, Goal, Wish, prisma } = require('../lib/models');
+const prisma = require('../lib/prisma-client');
 const ExcelJS = require('exceljs');
+const { logger, ForbiddenError } = require('../lib/errors');
 
 function toMonthKeyFromDateOnly(dateOnly) {
   const d = dateOnly instanceof Date ? dateOnly : new Date(`${dateOnly}T00:00:00`);
@@ -7,8 +8,7 @@ function toMonthKeyFromDateOnly(dateOnly) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-// Динамика доходов и расходов по месяцам
-exports.getDynamics = async (req, res) => {
+exports.getDynamics = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
@@ -33,11 +33,11 @@ exports.getDynamics = async (req, res) => {
     if (memberId && familyId) {
       const member = await prisma.user.findUnique({ where: { id: memberId } });
       if (!member || member.family_id !== familyId) {
-        return res.status(403).json({ message: 'Доступ запрещён' });
+        throw new ForbiddenError('Доступ запрещён');
       }
     } else if (memberId && !familyId) {
       if (memberId !== user.id) {
-        return res.status(403).json({ message: 'Доступ запрещён' });
+        throw new ForbiddenError('Доступ запрещён');
       }
     }
 
@@ -74,11 +74,9 @@ exports.getDynamics = async (req, res) => {
     const incomeByMonth = {};
     const expenseByMonth = {};
 
-    // Build month list inclusively from start to end month
     const startD = new Date(`${start}T00:00:00`);
     const endD = new Date(`${end}T00:00:00`);
     const cursor = new Date(startD.getFullYear(), startD.getMonth(), 1);
-    // include the end month by moving endCursor to the first day of the next month
     const endCursor = new Date(endD.getFullYear(), endD.getMonth() + 1, 1);
     while (cursor < endCursor) {
       const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`;
@@ -96,8 +94,7 @@ exports.getDynamics = async (req, res) => {
       if (r.type === 'expense') expenseByMonth[monthKey] = (expenseByMonth[monthKey] || 0) + val;
     });
 
-    // Extend response with a defaultRange hint for UI date pickers
-    // Also provide today's date hint for quick-pick in UI
+    logger.info(`User ${user.id} got dynamics report`);
     res.json({
       startDate: start,
       endDate: end,
@@ -110,13 +107,11 @@ exports.getDynamics = async (req, res) => {
       defaultRange
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-// Расходы по категориям
-exports.getExpensesByCategory = async (req, res) => {
+exports.getExpensesByCategory = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
@@ -127,11 +122,11 @@ exports.getExpensesByCategory = async (req, res) => {
     if (memberId && familyId) {
       const member = await prisma.user.findUnique({ where: { id: memberId } });
       if (!member || member.family_id !== familyId) {
-        return res.status(403).json({ message: 'Доступ запрещён' });
+        throw new ForbiddenError('Доступ запрещён');
       }
     } else if (memberId && !familyId) {
       if (memberId !== user.id) {
-        return res.status(403).json({ message: 'Доступ запрещён' });
+        throw new ForbiddenError('Доступ запрещён');
       }
     }
 
@@ -163,15 +158,14 @@ exports.getExpensesByCategory = async (req, res) => {
     });
 
     const data = Object.entries(categoryTotals).map(([name, total]) => ({ name, total }));
+    logger.info(`User ${user.id} got expenses by category`);
     res.json(data);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-// Доходы по категориям
-exports.getIncomeByCategory = async (req, res) => {
+exports.getIncomeByCategory = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
@@ -182,11 +176,11 @@ exports.getIncomeByCategory = async (req, res) => {
     if (memberId && familyId) {
       const member = await prisma.user.findUnique({ where: { id: memberId } });
       if (!member || member.family_id !== familyId) {
-        return res.status(403).json({ message: 'Доступ запрещён' });
+        throw new ForbiddenError('Доступ запрещён');
       }
     } else if (memberId && !familyId) {
       if (memberId !== user.id) {
-        return res.status(403).json({ message: 'Доступ запрещён' });
+        throw new ForbiddenError('Доступ запрещён');
       }
     }
 
@@ -218,15 +212,14 @@ exports.getIncomeByCategory = async (req, res) => {
     });
 
     const data = Object.entries(categoryTotals).map(([name, total]) => ({ name, total }));
+    logger.info(`User ${user.id} got income by category`);
     res.json(data);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-// Экспорт отчёта (CSV)
-exports.exportReport = async (req, res) => {
+exports.exportReport = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
@@ -257,17 +250,16 @@ exports.exportReport = async (req, res) => {
       return s;
     }).join(','))].join('\n');
 
+    logger.info(`User ${user.id} exported ${transactions.length} transactions as CSV`);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="transactions.csv"');
     res.send(csv);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-// Экспорт отчёта в Excel (.xlsx)
-exports.exportExcel = async (req, res) => {
+exports.exportExcel = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
@@ -299,7 +291,6 @@ exports.exportExcel = async (req, res) => {
       { header: 'Комментарий', key: 'comment', width: 30 },
     ];
 
-    // Style header
     sheet.getRow(1).font = { bold: true, size: 11 };
     sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
     sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
@@ -316,15 +307,14 @@ exports.exportExcel = async (req, res) => {
       });
     });
 
-    // Format amount column
     sheet.getColumn('amount').numFmt = '#,##0.00';
 
     const buffer = await workbook.xlsx.writeBuffer();
+    logger.info(`User ${user.id} exported ${transactions.length} transactions as Excel`);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename="transactions.xlsx"');
     res.send(buffer);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };

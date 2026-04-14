@@ -1,5 +1,4 @@
-const { Transaction, Goal, Wish, SafetyPillowSetting, SafetyPillowHistory, User } = require('../lib/models');
-const { Op, prisma } = require('../lib/models');
+const prisma = require('../lib/prisma-client');
 
 const PILLOW_LEVELS = {
   minimal: { months: 3, label: 'Минимальная', color: '#EF4444' },
@@ -63,7 +62,7 @@ async function calculateSafetyPillow(userId, familyId) {
   const shortfall = Math.max(0, target - liquidFunds);
   const monthlyRecommendation = months > 0 ? Math.ceil(shortfall / months) : 0;
 
-  const categoryExpenses = await Transaction.findAll({
+  const categoryExpenses = await prisma.transaction.findMany({
     where: { ...txFilter, type: 'expense', date: { gte: threeMonthsAgo } },
     include: { category: true },
   });
@@ -80,47 +79,50 @@ async function calculateSafetyPillow(userId, familyId) {
 
   const twelveMonthsAgo = new Date();
   twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-  const history = await SafetyPillowHistory.findAll({
+  const history = await prisma.safetyPillowHistory.findMany({
     where: { user_id: userId, calculated_at: { gte: twelveMonthsAgo } },
-    order: [['calculated_at', 'ASC']],
-    limit: 12,
+    orderBy: { calculated_at: 'asc' },
+    take: 12,
   });
- 
-   return {
-     liquidFunds: Math.round(liquidFunds * 100) / 100,
-     reservedTotal: Math.round(reservedTotal * 100) / 100,
-     monthlyAverage: Math.round(monthlyAverage * 100) / 100,
-     target: Math.round(target * 100) / 100,
-     months,
-     progress: target > 0 ? Math.min(100, (liquidFunds / target) * 100) : 0,
-     isFamily,
-     levels,
-     recommendation: {
-       monthlyAmount: monthlyRecommendation,
-       monthsToTarget: months,
-       shortfall: Math.round(shortfall * 100) / 100,
-       message: shortfall > 0
-         ? `Откладывайте ${monthlyRecommendation} ₽/мес чтобы достичь подушки за 6 мес`
-         : 'Подушка безопасности уже сформирована!',
-     },
-     topCategories,
-     history: history.map(h => ({
-       value: Number(h.safety_pillow),
-       target_value: Number(h.target_value),
-       calculated_at: h.calculated_at,
-     })),
-   };
- }
+  
+  return {
+    liquidFunds: Math.round(liquidFunds * 100) / 100,
+    reservedTotal: Math.round(reservedTotal * 100) / 100,
+    monthlyAverage: Math.round(monthlyAverage * 100) / 100,
+    target: Math.round(target * 100) / 100,
+    months,
+    progress: target > 0 ? Math.min(100, (liquidFunds / target) * 100) : 0,
+    isFamily,
+    levels,
+    recommendation: {
+      monthlyAmount: monthlyRecommendation,
+      monthsToTarget: months,
+      shortfall: Math.round(shortfall * 100) / 100,
+      message: shortfall > 0
+        ? `Откладывайте ${monthlyRecommendation} ₽/мес чтобы достичь подушки за ${months} мес`
+        : 'Подушка безопасности уже сформирована!',
+    },
+    topCategories,
+    history: history.map(h => ({
+      id: h.id,
+      value: Number(h.safety_pillow),
+      target_value: Math.round(target * 100) / 100,
+      calculated_at: h.calculated_at,
+    })),
+  };
+}
 
 async function recalculateAndSave(userId, familyId) {
   try {
     const result = await calculateSafetyPillow(userId, familyId);
-    await SafetyPillowHistory.create({
-      user_id: userId,
-      total_income: result.totalIncome || 0,
-      total_expenses: result.totalExpense || 0,
-      safety_pillow: result.liquidFunds,
-      calculated_at: new Date(),
+    await prisma.safetyPillowHistory.create({
+      data: {
+        user_id: userId,
+        total_income: 0,
+        total_expenses: 0,
+        safety_pillow: result.liquidFunds,
+        calculated_at: new Date(),
+      }
     });
     return result;
   } catch (error) {

@@ -1,5 +1,5 @@
-const { Wish, WishContribution, User, Family, Transaction, Category, Goal, prisma } = require('../lib/models');
-const { Op } = require('../lib/models');
+const prisma = require('../lib/prisma-client');
+const { logger, ValidationError, NotFoundError, AppError, ForbiddenError } = require('../lib/errors');
 
 async function calcAvailableFunds(userId, familyId) {
   if (!familyId) {
@@ -50,12 +50,12 @@ async function calcAvailableFunds(userId, familyId) {
   return { balance, reserved, available: balance - reserved };
 }
 
-exports.fundWish = async (req, res) => {
+exports.fundWish = async (req, res, next) => {
   try {
     const user = req.user;
     const wishId = Number(req.params.id);
     if (!Number.isInteger(wishId) || wishId <= 0) {
-      return res.status(400).json({ message: 'Неверный ID желания' });
+      throw new ValidationError('Неверный ID желания');
     }
 
     const familyId = user.family_id;
@@ -66,12 +66,12 @@ exports.fundWish = async (req, res) => {
         : { id: wishId, family_id: null, user_id: user.id },
     });
     if (!wish) {
-      return res.status(404).json({ message: 'Желание не найдено' });
+      throw new NotFoundError('Желание не найдено');
     }
 
     let amount = parseFloat(req.body.amount);
     if (!amount || amount <= 0 || isNaN(amount)) {
-      return res.status(400).json({ message: 'Укажите корректную сумму для пополнения' });
+      throw new ValidationError('Укажите корректную сумму для пополнения');
     }
 
     const fundsForWish = wish.family_id ? familyId : null;
@@ -105,7 +105,7 @@ exports.fundWish = async (req, res) => {
         category_id: categoryId,
         date: now,
         comment: `Пополнение желания: ${wish.name}`,
-is_private: false,
+        is_private: false,
       }
     });
 
@@ -131,6 +131,7 @@ is_private: false,
       });
     }
 
+    logger.info(`User ${user.id} funded wish ${wish.id}, amount: ${amount}`);
     res.status(201).json({
       message: 'Желание пополнено',
       saved_amount: newSaved,
@@ -138,41 +139,37 @@ is_private: false,
       availableFunds: available
     });
   } catch (error) {
-    console.error('fundWish error:', error);
-    res.status(500).json({ message: error.message || 'Ошибка сервера' });
+    next(error);
   }
 };
 
-// Получить все желания пользователя (личные + семейные)
-exports.getWishes = async (req, res) => {
+exports.getWishes = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
 
-    // Показываем: личные желания пользователя (family_id=null) И семейные желания (family_id=familyId)
     const where = familyId
       ? {
           OR: [
-            { family_id: null, user_id: user.id },      // личные желания
-            { family_id: familyId, is_private: false }  // семейные (не приватные)
+            { family_id: null, user_id: user.id },
+            { family_id: familyId, is_private: false }
           ]
         }
-      : { family_id: null, user_id: user.id };         // solo — только личные
+      : { family_id: null, user_id: user.id };
 
-     if (String(req.query.showArchived || '') !== 'true') {
-        where.archived = false;
-     }
+    if (String(req.query.showArchived || '') !== 'true') {
+      where.archived = false;
+    }
 
-    const wishes = await Wish.findAll({
+    const wishes = await prisma.wish.findMany({
       where,
-      include: [
-        { model: User, as: 'User', attributes: ['id', 'name'] },
-        { model: Family, as: 'Family', attributes: ['id', 'name'] }
-      ],
-      order: [['priority', 'ASC'], ['created_at', 'DESC']]
+      include: {
+        user: { select: { id: true, name: true } },
+        family: { select: { id: true, name: true } }
+      },
+      orderBy: [{ priority: 'asc' }, { created_at: 'desc' }]
     });
 
-    // Скрываем приватные желания других пользователей и добавляем прогресс
     const result = wishes.map(wish => {
       const isOwner = wish.user_id === user.id;
       if (!isOwner && wish.is_private) {
@@ -188,7 +185,7 @@ exports.getWishes = async (req, res) => {
           name: 'Скрытое желание'
         };
       }
-const w = { ...wish };
+      const w = { ...wish };
       w.progress = (() => {
         try {
           const c = parseFloat(w.saved_amount) || 0;
@@ -202,33 +199,32 @@ const w = { ...wish };
       return w;
     });
 
+    logger.info(`User ${user.id} fetched ${wishes.length} wishes`);
     res.json(result);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-    // Получить одно желание
-exports.getWishById = async (req, res) => {
+exports.getWishById = async (req, res, next) => {
   try {
     const user = req.user;
     const { id } = req.params;
 
     const familyId = user.family_id;
 
-    const wish = await Wish.findOne({
+    const wish = await prisma.wish.findFirst({
       where: familyId
-        ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
-        : { id, family_id: null, user_id: user.id },
-      include: [
-        { model: User, as: 'User', attributes: ['id', 'name'] },
-        { model: WishContribution, as: 'Contributions', order: [['date', 'DESC']] }
-      ]
+        ? { id: Number(id), OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        : { id: Number(id), family_id: null, user_id: user.id },
+      include: {
+        user: { select: { id: true, name: true } },
+        wishContributions: { orderBy: { date: 'desc' } }
+      }
     });
 
     if (!wish) {
-      return res.status(404).json({ message: 'Желание не найдено' });
+      throw new NotFoundError('Желание не найдено');
     }
 
     const isOwner = wish.user_id === user.id;
@@ -247,21 +243,20 @@ exports.getWishById = async (req, res) => {
       });
     }
 
-    const w = wish.toJSON();
+    const w = { ...wish };
     w.progress = (() => {
       try {
         return Math.min(100, Math.max(0, (parseFloat(w.saved_amount) || 0) / (parseFloat(w.cost) || 1) * 100));
       } catch { return null; }
     })();
+    logger.info(`User ${user.id} fetched wish ${id}`);
     res.json(w);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-// Создать желание
-exports.createWish = async (req, res) => {
+exports.createWish = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
@@ -269,48 +264,53 @@ exports.createWish = async (req, res) => {
     const { name, cost, priority, status, saved_amount, is_private, category_id } = req.body;
 
     if (!name || !cost) {
-      return res.status(400).json({ message: 'Название и стоимость обязательны' });
+      throw new ValidationError('Название и стоимость обязательны');
     }
     let catId = category_id;
     if (!catId) {
       const catFamilyId = familyId || null;
-      const [defaultCat] = await Category.findOrCreate({
-        where: { name: 'Без категории', family_id: catFamilyId },
-        defaults: { name: 'Без категории', family_id: catFamilyId }
+      let defaultCat = await prisma.category.findFirst({
+        where: { name: 'Без категории', family_id: catFamilyId }
       });
+      if (!defaultCat) {
+        defaultCat = await prisma.category.create({
+          data: { name: 'Без категории', family_id: catFamilyId, type: 'expense' }
+        });
+      }
       catId = defaultCat.id;
     }
 
-    const wish = await Wish.create({
-      user_id: user.id,
-      family_id: familyId || null,
-      name,
-      cost,
-      priority: priority || 3,
-      status: status || 'active',
-      saved_amount: saved_amount || 0,
-      is_private: is_private !== undefined ? is_private : true,
-      category_id: catId
+    const wish = await prisma.wish.create({
+      data: {
+        user_id: user.id,
+        family_id: familyId || null,
+        name,
+        cost,
+        priority: priority || 3,
+        status: status || 'active',
+        saved_amount: saved_amount || 0,
+        is_private: is_private !== undefined ? is_private : true,
+        category_id: catId
+      }
     });
 
-    const w = wish.toJSON();
+    const w = { ...wish };
     w.progress = (() => {
       try { return Math.min(100, Math.max(0, (parseFloat(w.saved_amount) || 0) / (parseFloat(w.cost) || 1) * 100)); } catch { return null; }
     })();
+    logger.info(`User ${user.id} created wish ${wish.id}`);
     res.status(201).json(w);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-// Обновить желание
-exports.updateWish = async (req, res) => {
+exports.updateWish = async (req, res, next) => {
   try {
     const user = req.user;
     const wishId = Number(req.params.id);
     if (!Number.isInteger(wishId) || wishId <= 0) {
-      return res.status(400).json({ message: 'Неверный ID' });
+      throw new ValidationError('Неверный ID');
     }
     const updateData = req.body;
 
@@ -323,11 +323,11 @@ exports.updateWish = async (req, res) => {
     });
 
     if (!wish) {
-      return res.status(404).json({ message: 'Желание не найдено' });
+      throw new NotFoundError('Желание не найдено');
     }
 
     if (wish.user_id !== user.id && user.family_id && user.family_id !== familyId) {
-      return res.status(403).json({ message: 'Нет прав на редактирование' });
+      throw new ForbiddenError('Нет прав на редактирование');
     }
 
     const { created_at, archived_at, ...safeData } = updateData;
@@ -335,68 +335,66 @@ exports.updateWish = async (req, res) => {
       where: { id: wishId },
       data: safeData
     });
+    logger.info(`User ${user.id} updated wish ${wishId}`);
     res.json(updated);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-// Удалить желание
-exports.deleteWish = async (req, res) => {
+exports.deleteWish = async (req, res, next) => {
   try {
     const user = req.user;
     const { id } = req.params;
 
     const familyId = user.family_id;
 
-    const wish = await Wish.findOne({
+    const wish = await prisma.wish.findFirst({
       where: familyId
-        ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
-        : { id, family_id: null, user_id: user.id }
+        ? { id: Number(id), OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        : { id: Number(id), family_id: null, user_id: user.id }
     });
 
     if (!wish) {
-      return res.status(404).json({ message: 'Желание не найдено' });
+      throw new NotFoundError('Желание не найдено');
     }
 
     if (wish.user_id !== user.id && user.Family?.owner_user_id !== user.id) {
-      return res.status(403).json({ message: 'Нет прав на удаление' });
+      throw new ForbiddenError('Нет прав на удаление');
     }
 
-    await wish.destroy();
+    await prisma.wish.delete({ where: { id: Number(id) } });
+    logger.info(`User ${user.id} deleted wish ${id}`);
     res.json({ message: 'Желание удалено' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-// Пополнить желание
-exports.contributeToWish = async (req, res) => {
+exports.contributeToWish = async (req, res, next) => {
   try {
     const user = req.user;
     const { id } = req.params;
     const { amount, date, createTransaction, category_id, comment, is_private, skipWarning } = req.body;
 
     if (!amount || amount <= 0) {
-      return res.status(400).json({ message: 'Сумма должна быть положительным числом' });
+      throw new ValidationError('Сумма должна быть положительным числом');
     }
 
     const familyId = user.family_id;
 
-    const wish = await Wish.findOne({
+    const wish = await prisma.wish.findFirst({
       where: familyId
-        ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
-        : { id, family_id: null, user_id: user.id }
+        ? { id: Number(id), OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        : { id: Number(id), family_id: null, user_id: user.id }
     });
 
     if (!wish) {
-      return res.status(404).json({ message: 'Желание не найдено' });
+      throw new NotFoundError('Желание не найдено');
     }
 
     if (wish.user_id !== user.id) {
-      return res.status(403).json({ message: 'Нет прав на пополнение этого желания' });
+      throw new ForbiddenError('Нет прав на пополнение этого желания');
     }
 
     const fundsForWish = wish.family_id ? familyId : null;
@@ -410,11 +408,11 @@ exports.contributeToWish = async (req, res) => {
       return res.status(200).json(warning);
     }
 
-const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       let transactionId = null;
       if (createTransaction) {
         if (!category_id) {
-          throw new Error('category_id обязателен для createTransaction');
+          throw new ValidationError('category_id обязателен для createTransaction');
         }
         const newTx = await tx.transaction.create({
           data: {
@@ -455,6 +453,7 @@ const result = await prisma.$transaction(async (tx) => {
       return { contribution, newSavedAmount, transactionId };
     });
 
+    logger.info(`User ${user.id} contributed to wish ${id}, amount: ${amount}`);
     res.status(201).json({
       message: 'Желание пополнено',
       contribution: result.contribution,
@@ -463,33 +462,32 @@ const result = await prisma.$transaction(async (tx) => {
       warning: skipWarning ? warning : null,
     });
   } catch (error) {
-    console.error(error);
-    if (String(error.message || '').includes('category_id обязателен')) {
-      return res.status(400).json({ message: error.message });
-    }
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
-// Экспорт желаний (CSV)
-exports.exportWishes = async (req, res) => {
+
+exports.exportWishes = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
     const where = familyId
       ? { OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
       : { family_id: null, user_id: user.id };
-    const wishes = await Wish.findAll({ where, include: [{ model: User, as: 'User', attributes: ['name'] }] });
+    const wishes = await prisma.wish.findMany({
+      where,
+      include: { user: { select: { id: true, name: true } } }
+    });
     const header = ['id', 'name', 'cost', 'saved_amount', 'priority', 'status', 'is_private', 'user', 'family'];
     const rows = wishes.map(w => [
       w.id, w.name, w.cost, w.saved_amount, w.priority, w.status, w.is_private,
-      w.User?.name || '', w.family_id ? 'семейное' : 'личное'
+      w.user?.name || '', w.family_id ? 'семейное' : 'личное'
     ]);
     const csv = [header.join(','), ...rows.map(r => r.map(v => String(v ?? '')).join(','))].join('\n');
+    logger.info(`User ${user.id} exported ${wishes.length} wishes`);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="wishes.csv"');
     res.send(csv);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };

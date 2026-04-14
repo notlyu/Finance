@@ -1,10 +1,11 @@
-const { RecurringTransaction, Category } = require('../lib/models');
+const prisma = require('../lib/prisma-client');
+const { logger, ValidationError, NotFoundError, ForbiddenError } = require('../lib/errors');
 
 function currentMonth() {
   return new Date().toISOString().slice(0, 7);
 }
 
-exports.getRecurring = async (req, res) => {
+exports.getRecurring = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
@@ -13,26 +14,25 @@ exports.getRecurring = async (req, res) => {
       ? { OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
       : { user_id: user.id, family_id: null };
 
-    const items = await RecurringTransaction.findAll({
+    const items = await prisma.recurringTransaction.findMany({
       where,
-      order: [['active', 'DESC'], ['type', 'ASC'], ['id', 'DESC']],
+      orderBy: [{ active: 'desc' }, { type: 'asc' }, { id: 'desc' }],
     });
 
-    // Get category names separately
     const categoryIds = [...new Set(items.map(i => i.category_id))];
     let categoryMap = {};
     if (categoryIds.length > 0) {
       try {
-        const { prisma } = require('../lib/models');
         const categories = await prisma.category.findMany({
           where: { id: { in: categoryIds } },
         });
         categoryMap = Object.fromEntries(categories.map(c => [c.id, c.name]));
       } catch (catErr) {
-        console.error('Error fetching categories:', catErr.message);
+        logger.info(`Category fetch warning: ${catErr.message}`);
       }
     }
 
+    logger.info(`User ${user.id} fetched ${items.length} recurring transactions`);
     res.json(items.map(i => ({
       id: i.id,
       type: i.type,
@@ -47,12 +47,11 @@ exports.getRecurring = async (req, res) => {
       last_run_month: i.last_run_month,
     })));
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-exports.createRecurring = async (req, res) => {
+exports.createRecurring = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
@@ -67,57 +66,59 @@ exports.createRecurring = async (req, res) => {
       is_private = false,
     } = req.body;
 
-    if (!['income', 'expense'].includes(type)) return res.status(400).json({ message: 'Некорректный type' });
+    if (!['income', 'expense'].includes(type)) throw new ValidationError('Некорректный type');
     const a = Number(amount);
-    if (!Number.isFinite(a) || a <= 0) return res.status(400).json({ message: 'amount должен быть > 0' });
+    if (!Number.isFinite(a) || a <= 0) throw new ValidationError('amount должен быть > 0');
     const day = Number(day_of_month);
-    if (!Number.isFinite(day) || day < 1 || day > 28) return res.status(400).json({ message: 'day_of_month должен быть 1..28' });
-    if (!/^\d{4}-\d{2}$/.test(String(start_month))) return res.status(400).json({ message: 'start_month должен быть YYYY-MM' });
-    if (!category_id) return res.status(400).json({ message: 'category_id обязателен' });
+    if (!Number.isFinite(day) || day < 1 || day > 28) throw new ValidationError('day_of_month должен быть 1..28');
+    if (!/^\d{4}-\d{2}$/.test(String(start_month))) throw new ValidationError('start_month должен быть YYYY-MM');
+    if (!category_id) throw new ValidationError('category_id обязателен');
 
-    const item = await RecurringTransaction.create({
-      family_id: familyId || null,
-      user_id: user.id,
-      category_id,
-      amount: a,
-      type,
-      day_of_month: day,
-      start_month,
-      comment: comment || null,
-      is_private: !!is_private,
+    const item = await prisma.recurringTransaction.create({
+      data: {
+        family_id: familyId || null,
+        user_id: user.id,
+        category_id,
+        amount: a,
+        type,
+        day_of_month: day,
+        start_month,
+        comment: comment || null,
+        is_private: !!is_private,
+      }
     });
 
+    logger.info(`User ${user.id} created recurring transaction ${item.id}`);
     res.status(201).json(item);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-exports.updateRecurring = async (req, res) => {
+exports.updateRecurring = async (req, res, next) => {
    try {
      const user = req.user;
      const familyId = user.family_id;
 
      const { id } = req.params;
-     const item = await RecurringTransaction.findOne({
+     const item = await prisma.recurringTransaction.findFirst({
        where: familyId
-         ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
-         : { id, user_id: user.id, family_id: null },
+         ? { id: Number(id), OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+         : { id: Number(id), user_id: user.id, family_id: null },
      });
-     if (!item) return res.status(404).json({ message: 'Не найдено' });
+     if (!item) throw new NotFoundError('Не найдено');
 
-     if (item.user_id !== user.id) return res.status(403).json({ message: 'Нет прав' });
+     if (item.user_id !== user.id) throw new ForbiddenError('Нет прав');
 
      const patch = {};
      if (req.body.amount != null) {
        const a = Number(req.body.amount);
-       if (!Number.isFinite(a) || a <= 0) return res.status(400).json({ message: 'amount должен быть > 0' });
+       if (!Number.isFinite(a) || a <= 0) throw new ValidationError('amount должен быть > 0');
        patch.amount = a;
      }
      if (req.body.day_of_month != null) {
        const day = Number(req.body.day_of_month);
-       if (!Number.isFinite(day) || day < 1 || day > 28) return res.status(400).json({ message: 'day_of_month должен быть 1..28' });
+       if (!Number.isFinite(day) || day < 1 || day > 28) throw new ValidationError('day_of_month должен быть 1..28');
        patch.day_of_month = day;
      }
      if (req.body.category_id != null) patch.category_id = req.body.category_id;
@@ -126,33 +127,35 @@ exports.updateRecurring = async (req, res) => {
      if (req.body.active != null) patch.active = !!req.body.active;
      patch.updated_at = new Date();
 
-     await item.update(patch);
-     res.json(item);
+     const updated = await prisma.recurringTransaction.update({
+       where: { id: item.id },
+       data: patch,
+     });
+     logger.info(`User ${user.id} updated recurring transaction ${id}`);
+     res.json(updated);
    } catch (error) {
-     console.error(error);
-     res.status(500).json({ message: 'Ошибка сервера' });
+     next(error);
    }
  };
 
-exports.deleteRecurring = async (req, res) => {
+exports.deleteRecurring = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
 
-     const { id } = req.params;
-     const item = await RecurringTransaction.findOne({
-       where: familyId
-         ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
-         : { id, user_id: user.id, family_id: null },
-     });
-    if (!item) return res.status(404).json({ message: 'Не найдено' });
-    if (item.user_id !== user.id) return res.status(403).json({ message: 'Нет прав' });
+    const { id } = req.params;
+    const item = await prisma.recurringTransaction.findFirst({
+      where: familyId
+        ? { id: Number(id), OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        : { id: Number(id), user_id: user.id, family_id: null },
+    });
+    if (!item) throw new NotFoundError('Не найдено');
+    if (item.user_id !== user.id) throw new ForbiddenError('Нет прав');
 
-    await item.destroy();
+    await prisma.recurringTransaction.delete({ where: { id: item.id } });
+    logger.info(`User ${user.id} deleted recurring transaction ${id}`);
     res.json({ message: 'Удалено' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
-

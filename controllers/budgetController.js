@@ -1,5 +1,5 @@
-const { Budget, Transaction, Category, User } = require('../lib/models');
-const { Op, fn, col } = require('../lib/models');
+const prisma = require('../lib/prisma-client');
+const { logger, NotFoundError, ValidationError } = require('../lib/errors');
 
 function monthStartEnd(month) {
   const [y, m] = String(month).split('-').map(Number);
@@ -11,13 +11,15 @@ function monthStartEnd(month) {
   };
 }
 
-exports.getBudgets = async (req, res) => {
+exports.getBudgets = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
 
     const month = String(req.query.month || new Date().toISOString().slice(0, 7));
-    if (!/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ message: 'Некорректный month (ожидается YYYY-MM)' });
+    if (!/^\d{4}-\d{2}$/.test(month)) {
+      throw new ValidationError('Некорректный month (ожидается YYYY-MM)');
+    }
 
     const memberId = req.query.memberId ? Number(req.query.memberId) : null;
 
@@ -41,42 +43,38 @@ exports.getBudgets = async (req, res) => {
       ? { family_id: familyId, month }
       : { family_id: null, user_id: user.id, month };
 
-    const budgets = await Budget.findAll({
+    const budgets = await prisma.budget.findMany({
       where: budgetWhere,
-      include: [
-        { model: Category, as: 'Category', attributes: ['id', 'name', 'type'] },
-        { model: User, as: 'User', attributes: ['id', 'name'] },
-      ],
-      order: [['type', 'ASC'], ['limit_amount', 'DESC']],
+      include: {
+        category: { select: { id: true, name: true, type: true } },
+        user: { select: { id: true, name: true } },
+      },
+      orderBy: [{ type: 'asc' }, { limit_amount: 'desc' }],
     });
 
-    const actuals = await Transaction.findAll({
+    const actuals = await prisma.transaction.groupBy({
+      by: ['type', 'category_id', 'user_id'],
       where: txWhere,
-      attributes: [
-        'type', 'category_id', 'user_id',
-        [fn('SUM', col('amount')), 'total'],
-      ],
-      group: ['type', 'category_id', 'user_id'],
-      raw: true,
+      _sum: { amount: true },
     });
 
     const actualMap = new Map();
     for (const a of actuals) {
       const key = `${a.type}:${a.category_id}`;
       if (!actualMap.has(key)) actualMap.set(key, {});
-      actualMap.get(key)[a.user_id] = Number(a.total || 0);
+      actualMap.get(key)[a.user_id] = Number(a._sum.amount || 0);
     }
 
     const memberContributions = {};
     const members = familyId
-      ? await User.findAll({ where: { family_id: familyId }, attributes: ['id', 'name'] })
+      ? await prisma.user.findMany({ where: { family_id: familyId }, select: { id: true, name: true } })
       : [{ id: user.id, name: user.name }];
 
     members.forEach(m => { memberContributions[m.id] = { name: m.name, amount: 0 }; });
 
     for (const a of actuals) {
       if (memberContributions[a.user_id]) {
-        memberContributions[a.user_id].amount += Number(a.total || 0);
+        memberContributions[a.user_id].amount += Number(a._sum.amount || 0);
       }
     }
 
@@ -90,11 +88,11 @@ exports.getBudgets = async (req, res) => {
         month: b.month,
         type: b.type,
         category_id: b.category_id,
-        category_name: b.Category?.name || '',
+        category_name: b.category?.name || '',
         limit_amount: limit,
         actual_amount: total,
         progress: limit > 0 ? (total / limit) * 100 : 0,
-        is_personal: !!b.is_personal,
+        is_personal: b.is_personal,
         spent_by_members: members.map(m => ({
           userId: m.id,
           name: m.name,
@@ -104,83 +102,105 @@ exports.getBudgets = async (req, res) => {
       };
     });
 
+    logger.info({ userId: user.id, action: 'getBudgets', month });
     res.json({ month, items, memberContributions });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-exports.createBudget = async (req, res) => {
+exports.createBudget = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
 
     const { month, type = 'expense', category_id, limit_amount, is_personal } = req.body;
-    if (!/^\d{4}-\d{2}$/.test(String(month || ''))) return res.status(400).json({ message: 'Некорректный month (YYYY-MM)' });
-    if (!['income', 'expense'].includes(type)) return res.status(400).json({ message: 'Некорректный type' });
-    if (!category_id) return res.status(400).json({ message: 'category_id обязателен' });
+    if (!/^\d{4}-\d{2}$/.test(String(month || ''))) {
+      throw new ValidationError('Некорректный month (YYYY-MM)');
+    }
+    if (!['income', 'expense'].includes(type)) {
+      throw new ValidationError('Некорректный type');
+    }
+    if (!category_id) {
+      throw new ValidationError('category_id обязателен');
+    }
     const limit = Number(limit_amount);
-    if (!Number.isFinite(limit) || limit <= 0) return res.status(400).json({ message: 'limit_amount должен быть > 0' });
+    if (!Number.isFinite(limit) || limit <= 0) {
+      throw new ValidationError('limit_amount должен быть > 0');
+    }
 
     const isPersonalBudget = is_personal || !familyId;
-    const budget = await Budget.create({
-      family_id: isPersonalBudget ? null : familyId,
-      user_id: user.id,
-      category_id,
-      month,
-      type,
-      limit_amount: limit,
-      is_personal: isPersonalBudget,
+    const budget = await prisma.budget.create({
+      data: {
+        family_id: isPersonalBudget ? null : familyId,
+        user_id: user.id,
+        category_id,
+        month,
+        type,
+        limit_amount: limit,
+        is_personal: isPersonalBudget,
+      },
     });
+
+    logger.info({ userId: user.id, budgetId: budget.id, action: 'createBudget' });
     res.status(201).json(budget);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-exports.updateBudget = async (req, res) => {
+exports.updateBudget = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
     const { id } = req.params;
 
-    const budget = await Budget.findOne({
+    const budget = await prisma.budget.findFirst({
       where: familyId
-        ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
-        : { id, family_id: null, user_id: user.id },
+        ? { id: Number(id), OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        : { id: Number(id), family_id: null, user_id: user.id },
     });
-    if (!budget) return res.status(404).json({ message: 'Бюджет не найден' });
+    if (!budget) {
+      throw new NotFoundError('Бюджет не найден');
+    }
 
     const limit = Number(req.body.limit_amount);
-    if (!Number.isFinite(limit) || limit <= 0) return res.status(400).json({ message: 'limit_amount должен быть > 0' });
+    if (!Number.isFinite(limit) || limit <= 0) {
+      throw new ValidationError('limit_amount должен быть > 0');
+    }
 
-    await budget.update({ limit_amount: limit, updated_at: new Date() });
-    res.json(budget);
+    const updated = await prisma.budget.update({
+      where: { id: Number(id) },
+      data: { limit_amount: limit, updated_at: new Date() },
+    });
+
+    logger.info({ userId: user.id, budgetId: budget.id, action: 'updateBudget' });
+    res.json(updated);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-exports.deleteBudget = async (req, res) => {
+exports.deleteBudget = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
     const { id } = req.params;
 
-    const budget = await Budget.findOne({
+    const budget = await prisma.budget.findFirst({
       where: familyId
-        ? { id, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
-        : { id, family_id: null, user_id: user.id },
+        ? { id: Number(id), OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        : { id: Number(id), family_id: null, user_id: user.id },
     });
-    if (!budget) return res.status(404).json({ message: 'Бюджет не найден' });
+    if (!budget) {
+      throw new NotFoundError('Бюджет не найден');
+    }
 
-    await budget.destroy();
+    await prisma.budget.delete({ where: { id: Number(id) } });
+
+    logger.info({ userId: user.id, budgetId: budget.id, action: 'deleteBudget' });
     res.json({ message: 'Бюджет удалён' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };

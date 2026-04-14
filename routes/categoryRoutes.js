@@ -1,38 +1,35 @@
 const express = require('express');
-const { Category } = require('../lib/models');
+const prisma = require('../lib/prisma-client');
 const authMiddleware = require('../middleware/auth');
+const { validateMiddleware } = require('../lib/validation');
 
 const router = express.Router();
 
 router.use(authMiddleware);
 
-// Получить все доступные категории (системные + семейные + личные)
 router.get('/', async (req, res) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
 
-    let categories = await Category.findAll({
+    let categories = await prisma.category.findMany({
       where: familyId
         ? {
             OR: [
-              { family_id: null, user_id: null, is_system: true }, // системные
-              { family_id: familyId }, // семейные
-              { user_id: user.id } // личные
+              { family_id: null, user_id: null, is_system: true },
+              { family_id: familyId },
+              { user_id: user.id }
             ]
           }
         : {
             OR: [
-              { family_id: null, user_id: null, is_system: true }, // системные
-              { user_id: user.id } // личные
+              { family_id: null, user_id: null, is_system: true },
+              { user_id: user.id }
             ]
           },
-      order: [['type', 'ASC'], ['name', 'ASC']]
+      orderBy: [{ type: 'asc' }, { name: 'asc' }]
     });
 
-    // Дедупликация записей на стороне сервера по смысловому ключу.
-    // Цель: убрать возможные повторяющиеся варианты одной и той же категории, которые могут приходить из разных групп
-    // (system / family / personal) с одинаковыми названием и типом.
     const seen = new Set();
     const uniqueCategories = [];
     for (const c of categories) {
@@ -50,20 +47,21 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Создать категорию
-router.post('/', async (req, res) => {
+router.post('/', validateMiddleware('category', 'create'), async (req, res) => {
   try {
     const user = req.user;
     const { name, type } = req.body;
     if (!name || !type || !['income', 'expense'].includes(type)) {
       return res.status(400).json({ message: 'Некорректные данные' });
     }
-    const category = await Category.create({
-      name,
-      type,
-      family_id: user.family_id,
-      user_id: user.id,
-      is_system: false,
+    const category = await prisma.category.create({
+      data: {
+        name,
+        type,
+        family_id: user.family_id,
+        user_id: user.id,
+        is_system: false,
+      }
     });
     res.status(201).json(category);
   } catch (error) {
@@ -72,14 +70,13 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Удалить категорию
 router.delete('/:id', async (req, res) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    const category = await Category.findOne({
+    const category = await prisma.category.findFirst({
       where: {
-        id,
+        id: Number(id),
         user_id: user.id,
         is_system: false,
       },
@@ -87,7 +84,7 @@ router.delete('/:id', async (req, res) => {
     if (!category) {
       return res.status(404).json({ message: 'Категория не найдена или недоступна для удаления' });
     }
-    await category.destroy();
+    await prisma.category.delete({ where: { id: category.id } });
     res.json({ message: 'Категория удалена' });
   } catch (error) {
     console.error(error);

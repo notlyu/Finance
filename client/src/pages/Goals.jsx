@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import api from '../services/api';
 import Modal from '../components/Modal';
 import ForecastModal from '../components/ForecastModal';
+import FormattedInput from '../components/ui/FormattedInput';
 import { formatMoney } from '../utils/format';
 
 const categoryIcons = {
@@ -388,7 +389,7 @@ export default function Goals() {
 
             <div>
               <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Сумма пополнения</label>
-              <input type="number" step="0.01" min="0.01" value={contribAmount} onChange={e => setContribAmount(e.target.value)} className="input-ghost text-lg font-bold" placeholder="0.00" />
+              <FormattedInput value={contribAmount} onChange={setContribAmount} className="input-ghost text-lg font-bold" placeholder="0" />
             </div>
 
             <div>
@@ -444,11 +445,11 @@ export default function Goals() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Целевая сумма</label>
-              <input type="number" step="0.01" {...register('target_amount', { required: true, min: 0.01 })} className="input-ghost" placeholder="0.00" />
+              <FormattedInput value={watch('target_amount') || ''} onChange={(v) => setValue('target_amount', v)} className="input-ghost" placeholder="0" />
             </div>
             <div>
               <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Текущая сумма</label>
-              <input type="number" step="0.01" {...register('current_amount')} className="input-ghost" placeholder="0.00" />
+              <FormattedInput value={watch('current_amount') || ''} onChange={(v) => setValue('current_amount', v)} className="input-ghost" placeholder="0" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">

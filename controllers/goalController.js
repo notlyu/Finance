@@ -1,13 +1,11 @@
-const { GoalContribution, Transaction, User, Family, Category, Wish, prisma } = require('../lib/models');
+const prisma = require('../lib/prisma-client');
+const { logger, ValidationError, NotFoundError, AppError, ForbiddenError } = require('../lib/errors');
 
-// Вспомогательная функция для расчёта необходимого ежемесячного взноса
 const calculateMonthlyContribution = (targetAmount, currentAmount, monthsRemaining, interestRate = 0) => {
   if (monthsRemaining <= 0) return 0;
-  // Упрощённая формула без сложных процентов (можно усложнить позже)
   const remaining = targetAmount - currentAmount;
   if (remaining <= 0) return 0;
   if (interestRate > 0) {
-    // Простая формула с ежемесячной капитализацией (для наглядности)
     const monthlyRate = interestRate / 100 / 12;
     const numerator = remaining * monthlyRate;
     const denominator = Math.pow(1 + monthlyRate, monthsRemaining) - 1;
@@ -16,8 +14,7 @@ const calculateMonthlyContribution = (targetAmount, currentAmount, monthsRemaini
   return remaining / monthsRemaining;
 };
 
-// Получить все цели (личные + семейные)
-exports.getGoals = async (req, res) => {
+exports.getGoals = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
@@ -53,45 +50,43 @@ exports.getGoals = async (req, res) => {
       const progress = (Number(g.target_amount || 0) > 0) ? Math.min(100, Math.max(0, (Number(g.current_amount || 0) / Number(g.target_amount || 0)) * 100)) : 0;
       return { ...g, auto_contribute_percent, achieved, progress };
     });
+    logger.info(`User ${user.id} fetched ${goals.length} goals`);
     res.json(mapped);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-// Получить одну цель
-exports.getGoalById = async (req, res) => {
+exports.getGoalById = async (req, res, next) => {
   try {
     const user = req.user;
     const { id } = req.params;
 
-    const goal = await Goal.findOne({
+    const goal = await prisma.goal.findFirst({
       where: {
-        id,
+        id: Number(id),
         OR: [
           { family_id: user.family_id },
           { user_id: user.id, family_id: null }
         ]
       },
-      include: [
-        { model: User, as: 'User', attributes: ['id', 'name'] },
-        { model: Family, as: 'Family', attributes: ['id', 'name'] },
-        { model: GoalContribution, as: 'Contributions', order: [['date', 'DESC']] }
-      ]
+      include: { 
+        user: { select: { id: true, name: true } }, 
+        family: { select: { id: true, name: true } },
+        contributions: { orderBy: { created_at: 'desc' } }
+      }
     });
 
     if (!goal) {
-      return res.status(404).json({ message: 'Цель не найдена' });
+      throw new NotFoundError('Цель не найдена');
     }
 
-    // Рассчитываем прогноз, если передан query параметр
     let forecast = null;
     if (req.query.months && req.query.monthlyAmount) {
       const months = parseInt(req.query.months);
       const monthlyAmount = parseFloat(req.query.monthlyAmount);
-      const interestRate = goal.interest_rate || 0;
-      let futureAmount = goal.current_amount;
+      const interestRate = Number(goal.interest_rate) || 0;
+      let futureAmount = Number(goal.current_amount);
       const monthlyRate = interestRate / 100 / 12;
       for (let i = 0; i < months; i++) {
         futureAmount += monthlyAmount;
@@ -101,17 +96,17 @@ exports.getGoalById = async (req, res) => {
         months,
         monthlyAmount,
         futureAmount: Math.round(futureAmount * 100) / 100,
-        targetAchieved: futureAmount >= goal.target_amount
+        targetAchieved: futureAmount >= Number(goal.target_amount)
       };
-    } else if (goal.target_date) {
+    } else if (goal.deadline) {
       const today = new Date();
-      const targetDate = new Date(goal.target_date);
+      const targetDate = new Date(goal.deadline);
       const monthsRemaining = (targetDate.getFullYear() - today.getFullYear()) * 12 + (targetDate.getMonth() - today.getMonth());
       const neededMonthly = calculateMonthlyContribution(
-        goal.target_amount,
-        goal.current_amount,
+        Number(goal.target_amount),
+        Number(goal.current_amount),
         monthsRemaining,
-        goal.interest_rate || 0
+        Number(goal.interest_rate) || 0
       );
       forecast = {
         monthsRemaining: Math.max(0, monthsRemaining),
@@ -119,19 +114,16 @@ exports.getGoalById = async (req, res) => {
       };
     }
 
-    res.json({
-      ...goal.toJSON(),
-      forecast,
-       achieved: !!goal.is_archived || (Number(goal.current_amount || 0) >= Number(goal.target_amount || 0))
-    });
+    const achieved = !!goal.is_archived || (Number(goal.current_amount) >= Number(goal.target_amount));
+
+    logger.info(`User ${user.id} fetched goal ${id}`);
+    res.json({ ...goal, forecast, achieved });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-// Создать цель
-exports.createGoal = async (req, res) => {
+exports.createGoal = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
@@ -148,7 +140,7 @@ exports.createGoal = async (req, res) => {
     } = req.body;
 
     if (!name || !target_amount) {
-      return res.status(400).json({ message: 'Название и целевая сумма обязательны' });
+      throw new ValidationError('Название и целевая сумма обязательны');
     }
 
     const goalData = {
@@ -176,80 +168,81 @@ exports.createGoal = async (req, res) => {
     }
 
     const goal = await prisma.goal.create({ data: goalData });
+    logger.info(`User ${user.id} created goal ${goal.id}`);
     res.status(201).json(goal);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-// Обновить цель
-exports.updateGoal = async (req, res) => {
+exports.updateGoal = async (req, res, next) => {
   try {
     const user = req.user;
     const { id } = req.params;
     const updateData = req.body;
 
-    const goal = await Goal.findOne({
+    const goal = await prisma.goal.findFirst({
       where: {
-        id,
+        id: Number(id),
         OR: [
           { family_id: user.family_id },
           { user_id: user.id, family_id: null }
         ]
-      }
+      },
+      include: { family: true }
     });
 
     if (!goal) {
-      return res.status(404).json({ message: 'Цель не найдена' });
+      throw new NotFoundError('Цель не найдена');
     }
 
-    // Проверка прав: только создатель цели или владелец семьи
-    if (goal.user_id !== user.id && user.Family?.owner_user_id !== user.id) {
-      return res.status(403).json({ message: 'Нет прав на редактирование' });
+    if (goal.user_id !== user.id && goal.family?.owner_user_id !== user.id) {
+      throw new ForbiddenError('Нет прав на редактирование');
     }
 
-    await goal.update(updateData);
-    res.json(goal);
+    const updated = await prisma.goal.update({
+      where: { id: Number(id) },
+      data: updateData
+    });
+    logger.info(`User ${user.id} updated goal ${id}`);
+    res.json(updated);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-// Удалить цель
-exports.deleteGoal = async (req, res) => {
+exports.deleteGoal = async (req, res, next) => {
   try {
     const user = req.user;
     const { id } = req.params;
 
-    const goal = await Goal.findOne({
-       where: {
-         id,
-         OR: [
-           { family_id: user.family_id },
-           { user_id: user.id, family_id: null }
-         ]
-       }
+    const goal = await prisma.goal.findFirst({
+      where: {
+        id: Number(id),
+        OR: [
+          { family_id: user.family_id },
+          { user_id: user.id, family_id: null }
+        ]
+      },
+      include: { family: true }
     });
 
     if (!goal) {
-      return res.status(404).json({ message: 'Цель не найдена' });
+      throw new NotFoundError('Цель не найдена');
     }
 
-    if (goal.user_id !== user.id && user.Family?.owner_user_id !== user.id) {
-      return res.status(403).json({ message: 'Нет прав на удаление' });
+    if (goal.user_id !== user.id && goal.family?.owner_user_id !== user.id) {
+      throw new ForbiddenError('Нет прав на удаление');
     }
 
-    await goal.destroy();
+    await prisma.goal.delete({ where: { id: Number(id) } });
+    logger.info(`User ${user.id} deleted goal ${id}`);
     res.json({ message: 'Цель удалена' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-// Проверка предупреждения перед расходом
 async function checkContributionWarning(userId, familyId, amount) {
   if (!familyId) {
     const incomeAgg = await prisma.transaction.aggregate({
@@ -306,20 +299,19 @@ async function checkContributionWarning(userId, familyId, amount) {
   return afterContribution < threshold ? { warning: true, available, afterContribution, threshold } : null;
 }
 
-// Ручное пополнение цели
-exports.contributeToGoal = async (req, res) => {
+exports.contributeToGoal = async (req, res, next) => {
   try {
     const user = req.user;
     const { id } = req.params;
     const { amount, date, createTransaction, category_id, comment, is_private, skipWarning } = req.body;
 
     if (!amount || amount <= 0) {
-      return res.status(400).json({ message: 'Сумма должна быть положительным числом' });
+      throw new ValidationError('Сумма должна быть положительным числом');
     }
 
-    const goal = await Goal.findOne({
+    const goal = await prisma.goal.findFirst({
       where: {
-        id,
+        id: Number(id),
         OR: [
           { family_id: user.family_id },
           { user_id: user.id, family_id: null }
@@ -328,7 +320,7 @@ exports.contributeToGoal = async (req, res) => {
     });
 
     if (!goal) {
-      return res.status(404).json({ message: 'Цель не найдена' });
+      throw new NotFoundError('Цель не найдена');
     }
 
     const fundsForGoal = goal.family_id ? user.family_id : null;
@@ -337,7 +329,7 @@ exports.contributeToGoal = async (req, res) => {
       return res.status(200).json({ warning });
     }
 
-const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       let transactionId = null;
       if (createTransaction) {
         let catId = category_id;
@@ -355,7 +347,7 @@ const result = await prisma.$transaction(async (tx) => {
             amount,
             type: 'expense',
             category_id: catId,
-            date: date || new Date(),
+            date: date ? new Date(date) : new Date(),
             comment: comment || `Пополнение цели: ${goal.name}`,
             is_private: !!is_private,
           }
@@ -366,11 +358,9 @@ const result = await prisma.$transaction(async (tx) => {
       const contribution = await tx.goalContribution.create({
         data: {
           goal_id: goal.id,
+          user_id: user.id,
           amount,
-          date: date || new Date(),
-          type: 'contribution',
           transaction_id: transactionId,
-          automatic: false
         }
       });
 
@@ -383,20 +373,20 @@ const result = await prisma.$transaction(async (tx) => {
       if (reached) {
         await tx.goal.update({
           where: { id: goal.id },
-          data: { is_archived: true, archived_at: new Date(), status: 'completed' }
+          data: { is_archived: true, archived_at: new Date() }
         });
       }
 
       return { contribution, newCurrentAmount, transactionId, reached };
     });
 
-    // Send notification if goal reached
     if (result.reached) {
       const { notifyGoalReached } = require('../services/notificationService');
-      const updatedGoal = await Goal.findByPk(goal.id);
-      notifyGoalReached(updatedGoal).catch(console.error);
+      const updatedGoal = await prisma.goal.findUnique({ where: { id: goal.id } });
+      notifyGoalReached(updatedGoal).catch(err => next(err));
     }
 
+    logger.info(`User ${user.id} contributed to goal ${id}, amount: ${amount}`);
     res.status(201).json({
       message: 'Цель пополнена',
       contribution: result.contribution,
@@ -405,28 +395,26 @@ const result = await prisma.$transaction(async (tx) => {
       warning: skipWarning ? warning : null,
     });
   } catch (error) {
-    console.error(error);
     if (String(error.message || '').includes('category_id обязателен')) {
-      return res.status(400).json({ message: error.message });
+      throw new ValidationError(error.message);
     }
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-// Прогноз для цели без сохранения
-exports.getForecast = async (req, res) => {
+exports.getForecast = async (req, res, next) => {
   try {
     const user = req.user;
     const { id } = req.params;
     const { months, monthlyAmount } = req.query;
 
     if (!months || !monthlyAmount) {
-      return res.status(400).json({ message: 'Необходимо указать months и monthlyAmount' });
+      throw new ValidationError('Необходимо указать months и monthlyAmount');
     }
 
-    const goal = await Goal.findOne({
+    const goal = await prisma.goal.findFirst({
       where: {
-        id,
+        id: Number(id),
         OR: [
           { family_id: user.family_id },
           { user_id: user.id, family_id: null }
@@ -435,53 +423,54 @@ exports.getForecast = async (req, res) => {
     });
 
     if (!goal) {
-      return res.status(404).json({ message: 'Цель не найдена' });
+      throw new NotFoundError('Цель не найдена');
     }
 
     const monthsNum = parseInt(months);
     const monthly = parseFloat(monthlyAmount);
-    const interestRate = goal.interest_rate || 0;
-    let futureAmount = goal.current_amount;
+    const interestRate = Number(goal.interest_rate) || 0;
+    let futureAmount = Number(goal.current_amount);
     const monthlyRate = interestRate / 100 / 12;
     for (let i = 0; i < monthsNum; i++) {
       futureAmount += monthly;
       futureAmount += futureAmount * monthlyRate;
     }
 
+    logger.info(`User ${user.id} got forecast for goal ${id}`);
     res.json({
       months: monthsNum,
       monthlyAmount: monthly,
       futureAmount: Math.round(futureAmount * 100) / 100,
-      targetAchieved: futureAmount >= goal.target_amount
+      targetAchieved: futureAmount >= Number(goal.target_amount)
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-// Экспорт целей (CSV)
-exports.exportGoals = async (req, res) => {
+exports.exportGoals = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
-const where = {
-      OR: [
-        { family_id: familyId },
-        { user_id: user.id, family_id: null }
-      ]
-    };
-    const goals = await Goal.findAll({ where, include: [{ model: GoalContribution, as: 'Contributions' }] });
+    const goals = await prisma.goal.findMany({
+      where: {
+        OR: [
+          { family_id: familyId },
+          { user_id: user.id, family_id: null }
+        ]
+      },
+      include: { contributions: true }
+    });
 
     const header = ['id','name','target_amount','current_amount','interest_rate','auto_contribute_enabled','auto_contribute_type','auto_contribute_value'];
     const rows = goals.map(g => [g.id, g.name, g.target_amount, g.current_amount, g.interest_rate, g.auto_contribute_enabled, g.auto_contribute_type, g.auto_contribute_value]);
     const csv = [header.join(','), ...rows.map(r => r.map(v => String(v ?? '')).join(','))].join('\n');
 
+    logger.info(`User ${user.id} exported ${goals.length} goals`);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="goals.csv"');
     res.send(csv);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };

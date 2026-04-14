@@ -1,5 +1,5 @@
 const request = require('supertest');
-const app = require('../testApp');
+const app = require('./testApp');
 const { prisma } = require('../lib/models');
 
 let testUser, testToken, testCategory;

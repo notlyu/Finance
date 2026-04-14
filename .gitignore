@@ -1,5 +1,13 @@
 node_modules/
 .env
+.env.local
+.env.*.local
 .DS_Store
 *.log
 /generated/prisma
+test-results/
+playwright-report/
+*.tgz
+dist/
+build/
+coverage/

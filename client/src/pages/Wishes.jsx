@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import api from '../services/api';
 import Modal from '../components/Modal';
+import FormattedInput from '../components/ui/FormattedInput';
 import { formatMoney } from '../utils/format';
 
 export default function Wishes() {
@@ -343,11 +344,11 @@ export default function Wishes() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Стоимость</label>
-              <input type="number" step="0.01" {...register('cost', { required: true, min: 0.01 })} className="input-ghost" placeholder="0.00" />
+              <FormattedInput value={watch('cost') || ''} onChange={(v) => setValue('cost', v)} className="input-ghost" placeholder="0" />
             </div>
             <div>
               <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Накоплено</label>
-              <input type="number" step="0.01" {...register('saved_amount')} className="input-ghost" placeholder="0.00" />
+              <FormattedInput value={watch('saved_amount') || ''} onChange={(v) => setValue('saved_amount', v)} className="input-ghost" placeholder="0" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -448,7 +449,7 @@ export default function Wishes() {
 
             <div>
               <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Сумма пополнения</label>
-              <input type="number" step="0.01" min="0.01" value={fundAmount} onChange={e => setFundAmount(e.target.value)} className="input-ghost text-lg font-bold" placeholder="0.00" />
+              <FormattedInput value={fundAmount} onChange={setFundAmount} className="input-ghost text-lg font-bold" placeholder="0" />
             </div>
 
             <div>

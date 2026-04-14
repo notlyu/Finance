@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const prisma = require('./lib/prisma');
+const prisma = require('./lib/prisma-client');
 const errorHandler = require('./middleware/errorHandler');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -34,9 +34,16 @@ const corsOrigins = (process.env.CORS_ORIGINS || '')
   .map(s => s.trim())
   .filter(Boolean);
 
+if (corsOrigins.length === 0 && process.env.NODE_ENV === 'production') {
+  console.error('CORS_ORIGINS must be set in production');
+  process.exit(1);
+}
+
 app.use(cors({
-  origin: corsOrigins.length ? corsOrigins : true,
+  origin: corsOrigins.length > 0 ? corsOrigins : (process.env.NODE_ENV === 'development' ? true : 'none'),
   credentials: process.env.CORS_CREDENTIALS === 'true',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
 

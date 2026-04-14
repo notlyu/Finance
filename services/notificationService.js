@@ -1,24 +1,23 @@
-const { Notification, NotificationSetting, Goal, Wish, Budget, Transaction, User } = require('../lib/models');
-const { Op } = require('../lib/models');
+const prisma = require('../lib/prisma-client');
 
-// Создать уведомление для пользователя
 async function createNotification(userId, type, title, message, relatedId = null, relatedType = null) {
   try {
-    // Проверить настройки уведомлений
-    const settings = await NotificationSetting.findOne({ where: { user_id: userId } });
+    const settings = await prisma.notificationSetting.findFirst({ where: { user_id: userId } });
     if (settings) {
       if (type === 'goal_reached' && !settings.notify_goal_reached) return null;
       if (type === 'wish_completed' && !settings.notify_wish_completed) return null;
       if (type === 'budget_exceeded' && !settings.notify_budget_exceeded) return null;
     }
 
-    return await Notification.create({
-      user_id: userId,
-      type,
-      title,
-      message,
-      related_id: relatedId,
-      related_type: relatedType,
+    return await prisma.notification.create({
+      data: {
+        user_id: userId,
+        type,
+        title,
+        message,
+        related_id: relatedId,
+        related_type: relatedType,
+      }
     });
   } catch (err) {
     console.error('createNotification error:', err);
@@ -26,9 +25,8 @@ async function createNotification(userId, type, title, message, relatedId = null
   }
 }
 
-// Уведомление о достижении цели
 async function notifyGoalReached(goal) {
-  const user = await User.findByPk(goal.user_id);
+  const user = await prisma.user.findUnique({ where: { id: goal.user_id } });
   if (!user) return;
 
   await createNotification(
@@ -41,9 +39,8 @@ async function notifyGoalReached(goal) {
   );
 }
 
-// Уведомление о выполнении желания
 async function notifyWishCompleted(wish) {
-  const user = await User.findByPk(wish.user_id);
+  const user = await prisma.user.findUnique({ where: { id: wish.user_id } });
   if (!user) return;
 
   await createNotification(
@@ -56,9 +53,8 @@ async function notifyWishCompleted(wish) {
   );
 }
 
-// Уведомление о превышении бюджета
 async function notifyBudgetExceeded(budget, category, actualAmount) {
-  const user = await User.findByPk(budget.user_id);
+  const user = await prisma.user.findUnique({ where: { id: budget.user_id } });
   if (!user) return;
 
   await createNotification(
@@ -71,7 +67,6 @@ async function notifyBudgetExceeded(budget, category, actualAmount) {
   );
 }
 
-// Уведомление о предстоящих регулярных операциях
 async function notifyUpcomingRecurring(userId, recurringOps) {
   if (!recurringOps || recurringOps.length === 0) return;
 
@@ -85,43 +80,48 @@ async function notifyUpcomingRecurring(userId, recurringOps) {
   );
 }
 
-// Получить все уведомления пользователя
 async function getUserNotifications(userId, { limit = 20, offset = 0, unreadOnly = false } = {}) {
   const where = { user_id: userId };
   if (unreadOnly) where.read = false;
 
-  return await Notification.findAndCountAll({
-    where,
-    order: [['created_at', 'DESC']],
-    limit,
-    offset,
+  const [items, total] = await Promise.all([
+    prisma.notification.findMany({
+      where,
+      orderBy: { created_at: 'desc' },
+      take: limit,
+      skip: offset,
+    }),
+    prisma.notification.count({ where }),
+  ]);
+  return { rows: items, count: total };
+}
+
+async function markAsRead(notificationId, userId) {
+  const notification = await prisma.notification.findFirst({ where: { id: notificationId, user_id: userId } });
+  if (!notification) return false;
+  await prisma.notification.update({
+    where: { id: notificationId },
+    data: { read: true }
+  });
+  return true;
+}
+
+async function markAllAsRead(userId) {
+  await prisma.notification.updateMany({
+    where: { user_id: userId, read: false },
+    data: { read: true }
   });
 }
 
-// Пометить уведомление как прочитанное
-async function markAsRead(notificationId, userId) {
-  const notification = await Notification.findOne({ where: { id: notificationId, user_id: userId } });
-  if (!notification) return false;
-  await notification.update({ read: true });
-  return true;
-}
-
-// Пометить все уведомления как прочитанные
-async function markAllAsRead(userId) {
-  await Notification.update({ read: true }, { where: { user_id: userId, read: false } });
-}
-
-// Удалить уведомление
 async function deleteNotification(notificationId, userId) {
-  const notification = await Notification.findOne({ where: { id: notificationId, user_id: userId } });
+  const notification = await prisma.notification.findFirst({ where: { id: notificationId, user_id: userId } });
   if (!notification) return false;
-  await notification.destroy();
+  await prisma.notification.delete({ where: { id: notificationId } });
   return true;
 }
 
-// Получить количество непрочитанных
 async function getUnreadCount(userId) {
-  return await Notification.count({ where: { user_id: userId, read: false } });
+  return await prisma.notification.count({ where: { user_id: userId, read: false } });
 }
 
 module.exports = {

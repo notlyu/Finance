@@ -5,17 +5,17 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
-const authRoutes = require('./routes/authRoutes');
-const transactionRoutes = require('./routes/transactionRoutes');
-const goalRoutes = require('./routes/goalRoutes');
-const wishRoutes = require('./routes/wishRoutes');
-const safetyPillowRoutes = require('./routes/safetyPillowRoutes');
-const categoryRoutes = require('./routes/categoryRoutes');
-const reportRoutes = require('./routes/reportRoutes');
-const budgetRoutes = require('./routes/budgetRoutes');
-const recurringRoutes = require('./routes/recurringRoutes');
-const notificationRoutes = require('./routes/notificationRoutes');
-const dashboardRoutes = require('./routes/dashboardRoutes');
+const authRoutes = require('../routes/authRoutes');
+const transactionRoutes = require('../routes/transactionRoutes');
+const goalRoutes = require('../routes/goalRoutes');
+const wishRoutes = require('../routes/wishRoutes');
+const safetyPillowRoutes = require('../routes/safetyPillowRoutes');
+const categoryRoutes = require('../routes/categoryRoutes');
+const reportRoutes = require('../routes/reportRoutes');
+const budgetRoutes = require('../routes/budgetRoutes');
+const recurringRoutes = require('../routes/recurringRoutes');
+const notificationRoutes = require('../routes/notificationRoutes');
+const dashboardRoutes = require('../routes/dashboardRoutes');
 
 const app = express();
 app.use(cors());

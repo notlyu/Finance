@@ -1,40 +1,37 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { models, Op, prisma } = require('../lib/models');
+const prisma = require('../lib/prisma-client');
 const { sendPasswordResetEmail } = require('../services/emailService');
-
-const { User, Family, FamilyInvite, PasswordResetToken, Transaction, Budget } = models;
+const { logger, ConflictError } = require('../lib/errors');
 
 function generateSecureInviteCode(length = 10) {
-  // url-safe base64, trimmed and uppercased for readability
   return crypto.randomBytes(Math.ceil(length)).toString('base64url').slice(0, length).toUpperCase();
 }
 
-// Регистрация
-exports.register = async (req, res) => {
+exports.register = async (req, res, next) => {
   try {
     const { email, password, name } = req.body;
 
-    // Проверка, существует ли пользователь
-    const existingUser = await User.findOne({ where: { email } });
+    const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      return res.status(400).json({ message: 'Email уже зарегистрирован' });
+      throw new ConflictError('Email уже зарегистрирован');
     }
 
-    // Хеширование пароля
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Создание пользователя (пока без семьи)
-    const user = await User.create({
-      email,
-      password_hash: hashedPassword,
-      name,
-      family_id: null,
+    const user = await prisma.user.create({
+      data: {
+        email,
+        password_hash: hashedPassword,
+        name,
+        family_id: null,
+      },
     });
 
-    // Создание JWT
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { algorithm: 'HS256', expiresIn: '7d' });
+
+    logger.info({ userId: user.id, action: 'register' }, 'User registered');
 
     res.status(201).json({
       id: user.id,
@@ -43,27 +40,15 @@ exports.register = async (req, res) => {
       token,
     });
   } catch (error) {
-    console.error(error);
-    // Prisma/DB specific error mappings
-    if (error && (error.code === 'P2002' || error.name === 'SequelizeUniqueConstraintError')) {
-      return res.status(400).json({ message: 'Email уже зарегистрирован' });
-    }
-    if (error && error.code === 'P2025') {
-      return res.status(404).json({ message: 'Запись не найдена' });
-    }
-    if (error && error.name === 'PrismaClientKnownRequestError') {
-      return res.status(400).json({ message: error.message });
-    }
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-// Вход
-exports.login = async (req, res) => {
+exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ where: { email } });
+    const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       return res.status(401).json({ message: 'Неверный email или пароль' });
     }
@@ -73,7 +58,9 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: 'Неверный email или пароль' });
     }
 
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { algorithm: 'HS256', expiresIn: '7d' });
+
+    logger.info({ userId: user.id, action: 'login' }, 'User logged in');
 
     res.json({
       id: user.id,
@@ -83,22 +70,10 @@ exports.login = async (req, res) => {
       token,
     });
   } catch (error) {
-    console.error(error);
-    // Prisma/DB specific error mappings
-    if (error && (error.code === 'P2002' || error.name === 'SequelizeUniqueConstraintError')) {
-      return res.status(400).json({ message: 'Email уже зарегистрирован' });
-    }
-    if (error && error.code === 'P2025') {
-      return res.status(404).json({ message: 'Запись не найдена' });
-    }
-    if (error && error.name === 'PrismaClientKnownRequestError') {
-      return res.status(400).json({ message: error.message });
-    }
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-// Создание семьи (только для авторизованных)
 exports.createFamily = async (req, res) => {
   try {
     const { name } = req.body;
@@ -110,14 +85,18 @@ exports.createFamily = async (req, res) => {
 
     const inviteCode = generateSecureInviteCode(10);
 
-    const family = await Family.create({
-      name,
-      invite_code: inviteCode,
-      owner_user_id: user.id,
+    const family = await prisma.family.create({
+      data: {
+        name,
+        invite_code: inviteCode,
+        owner_user_id: user.id,
+      },
     });
 
-    // Обновляем пользователя: добавляем family_id
-    await user.update({ family_id: family.id });
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { family_id: family.id },
+    });
 
     res.status(201).json({
       id: family.id,
@@ -126,21 +105,10 @@ exports.createFamily = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    // Prisma/DB specific error mappings
-    if (error && (error.code === 'P2002' || error.name === 'SequelizeUniqueConstraintError')) {
-      return res.status(400).json({ message: 'Email уже зарегистрирован' });
-    }
-    if (error && error.code === 'P2025') {
-      return res.status(404).json({ message: 'Запись не найдена' });
-    }
-    if (error && error.name === 'PrismaClientKnownRequestError') {
-      return res.status(400).json({ message: error.message });
-    }
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 };
 
-// Присоединение к семье по коду
 exports.joinFamily = async (req, res) => {
   try {
     const inviteCode = String(req.body.inviteCode || req.body.code || '').trim().toUpperCase();
@@ -153,8 +121,6 @@ exports.joinFamily = async (req, res) => {
       return res.status(400).json({ message: 'Вы уже состоите в семье' });
     }
 
-    const { prisma } = require('../lib/models');
-    
     const family = await prisma.family.findFirst({
       where: { invite_code: inviteCode }
     });
@@ -175,16 +141,14 @@ exports.joinFamily = async (req, res) => {
   }
 };
 
-// Создать приглашение в семью (новый flow)
 exports.createFamilyInvite = async (req, res) => {
   try {
     const user = req.user;
     if (!user.family_id) return res.status(400).json({ message: 'Вы не состоите в семье' });
 
-    const family = await Family.findByPk(user.family_id);
+    const family = await prisma.family.findUnique({ where: { id: user.family_id } });
     if (!family) return res.status(404).json({ message: 'Семья не найдена' });
 
-    // Only owner can create invites (can be relaxed later)
     if (family.owner_user_id !== user.id) {
       return res.status(403).json({ message: 'Только владелец семьи может создавать приглашения' });
     }
@@ -192,20 +156,21 @@ exports.createFamilyInvite = async (req, res) => {
     const days = Number(req.body.expiresInDays || 7);
     const expiresAt = Number.isFinite(days) && days > 0 ? new Date(Date.now() + days * 24 * 60 * 60 * 1000) : null;
 
-    // Retry a few times to avoid unique collisions
     let invite = null;
     for (let i = 0; i < 5; i++) {
       const code = generateSecureInviteCode(10);
       try {
-        invite = await FamilyInvite.create({
-          family_id: family.id,
-          code,
-          created_by: user.id,
-          expires_at: expiresAt,
+        invite = await prisma.familyInvite.create({
+          data: {
+            family_id: family.id,
+            code,
+            created_by: user.id,
+            expires_at: expiresAt,
+          },
         });
         break;
       } catch (e) {
-        if (e?.name !== 'SequelizeUniqueConstraintError') throw e;
+        if (e?.code !== 'P2002') throw e;
       }
     }
 
@@ -228,14 +193,14 @@ exports.listFamilyInvites = async (req, res) => {
     const user = req.user;
     if (!user.family_id) return res.status(400).json({ message: 'Вы не состоите в семье' });
 
-     const invites = await FamilyInvite.findAll({
-       where: {
-         family_id: user.family_id,
-         OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
-       },
-       order: [['created_at', 'DESC']],
-       attributes: ['id', 'code', 'created_by', 'expires_at', 'created_at'],
-     });
+    const invites = await prisma.familyInvite.findMany({
+      where: {
+        family_id: user.family_id,
+        OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
+      },
+      orderBy: { created_at: 'desc' },
+      select: { id: true, code: true, created_by: true, expires_at: true, created_at: true },
+    });
     res.json(invites);
   } catch (error) {
     console.error(error);
@@ -248,17 +213,17 @@ exports.revokeFamilyInvite = async (req, res) => {
     const user = req.user;
     if (!user.family_id) return res.status(400).json({ message: 'Вы не состоите в семье' });
 
-    const family = await Family.findByPk(user.family_id);
+    const family = await prisma.family.findUnique({ where: { id: user.family_id } });
     if (!family) return res.status(404).json({ message: 'Семья не найдена' });
     if (family.owner_user_id !== user.id) {
       return res.status(403).json({ message: 'Только владелец семьи может отзывать приглашения' });
     }
 
     const { id } = req.params;
-    const invite = await FamilyInvite.findOne({ where: { id, family_id: user.family_id } });
+    const invite = await prisma.familyInvite.findFirst({ where: { id: Number(id), family_id: user.family_id } });
     if (!invite) return res.status(404).json({ message: 'Приглашение не найдено' });
 
-    await invite.destroy();
+    await prisma.familyInvite.delete({ where: { id: invite.id } });
     res.json({ message: 'Приглашение отозвано' });
   } catch (error) {
     console.error(error);
@@ -266,14 +231,14 @@ exports.revokeFamilyInvite = async (req, res) => {
   }
 };
 
-// Получение информации о пользователе и семье
 exports.getMe = async (req, res) => {
   try {
     const user = req.user;
     let family = null;
     if (user.family_id) {
-      family = await Family.findByPk(user.family_id, {
-        include: [{ model: User, as: 'Members', attributes: ['id', 'name'] }],
+      family = await prisma.family.findUnique({
+        where: { id: user.family_id },
+        include: { members: { select: { id: true, name: true } } },
       });
     }
     res.json({
@@ -286,7 +251,7 @@ exports.getMe = async (req, res) => {
         name: family.name,
         invite_code: family.invite_code,
         owner_user_id: family.owner_user_id,
-        members: family.Members,
+        members: family.members,
       } : null,
     });
   } catch (error) {
@@ -302,12 +267,14 @@ exports.leaveFamily = async (req, res) => {
       return res.status(400).json({ message: 'Вы не состоите в семье' });
     }
 
-    const family = await Family.findByPk(user.family_id);
-    if (family.owner_user_id === user.id && (await Family.countMembers(family.id)) === 1) {
-      await Transaction.update({ family_id: null }, { where: { user_id: user.id } });
-      await Budget.update({ family_id: null }, { where: { user_id: user.id } });
-      await family.destroy();
-      await user.update({ family_id: null });
+    const family = await prisma.family.findUnique({ where: { id: user.family_id } });
+    const memberCount = await prisma.user.count({ where: { family_id: user.family_id } });
+    
+    if (family.owner_user_id === user.id && memberCount === 1) {
+      await prisma.transaction.updateMany({ where: { user_id: user.id }, data: { family_id: null } });
+      await prisma.budget.updateMany({ where: { user_id: user.id }, data: { family_id: null } });
+      await prisma.family.delete({ where: { id: family.id } });
+      await prisma.user.update({ where: { id: user.id }, data: { family_id: null } });
       return res.json({ message: 'Семья удалена, вы вышли из неё' });
     }
 
@@ -315,9 +282,9 @@ exports.leaveFamily = async (req, res) => {
       return res.status(400).json({ message: 'Вы владелец семьи. Сначала передайте права другому участнику.' });
     }
 
-    await Transaction.update({ family_id: null }, { where: { user_id: user.id } });
-    await Budget.update({ family_id: null }, { where: { user_id: user.id } });
-    await user.update({ family_id: null });
+    await prisma.transaction.updateMany({ where: { user_id: user.id }, data: { family_id: null } });
+    await prisma.budget.updateMany({ where: { user_id: user.id }, data: { family_id: null } });
+    await prisma.user.update({ where: { id: user.id }, data: { family_id: null } });
     res.json({ message: 'Вы покинули семью' });
   } catch (error) {
     console.error(error);
@@ -340,7 +307,10 @@ exports.changePassword = async (req, res) => {
     }
 
     const hashed = await bcrypt.hash(newPassword, 10);
-    await user.update({ password_hash: hashed });
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password_hash: hashed },
+    });
     res.json({ message: 'Пароль изменён' });
   } catch (error) {
     console.error(error);
@@ -348,20 +318,19 @@ exports.changePassword = async (req, res) => {
   }
 };
 
-// Удалить участника семьи (только владелец)
 exports.removeFamilyMember = async (req, res) => {
   try {
     const user = req.user;
     if (!user.family_id) return res.status(400).json({ message: 'Вы не состоите в семье' });
 
-    const family = await Family.findByPk(user.family_id);
+    const family = await prisma.family.findUnique({ where: { id: user.family_id } });
     if (!family) return res.status(404).json({ message: 'Семья не найдена' });
     if (family.owner_user_id !== user.id) {
       return res.status(403).json({ message: 'Только владелец семьи может удалять участников' });
     }
 
     const { memberId } = req.params;
-    const member = await User.findByPk(memberId);
+    const member = await prisma.user.findUnique({ where: { id: Number(memberId) } });
     if (!member || member.family_id !== family.id) {
       return res.status(404).json({ message: 'Участник не найден в этой семье' });
     }
@@ -369,9 +338,9 @@ exports.removeFamilyMember = async (req, res) => {
       return res.status(400).json({ message: 'Нельзя удалить владельца семьи' });
     }
 
-    await Transaction.update({ family_id: null }, { where: { user_id: member.id } });
-    await Budget.update({ family_id: null }, { where: { user_id: member.id } });
-    await member.update({ family_id: null });
+    await prisma.transaction.updateMany({ where: { user_id: member.id }, data: { family_id: null } });
+    await prisma.budget.updateMany({ where: { user_id: member.id }, data: { family_id: null } });
+    await prisma.user.update({ where: { id: member.id }, data: { family_id: null } });
     res.json({ message: `Участник ${member.name} удалён из семьи` });
   } catch (error) {
     console.error(error);
@@ -379,13 +348,12 @@ exports.removeFamilyMember = async (req, res) => {
   }
 };
 
-// Передать владение семьёй (только владелец)
 exports.transferOwnership = async (req, res) => {
   try {
     const user = req.user;
     if (!user.family_id) return res.status(400).json({ message: 'Вы не состоите в семье' });
 
-    const family = await Family.findByPk(user.family_id);
+    const family = await prisma.family.findUnique({ where: { id: user.family_id } });
     if (!family) return res.status(404).json({ message: 'Семья не найдена' });
     if (family.owner_user_id !== user.id) {
       return res.status(403).json({ message: 'Только владелец семьи может передать владение' });
@@ -396,12 +364,15 @@ exports.transferOwnership = async (req, res) => {
       return res.status(400).json({ message: 'Укажите другого участника для передачи владения' });
     }
 
-    const newOwner = await User.findByPk(newOwnerId);
+    const newOwner = await prisma.user.findUnique({ where: { id: newOwnerId } });
     if (!newOwner || newOwner.family_id !== family.id) {
       return res.status(404).json({ message: 'Участник не найден в этой семье' });
     }
 
-    await family.update({ owner_user_id: newOwnerId });
+    await prisma.family.update({
+      where: { id: family.id },
+      data: { owner_user_id: newOwnerId },
+    });
     res.json({ message: `Владение передано участнику ${newOwner.name}` });
   } catch (error) {
     console.error(error);
@@ -414,18 +385,20 @@ exports.forgotPassword = async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ message: 'Укажите email' });
 
-    const user = await User.findOne({ where: { email } });
+    const user = await prisma.user.findUnique({ where: { email } });
     if (!user) return res.json({ message: 'Если email существует, код для сброса отправлен' });
 
-    await PasswordResetToken.destroy({ where: { user_id: user.id } });
+    await prisma.passwordResetToken.deleteMany({ where: { user_id: user.id } });
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-    await PasswordResetToken.create({
-      user_id: user.id,
-      token: code,
-      expires_at: expiresAt,
+    await prisma.passwordResetToken.create({
+      data: {
+        user_id: user.id,
+        token: code,
+        expires_at: expiresAt,
+      },
     });
 
     await sendPasswordResetEmail(email, code);
@@ -441,14 +414,17 @@ exports.resetPassword = async (req, res) => {
     const { code, newPassword } = req.body;
     if (!code || !newPassword) return res.status(400).json({ message: 'Укажите код и новый пароль' });
 
-     const resetToken = await PasswordResetToken.findOne({
-       where: { token: code, expires_at: { gt: new Date() } },
-     });
+    const resetToken = await prisma.passwordResetToken.findFirst({
+      where: { token: code, expires_at: { gt: new Date() } },
+    });
     if (!resetToken) return res.status(400).json({ message: 'Недействительный или истёкший код' });
 
     const hashed = await bcrypt.hash(newPassword, 10);
-    await User.update({ password_hash: hashed }, { where: { id: resetToken.user_id } });
-    await PasswordResetToken.destroy({ where: { id: resetToken.id } });
+    await prisma.user.update({
+      where: { id: resetToken.user_id },
+      data: { password_hash: hashed },
+    });
+    await prisma.passwordResetToken.delete({ where: { id: resetToken.id } });
 
     res.json({ message: 'Пароль успешно изменён' });
   } catch (error) {

@@ -1,5 +1,5 @@
 const request = require('supertest');
-const app = require('../testApp');
+const app = require('./testApp');
 const { User, Family, Category, Transaction, Goal, Wish, prisma } = require('../lib/models');
 
 let testUser, testFamily, testToken, testCategory;

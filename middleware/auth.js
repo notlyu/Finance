@@ -1,36 +1,28 @@
 const jwt = require('jsonwebtoken');
-const { User, Family } = require('../lib/models');
+const prisma = require('../lib/prisma-client');
+const { UnauthorizedError, logger } = require('../lib/errors');
 
 module.exports = async (req, res, next) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1] || req.query?.token; // Bearer <token> or query param
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.split(' ')[1] || req.query?.token;
     if (!token) {
-      return res.status(401).json({ message: 'Не авторизован' });
+      throw new UnauthorizedError();
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findByPk(decoded.id, {
-      include: userHasFamilyInclude(),
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      include: { family: true },
     });
     if (!user) {
-      return res.status(401).json({ message: 'Пользователь не найден' });
+      throw new UnauthorizedError('Пользователь не найден');
     }
 
     req.user = user;
     next();
   } catch (err) {
-    console.error(err);
-    return res.status(401).json({ message: 'Неверный токен' });
+    logger.warn({ url: req.url, error: err.message }, 'Auth failed');
+    next(err);
   }
 };
-
-function userHasFamilyInclude() {
-  // Keep it optional: user may have family_id = null
-  return [
-    {
-      model: Family,
-      as: 'Family',
-      required: false,
-    },
-  ];
-}

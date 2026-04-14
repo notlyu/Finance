@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import api from '../services/api';
 import Modal from '../components/Modal';
+import FormattedInput from '../components/ui/FormattedInput';
 import { useForm } from 'react-hook-form';
 import { formatMoney } from '../utils/format';
 
@@ -16,7 +17,7 @@ export default function Budgets() {
   const [memberFilter, setMemberFilter] = useState(null);
   const [members, setMembers] = useState([]);
   const [memberContributions, setMemberContributions] = useState({});
-  const { register, handleSubmit, reset } = useForm();
+  const { register, handleSubmit, reset, watch, setValue } = useForm();
 
   const fetchData = async () => {
     setLoading(true);
@@ -273,7 +274,7 @@ export default function Budgets() {
           </div>
           <div>
             <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">План (₽)</label>
-            <input type="number" step="1" {...register('limit_amount', { required: true, min: 1 })} className="input-ghost" placeholder="0" />
+            <FormattedInput value={watch('limit_amount') || ''} onChange={(v) => setValue('limit_amount', v)} className="input-ghost" placeholder="0" />
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={() => setModalOpen(false)} className="btn-ghost px-6 py-3">Отмена</button>

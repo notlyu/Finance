@@ -15,7 +15,7 @@ const server = app.listen(0, async () => {
     const { User, Family } = require('./lib/models');
     
     const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NiwiaWF0IjoxNzc1ODQ1OTkyLCJleHAiOjE3NzY0NTA3OTJ9.dNloBD0oVPiYQcVEYEbuin1MLfWyuzCh3mJefRQBBIk';
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     
     // Replicate auth middleware
     const user = await User.findByPk(decoded.id, {

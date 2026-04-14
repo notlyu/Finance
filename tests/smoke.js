@@ -1,23 +1,24 @@
-// Simple smoke test to verify core API availability after migration
-// Uses Node's http module to perform basic authenticated requests
+// Simple smoke test to verify core API availability
 const http = require('http')
 
 const BASE_HOST = 'localhost'
 const BASE_PORT = 5000
 
+let token = null
+
 function login() {
-  const data = JSON.stringify({ email: 'test@example.com', password: '123456' })
-  const options = {
-    hostname: BASE_HOST,
-    port: BASE_PORT,
-    path: '/api/auth/login',
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(data)
-    }
-  }
   return new Promise((resolve, reject) => {
+    const data = JSON.stringify({ email: 'test@example.com', password: '123456' })
+    const options = {
+      hostname: BASE_HOST,
+      port: BASE_PORT,
+      path: '/api/auth/login',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(data)
+      }
+    }
     const req = http.request(options, (res) => {
       let body = ''
       res.on('data', chunk => (body += chunk))
@@ -25,7 +26,7 @@ function login() {
         if (res.statusCode === 200) {
           try {
             const parsed = JSON.parse(body)
-            resolve(parsed.token ? parsed : Promise.reject(new Error('No token in login response')))
+            resolve(parsed.token)
           } catch (e) {
             reject(e)
           }
@@ -40,22 +41,23 @@ function login() {
   })
 }
 
-function get(path, token) {
-  const options = {
-    hostname: BASE_HOST,
-    port: BASE_PORT,
-    path,
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    }
-  }
+function get(path) {
   return new Promise((resolve, reject) => {
+    if (!token) return reject(new Error('No token'))
+    const options = {
+      hostname: BASE_HOST,
+      port: BASE_PORT,
+      path,
+      method: 'GET',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+      }
+    }
     const req = http.request(options, (res) => {
       let body = ''
       res.on('data', chunk => (body += chunk))
       res.on('end', () => {
-        resolve({ status: res.statusCode, body })
+        resolve({ path, status: res.statusCode })
       })
     })
     req.on('error', reject)
@@ -65,12 +67,22 @@ function get(path, token) {
 
 async function main() {
   try {
-    const loginRes = await login()
-    const token = loginRes
-    const endpoints = ['/api/dashboard', '/api/safety-pillow', '/api/goals', '/api/transactions']
-    const results = await Promise.all(endpoints.map(p => get(p, token)))
-    console.log('Smoke test results:', results.map(r => ({ path: r, status: r.status })))
-    process.exit(0)
+    console.log('1. Logging in...')
+    token = await login()
+    console.log('Got token:', token ? token.substring(0, 20) + '...' : 'FAILED')
+    
+    console.log('2. Testing endpoints...')
+    const endpoints = ['/api/dashboard', '/api/safety-pillow/settings', '/api/goals', '/api/transactions']
+    const results = []
+    for (const p of endpoints) {
+      const r = await get(p)
+      results.push(r)
+      console.log(`  ${p}: ${r.status}`)
+    }
+    
+    const allOk = results.every(r => r.status === 200)
+    console.log('All tests passed:', allOk)
+    process.exit(allOk ? 0 : 1)
   } catch (err) {
     console.error('Smoke test failed:', err.message)
     process.exit(1)

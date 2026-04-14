@@ -1,17 +1,14 @@
-const { Transaction, Category, User, Goal, GoalContribution, Budget, prisma } = require('../lib/models');
-const { Op } = require('../lib/models');
+const prisma = require('../lib/prisma-client');
 
 exports.getTransactions = async (userId, familyId, query = {}) => {
     const whereClause = familyId
         ? { OR: [{ family_id: familyId }, { AND: [{ family_id: null }, { user_id: userId }] }] }
         : { family_id: null, user_id: userId };
 
-    // Filter by specific member if requested
     if (query.memberId && query.memberId !== userId) {
         whereClause.user_id = query.memberId;
     }
 
-    // Filters
     if (query.type) whereClause.type = query.type;
 
     const categoryIds = parseIdList(query.categoryIds);
@@ -31,7 +28,6 @@ exports.getTransactions = async (userId, familyId, query = {}) => {
         whereClause.comment = { contains: String(query.q) };
     }
 
-    // Date filtering
     if (query.startDate && query.endDate) {
         whereClause.date = { gte: new Date(query.startDate), lte: new Date(query.endDate) };
     } else if (query.startDate) {
@@ -40,9 +36,6 @@ exports.getTransactions = async (userId, familyId, query = {}) => {
         whereClause.date = { lte: new Date(query.endDate) };
     }
 
-    // Privacy filtering:
-    // - user always sees own private
-    // - other users' private are returned as hidden (or excluded by includePrivate)
     const includePrivate = String(query.includePrivate || 'all');
     if (includePrivate === 'only_private') {
         whereClause.is_private = true;
@@ -52,8 +45,6 @@ exports.getTransactions = async (userId, familyId, query = {}) => {
             { is_private: false },
             { user_id: userId },
         ];
-    } else {
-        // all: return all, but hide other users' private in mapper below
     }
 
     const limit = clampInt(query.limit, 50, 1, 200);
@@ -127,20 +118,22 @@ exports.getTransactions = async (userId, familyId, query = {}) => {
 };
 
 exports.createTransaction = async (userId, familyId, data) => {
-    // Ensure date is stored as YYYY-MM-DD string for DATEONLY column
     let txDate;
     if (data && data.date) {
-        txDate = data.date instanceof Date ? data.date.toISOString().slice(0, 10) : String(data.date).slice(0, 10);
+        if (data.date instanceof Date) {
+            txDate = data.date;
+        } else {
+            const d = new Date(data.date);
+            txDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        }
     } else {
-        const now = new Date();
-        txDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        txDate = new Date();
     }
 
-    // Budget check for expense transactions
     let budgetWarning = null;
     if (data.type === 'expense' && data.category_id) {
         try {
-            const month = txDate.slice(0, 7); // "YYYY-MM"
+            const month = txDate.slice(0, 7);
             const budgetWhere = familyId
                 ? {
                     OR: [
@@ -149,7 +142,7 @@ exports.createTransaction = async (userId, familyId, data) => {
                     ],
                 }
                 : { family_id: null, user_id: userId, category_id: data.category_id, type: 'expense', month };
-            const budget = await Budget.findOne({ where: budgetWhere });
+            const budget = await prisma.budget.findFirst({ where: budgetWhere });
             if (budget) {
                 const monthStart = `${month}-01`;
                 const nextMonth = new Date(`${month}-15`);
@@ -184,25 +177,22 @@ exports.createTransaction = async (userId, familyId, data) => {
                 }
             }
         } catch (err) {
-            // Budget check is non-blocking
             console.error('Budget check failed:', err);
         }
     }
 
-    const tx = await Transaction.create({ 
-        ...data, 
-        user_id: userId, 
-        family_id: familyId,
-        date: txDate
-    });
+    const tx = await prisma.transaction.create({
+        data: {
+            ...data,
+            user_id: userId,
+            family_id: familyId,
+            date: txDate
+        }
+    }).catch(err => { console.error('TX CREATE ERROR:', err.message, err.stack); throw err; });
 
-  // Автопополнение целей на основе доходов
-  // Только для доходных операций
-  if (tx && tx.type === 'income') {
+    if (tx && tx.type === 'income') {
         try {
-            // Найти все цели семейной/личной принадлежности с включенным автопополнением
-            // Для семейных целей — только свои (добавляем user_id)
-            const goals = await Goal.findAll({
+            const goals = await prisma.goal.findMany({
                 where: familyId
                     ? {
                         OR: [
@@ -219,7 +209,6 @@ exports.createTransaction = async (userId, familyId, data) => {
             });
 
             for (const goal of goals) {
-                // Пропустим, если цель уже достигла сумму или нет смысла пополнять
                 const remaining = parseFloat(goal.target_amount) - parseFloat(goal.current_amount || 0);
                 if (!remaining || remaining <= 0) continue;
 
@@ -228,11 +217,10 @@ exports.createTransaction = async (userId, familyId, data) => {
                 if (goal.auto_contribute_type === 'percentage' && percent > 0) {
                     amountAuto = parseFloat(tx.amount) * (percent / 100);
                 } else if (goal.auto_contribute_type === 'fixed' && percent > 0) {
-                    amountAuto = percent; // в этом случае auto_contribute_value хранит фикс. сумму
+                    amountAuto = percent;
                 }
                 if (amountAuto > 0) {
-                    // Если уже есть автопополнение за этот income-transaction, пропустим
-                    const existing = await GoalContribution.findOne({
+                    const existing = await prisma.goalContribution.findFirst({
                         where: {
                             goal_id: goal.id,
                             source_transaction_id: tx.id,
@@ -240,32 +228,33 @@ exports.createTransaction = async (userId, familyId, data) => {
                     });
                     if (existing) continue;
 
-                    // Создать запись вклада как automatic
-                    await GoalContribution.create({
-                        goal_id: goal.id,
-                        amount: amountAuto,
-                        date: tx.date,
-                        automatic: true,
-                        source_transaction_id: tx.id
+                    await prisma.goalContribution.create({
+                        data: {
+                            goal_id: goal.id,
+                            user_id: userId,
+                            amount: amountAuto,
+                            date: tx.date,
+                            automatic: true,
+                            source_transaction_id: tx.id
+                        }
                     });
 
-                    // Обновить текущую сумму цели
                     const newAmount = (parseFloat(goal.current_amount || 0) + amountAuto);
-                    await goal.update({ current_amount: newAmount });
+                    await prisma.goal.update({
+                        where: { id: goal.id },
+                        data: { current_amount: newAmount }
+                    });
                 }
             }
         } catch (err) {
-            // Не прерывать создание транзакции: автопополнение — опционально и не критично
             console.error('Auto-contribute failed:', err);
         }
     }
 
-    // Обновляем подушку безопасности (если включено)
     try {
-      const safety = require('./safetyPillowService');
-      await safety.recalculateAndSave(tx.user_id, tx.family_id);
+        const safety = require('./safetyPillowService');
+        await safety.recalculateAndSave(tx.user_id, tx.family_id);
     } catch (e) {
-      // пропускаем ошибки
     }
 
     return { tx, budgetWarning };
@@ -327,12 +316,10 @@ exports.updateTransaction = async (id, familyId, userId, data) => {
     const existing = await prisma.transaction.findFirst({ where });
     if (!existing) throw new Error('Transaction not found');
 
-    // Защита: нельзя подменить user_id или family_id
     const safeData = { ...data };
     delete safeData.user_id;
     delete safeData.family_id;
 
-    // Конвертировать типы данных
     if (safeData.date) safeData.date = new Date(safeData.date);
     if (safeData.amount) safeData.amount = Number(safeData.amount);
     if (safeData.category_id) safeData.category_id = Number(safeData.category_id);
@@ -348,7 +335,6 @@ exports.updateTransaction = async (id, familyId, userId, data) => {
         await revertAutoContribsForIncome(txId);
     }
     
-    // Вернуть с категорией
     return prisma.transaction.findUnique({
         where: { id: txId },
         include: { category: true, user: true },
@@ -391,7 +377,6 @@ function clampInt(value, fallback, min, max) {
   return Math.max(min, Math.min(max, v));
 }
 
-// Recalculate all auto-contributions tied to a specific income transaction
 async function recalculateAutoContribsFromIncome(transactionId) {
   try {
     const tx = await prisma.transaction.findUnique({ where: { id: transactionId } });
@@ -436,7 +421,6 @@ async function recalculateAutoContribsFromIncome(transactionId) {
   }
 }
 
-// Remove all auto-contributions tied to a specific income transaction (e.g., on delete)
 async function revertAutoContribsForIncome(transactionId) {
   try {
     const tx = await prisma.transaction.findUnique({ where: { id: transactionId } });

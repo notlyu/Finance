@@ -1,27 +1,24 @@
-const { User, Category, Transaction, Goal, Wish } = require('../lib/models');
+const prisma = require('../lib/prisma-client');
+const { logger } = require('../lib/errors');
 
 function toStr(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 async function getPersonalBalance(familyId, userId) {
-  const { prisma } = require('../lib/models');
-  
   let incomeWhere, expenseWhere;
   if (familyId) {
     incomeWhere = {
       type: 'income',
       OR: [
-        { family_id: familyId, is_private: false },
-        { family_id: familyId, user_id: userId },
+        { family_id: familyId },
         { family_id: null, user_id: userId }
       ]
     };
     expenseWhere = {
       type: 'expense',
       OR: [
-        { family_id: familyId, is_private: false },
-        { family_id: familyId, user_id: userId },
+        { family_id: familyId },
         { family_id: null, user_id: userId }
       ]
     };
@@ -41,7 +38,6 @@ async function getPersonalBalance(familyId, userId) {
 }
 
 async function getPersonalReserved(familyId, userId) {
-  const { prisma } = require('../lib/models');
   const goalsWhere = familyId
     ? { OR: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
     : { family_id: null, user_id: userId };
@@ -53,8 +49,50 @@ async function getPersonalReserved(familyId, userId) {
   return Number(goals._sum.current_amount || 0) + Number(wishes._sum.saved_amount || 0);
 }
 
+async function getFamilyBalance(familyId) {
+  const incomeWhere = {
+    type: 'income',
+    OR: [
+      { family_id: familyId },
+      { family_id: null, user_id: { in: (await prisma.user.findMany({ where: { family_id: familyId }, select: { id: true } })).map(u => u.id) } }
+    ]
+  };
+  const expenseWhere = {
+    type: 'expense',
+    OR: [
+      { family_id: familyId },
+      { family_id: null, user_id: { in: (await prisma.user.findMany({ where: { family_id: familyId }, select: { id: true } })).map(u => u.id) } }
+    ]
+  };
+  const income = await prisma.transaction.aggregate({ where: incomeWhere, _sum: { amount: true } });
+  const expense = await prisma.transaction.aggregate({ where: expenseWhere, _sum: { amount: true } });
+  return { 
+    income: Number(income._sum.amount || 0), 
+    expense: Number(expense._sum.amount || 0), 
+    balance: Number(income._sum.amount || 0) - Number(expense._sum.amount || 0) 
+  };
+}
+
+async function getFamilyReserved(familyId) {
+  const memberIds = (await prisma.user.findMany({ where: { family_id: familyId }, select: { id: true } })).map(u => u.id);
+  const goalsWhere = {
+    OR: [
+      { family_id: familyId },
+      { user_id: { in: memberIds }, family_id: null }
+    ]
+  };
+  const goals = await prisma.goal.aggregate({ where: goalsWhere, _sum: { current_amount: true } });
+  const wishesWhere = {
+    OR: [
+      { family_id: familyId },
+      { user_id: { in: memberIds }, family_id: null }
+    ]
+  };
+  const wishes = await prisma.wish.aggregate({ where: wishesWhere, _sum: { saved_amount: true } });
+  return Number(goals._sum.current_amount || 0) + Number(wishes._sum.saved_amount || 0);
+}
+
 async function getMonthIncome(userId, familyId, startDateStr, endDateStr) {
-  const { prisma } = require('../lib/models');
   const parts1 = startDateStr.split('-').map(Number);
   const startDateTime = new Date(parts1[0], parts1[1] - 1, parts1[2], 0, 0, 0, 0);
   const parts2 = endDateStr.split('-').map(Number);
@@ -62,12 +100,13 @@ async function getMonthIncome(userId, familyId, startDateStr, endDateStr) {
   
   let where;
   if (familyId) {
+    const memberIds = (await prisma.user.findMany({ where: { family_id: familyId }, select: { id: true } })).map(u => u.id);
     where = {
       type: 'income',
       date: { gte: startDateTime, lte: endDateTime },
       OR: [
         { family_id: familyId },
-        { family_id: null, user_id: userId }
+        { family_id: null, user_id: { in: memberIds } }
       ]
     };
   } else {
@@ -79,7 +118,6 @@ async function getMonthIncome(userId, familyId, startDateStr, endDateStr) {
 }
 
 async function getMonthExpenses(userId, familyId, startDateStr, endDateStr) {
-  const { prisma } = require('../lib/models');
   const parts1 = startDateStr.split('-').map(Number);
   const startDateTime = new Date(parts1[0], parts1[1] - 1, parts1[2], 0, 0, 0, 0);
   const parts2 = endDateStr.split('-').map(Number);
@@ -87,12 +125,13 @@ async function getMonthExpenses(userId, familyId, startDateStr, endDateStr) {
   
   let where;
   if (familyId) {
+    const memberIds = (await prisma.user.findMany({ where: { family_id: familyId }, select: { id: true } })).map(u => u.id);
     where = {
       type: 'expense',
       date: { gte: startDateTime, lte: endDateTime },
       OR: [
         { family_id: familyId },
-        { family_id: null, user_id: userId }
+        { family_id: null, user_id: { in: memberIds } }
       ]
     };
   } else {
@@ -104,8 +143,6 @@ async function getMonthExpenses(userId, familyId, startDateStr, endDateStr) {
 }
 
 async function getAllocation(familyId, userId, startDateStr, endDateStr) {
-  const { prisma } = require('../lib/models');
-  
   const parts1 = startDateStr.split('-').map(Number);
   const startDateTime = new Date(parts1[0], parts1[1] - 1, parts1[2], 0, 0, 0, 0);
   const parts2 = endDateStr.split('-').map(Number);
@@ -113,13 +150,13 @@ async function getAllocation(familyId, userId, startDateStr, endDateStr) {
   
   const where = familyId
     ? {
-      date: { gte: startDateTime, lte: endDateTime },
-      type: 'expense',
-      OR: [
-        { family_id: familyId },
-        { family_id: null, user_id: userId }
-      ]
-    }
+        date: { gte: startDateTime, lte: endDateTime },
+        type: 'expense',
+        OR: [
+          { family_id: familyId },
+          { family_id: null, user_id: userId }
+        ]
+      }
     : { user_id: userId, family_id: null, date: { gte: startDateTime, lte: endDateTime }, type: 'expense' };
   
   const transactions = await prisma.transaction.findMany({
@@ -138,7 +175,7 @@ async function getAllocation(familyId, userId, startDateStr, endDateStr) {
   return entries.map(([name, value]) => ({ name, total: value, pct: total > 0 ? Math.round(value / total * 100) : 0 }));
 }
 
-exports.getDashboard = async (req, res) => {
+exports.getDashboard = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
@@ -149,7 +186,6 @@ exports.getDashboard = async (req, res) => {
     const monthStartStr = toStr(monthStart);
 
     if (!familyId) {
-      // Solo mode
       const personalBalance = await getPersonalBalance(null, user.id);
       const personalReserved = await getPersonalReserved(null, user.id);
       const personalAvailable = personalBalance.balance - personalReserved;
@@ -161,10 +197,10 @@ exports.getDashboard = async (req, res) => {
         orderBy: [{ date: 'desc' }, { id: 'desc' }],
       });
 
-      const activeGoals = await Goal.findAll({
+      const activeGoals = await prisma.goal.findMany({
         where: { user_id: user.id, family_id: null },
-        order: [['created_at', 'DESC']],
-        limit: 3,
+        orderBy: { created_at: 'desc' },
+        take: 3,
       });
 
       const allocation = await getAllocation(null, user.id, monthStartStr, todayStr);
@@ -172,6 +208,7 @@ exports.getDashboard = async (req, res) => {
       const monthExpenses = await getMonthExpenses(user.id, null, monthStartStr, todayStr);
       const monthIncome = await getMonthIncome(user.id, null, monthStartStr, todayStr);
       
+      logger.info(`User ${user.id} got personal dashboard`);
       return res.json({
         family: null,
         personal: {
@@ -195,28 +232,35 @@ exports.getDashboard = async (req, res) => {
       });
     }
 
-    // Family mode
     const memberId = req.query.memberId ? Number(req.query.memberId) : null;
     
-    const personalBalance = await getPersonalBalance(familyId, user.id);
-    const personalReserved = await getPersonalReserved(familyId, user.id);
+    const personalIncomeAgg = await prisma.transaction.aggregate({
+      where: { user_id: user.id, family_id: null, type: 'income' },
+      _sum: { amount: true },
+    });
+    const personalExpenseAgg = await prisma.transaction.aggregate({
+      where: { user_id: user.id, family_id: null, type: 'expense' },
+      _sum: { amount: true },
+    });
+    const personalBalance = { 
+      income: Number(personalIncomeAgg._sum.amount || 0), 
+      expense: Number(personalExpenseAgg._sum.amount || 0), 
+      balance: Number(personalIncomeAgg._sum.amount || 0) - Number(personalExpenseAgg._sum.amount || 0) 
+    };
+    
+    const personalGoalsAgg = await prisma.goal.aggregate({
+      where: { user_id: user.id, family_id: null },
+      _sum: { current_amount: true }
+    });
+    const personalWishesAgg = await prisma.wish.aggregate({
+      where: { user_id: user.id, family_id: null },
+      _sum: { saved_amount: true }
+    });
+    const personalReserved = Number(personalGoalsAgg._sum.current_amount || 0) + Number(personalWishesAgg._sum.saved_amount || 0);
     const personalAvailable = personalBalance.balance - personalReserved;
 
-    const { prisma } = require('../lib/models');
-    const familyIncome = await prisma.transaction.aggregate({
-      where: { family_id: familyId, type: 'income' },
-      _sum: { amount: true },
-    });
-    const familyExpenses = await prisma.transaction.aggregate({
-      where: { family_id: familyId, type: 'expense' },
-      _sum: { amount: true },
-    });
-    const familyBalance = { 
-      income: Number(familyIncome._sum.amount || 0), 
-      expense: Number(familyExpenses._sum.amount || 0), 
-      balance: Number(familyIncome._sum.amount || 0) - Number(familyExpenses._sum.amount || 0) 
-    };
-    const familyReserved = await getPersonalReserved(familyId, user.id);
+    const familyBalance = await getFamilyBalance(familyId);
+    const familyReserved = await getFamilyReserved(familyId);
     const familyAvailable = familyBalance.balance - familyReserved;
 
     const lastTxs = await prisma.transaction.findMany({
@@ -228,26 +272,48 @@ exports.getDashboard = async (req, res) => {
       orderBy: [{ date: 'desc' }, { id: 'desc' }],
     });
 
-    const activeGoals = await Goal.findAll({
+    const activeGoals = await prisma.goal.findMany({
       where: memberId
         ? { user_id: memberId, OR: [{ family_id: familyId }, { family_id: null, user_id: memberId }] }
         : { OR: [{ family_id: familyId }, { user_id: user.id, family_id: null }] },
-      limit: 3,
+      take: 3,
     });
 
     const allocation = await getAllocation(familyId, user.id, monthStartStr, todayStr);
     const familyMonthIncome = await getMonthIncome(user.id, familyId, monthStartStr, todayStr);
     const familyMonthExpenses = await getMonthExpenses(user.id, familyId, monthStartStr, todayStr);
-    const personalMonthIncome = await getMonthIncome(user.id, user.id, monthStartStr, todayStr);
-    const personalMonthExpenses = await getMonthExpenses(user.id, user.id, monthStartStr, todayStr);
+    
+    const personalMonthIncomeAgg = await prisma.transaction.aggregate({
+      where: { user_id: user.id, family_id: null, type: 'income', date: { gte: new Date(today.getFullYear(), today.getMonth(), 1), lte: today } },
+      _sum: { amount: true },
+    });
+    const personalMonthExpenseAgg = await prisma.transaction.aggregate({
+      where: { user_id: user.id, family_id: null, type: 'expense', date: { gte: new Date(today.getFullYear(), today.getMonth(), 1), lte: today } },
+      _sum: { amount: true },
+    });
+    const personalMonthIncome = Number(personalMonthIncomeAgg._sum.amount || 0);
+    const personalMonthExpenses = Number(personalMonthExpenseAgg._sum.amount || 0);
 
-    // Get member stats
-    const members = await User.findAll({ where: { family_id: familyId }, attributes: ['id', 'name'] });
+    const members = await prisma.user.findMany({ where: { family_id: familyId }, select: { id: true, name: true } });
     const memberStats = await Promise.all(members.map(async m => {
-      const mBalance = await getPersonalBalance(familyId, m.id);
-      return { userId: m.id, name: m.name, income: mBalance.income, expenses: mBalance.expense, contributions: 0 };
+      const mIncomeAgg = await prisma.transaction.aggregate({
+        where: { user_id: m.id, family_id: null, type: 'income' },
+        _sum: { amount: true },
+      });
+      const mExpenseAgg = await prisma.transaction.aggregate({
+        where: { user_id: m.id, family_id: null, type: 'expense' },
+        _sum: { amount: true },
+      });
+      return { 
+        userId: m.id, 
+        name: m.name, 
+        income: Number(mIncomeAgg._sum.amount || 0), 
+        expenses: Number(mExpenseAgg._sum.amount || 0), 
+        contributions: 0 
+      };
     }));
 
+    logger.info(`User ${user.id} got family dashboard, familyId: ${familyId}`);
     res.json({
       family: {
         balance: familyBalance.balance,
@@ -279,7 +345,6 @@ exports.getDashboard = async (req, res) => {
       allocation,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
