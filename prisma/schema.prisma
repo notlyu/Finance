@@ -7,49 +7,80 @@ datasource db {
 }
 
 model User {
-  id                  Int                    @id @default(autoincrement())
-  email               String                 @unique
-  password_hash       String
-  name                String
-  family_id           Int?
-  created_at          DateTime               @default(now())
-  budget              Budget[]
-  familyInvites       FamilyInvite[]         @relation("CreatedInvites")
-  goals               Goal[]
-  goalContributions   GoalContribution[]
-  recurring           RecurringTransaction[]
-  safetyPillowHistory SafetyPillowHistory[]
-  safetyPillowSetting SafetyPillowSetting?
-  transactions        Transaction[]
-  family              Family?                @relation(fields: [family_id], references: [id])
-  wishes              Wish[]
-  wishContributions   WishContribution[]
+  id                   Int                    @id @default(autoincrement())
+  email                String                 @unique
+  password_hash        String
+  name                 String
+  family_id            Int?
+  created_at           DateTime               @default(now())
+  accounts             Account[]
+  auditLogs            AuditLog[]
+  budget               Budget[]
+  familyInvites        FamilyInvite[]         @relation("CreatedInvites")
+  usedInvites          FamilyInvite[]         @relation("UsedInvites")
+  familyMembers        FamilyMember[]
+  goals                Goal[]
+  goalContributions    GoalContribution[]
+  recurring            RecurringTransaction[]
+  refreshTokens        RefreshToken[]
+  safetyPillowHistory  SafetyPillowHistory[]
+  safetyPillowSetting  SafetyPillowSetting?
+  safetyPillowSnapshot SafetyPillowSnapshot[]
+  transactions         Transaction[]
+  family               Family?                @relation(fields: [family_id], references: [id])
+  widgetConfig         UserWidgetConfig?
+  wishes               Wish[]
+  wishContributions    WishContribution[]
 }
 
 model Family {
-  id            Int                    @id @default(autoincrement())
-  name          String
-  invite_code   String                 @unique
-  owner_user_id Int
-  created_at    DateTime               @default(now())
-  budgets       Budget[]
-  invites       FamilyInvite[]
-  goals         Goal[]
-  recurring     RecurringTransaction[]
-  transactions  Transaction[]
-  members       User[]
-  wishes        Wish[]
+  id                   Int                    @id @default(autoincrement())
+  name                 String
+  invite_code          String                 @unique
+  owner_user_id        Int
+  created_at           DateTime               @default(now())
+  accounts             Account[]
+  budgets              Budget[]
+  invites              FamilyInvite[]
+  familyMembers        FamilyMember[]
+  goals                Goal[]
+  recurring            RecurringTransaction[]
+  safetyPillowHistory  SafetyPillowHistory[]
+  safetyPillowSetting  SafetyPillowSetting?
+  safetyPillowSnapshot SafetyPillowSnapshot[]
+  transactions         Transaction[]
+  members              User[]
+  wishes               Wish[]
+  settings             FamilySettings?
+}
+
+model FamilyMember {
+  id        Int        @id @default(autoincrement())
+  user_id   Int
+  family_id Int
+  role      FamilyRole @default(MEMBER)
+  joined_at DateTime   @default(now())
+  family    Family     @relation(fields: [family_id], references: [id])
+  user      User       @relation(fields: [user_id], references: [id])
+
+  @@unique([user_id, family_id])
 }
 
 model FamilyInvite {
-  id         Int       @id @default(autoincrement())
+  id         Int          @id @default(autoincrement())
   family_id  Int
-  code       String    @unique
+  code       String       @unique
   created_by Int
   expires_at DateTime?
-  created_at DateTime  @default(now())
-  creator    User      @relation("CreatedInvites", fields: [created_by], references: [id])
-  family     Family    @relation(fields: [family_id], references: [id])
+  created_at DateTime     @default(now())
+  status     InviteStatus @default(active)
+  used_at    DateTime?
+  used_by    Int?
+  creator    User         @relation("CreatedInvites", fields: [created_by], references: [id])
+  family     Family       @relation(fields: [family_id], references: [id])
+  usedByUser User?        @relation("UsedInvites", fields: [used_by], references: [id])
+
+  @@index([used_by])
 }
 
 model Category {
@@ -61,11 +92,33 @@ model Category {
   user_id      Int?
   is_system    Boolean                @default(false)
   family_id    Int?
+  scope        Scope?
   budgets      Budget[]
   goals        Goal[]
   recurring    RecurringTransaction[]
   transactions Transaction[]
   wishes       Wish[]
+}
+
+model Account {
+  id           Int                    @id @default(autoincrement())
+  user_id      Int
+  family_id    Int?
+  name         String
+  type         String                 @default("bank")
+  balance      Decimal                @default(0) @db.Decimal(12, 2)
+  currency     String                 @default("RUB")
+  is_active    Boolean       @default(true)
+  is_liquid    Boolean       @default(true)
+  created_at   DateTime               @default(now())
+  updated_at   DateTime               @default(now())
+  family       Family?                @relation(fields: [family_id], references: [id])
+  user         User                   @relation(fields: [user_id], references: [id])
+  recurring    RecurringTransaction[]
+  transactions Transaction[]
+
+  @@index([user_id, is_active])
+  @@index([family_id, is_active])
 }
 
 model Transaction {
@@ -77,10 +130,12 @@ model Transaction {
   type              String
   date              DateTime
   comment           String?
-  is_private        Boolean            @default(false)
   created_at        DateTime           @default(now())
   updated_at        DateTime           @default(now())
+  account_id        Int?
+  scope             Scope              @default(personal)
   goalContributions GoalContribution[]
+  account           Account?           @relation(fields: [account_id], references: [id])
   category          Category           @relation(fields: [category_id], references: [id])
   family            Family?            @relation(fields: [family_id], references: [id])
   user              User               @relation(fields: [user_id], references: [id])
@@ -90,27 +145,30 @@ model Transaction {
   @@index([family_id, type, date])
   @@index([user_id, family_id])
   @@index([category_id, type])
+  @@index([account_id, date])
 }
 
 model Goal {
-  id                      Int                @id @default(autoincrement())
+  id                      Int                    @id @default(autoincrement())
   user_id                 Int
   family_id               Int?
   name                    String
-  target_amount           Decimal            @db.Decimal(12, 2)
-  current_amount          Decimal            @default(0) @db.Decimal(12, 2)
+  target_amount           Decimal                @db.Decimal(12, 2)
+  current_amount          Decimal                @default(0) @db.Decimal(12, 2)
   deadline                DateTime?
   category_id             Int?
-  is_archived             Boolean            @default(false)
-  created_at              DateTime           @default(now())
-  updated_at              DateTime           @default(now())
-  auto_contribute_enabled Boolean            @default(false)
+  is_archived             Boolean                @default(false)
+  created_at              DateTime               @default(now())
+  updated_at              DateTime               @default(now())
+  auto_contribute_enabled Boolean                @default(false)
   auto_contribute_type    String?
-  auto_contribute_value   Decimal?           @db.Decimal(12, 2)
-  category                Category?          @relation(fields: [category_id], references: [id])
-  family                  Family?            @relation(fields: [family_id], references: [id])
-  user                    User               @relation(fields: [user_id], references: [id])
+  auto_contribute_value   Decimal?               @db.Decimal(12, 2)
+  interest_rate           Decimal?               @db.Decimal(5, 2)
+  category                Category?              @relation(fields: [category_id], references: [id])
+  family                  Family?                @relation(fields: [family_id], references: [id])
+  user                    User                   @relation(fields: [user_id], references: [id])
   contributions           GoalContribution[]
+  recurring               RecurringTransaction[]
 
   @@index([user_id, is_archived])
   @@index([family_id, is_archived])
@@ -150,11 +208,11 @@ model Wish {
   priority      Int                @default(3)
   status        String             @default("active")
   category_id   Int?
-  is_private    Boolean            @default(true)
   archived      Boolean            @default(false)
   archived_at   DateTime?
   created_at    DateTime           @default(now())
   updated_at    DateTime           @default(now())
+  scope         Scope              @default(personal)
   category      Category?          @relation(fields: [category_id], references: [id])
   family        Family?            @relation(fields: [family_id], references: [id])
   user          User               @relation(fields: [user_id], references: [id])
@@ -165,17 +223,19 @@ model Wish {
 }
 
 model Budget {
-  id          Int      @id @default(autoincrement())
-  user_id     Int
-  family_id   Int?
-  category_id Int
-  month       String
-  limit       Decimal  @db.Decimal(12, 2)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @default(now())
-  category    Category @relation(fields: [category_id], references: [id])
-  family      Family?  @relation(fields: [family_id], references: [id])
-  user        User     @relation(fields: [user_id], references: [id])
+  id           Int        @id @default(autoincrement())
+  user_id      Int
+  family_id    Int?
+  category_id  Int
+  month        String
+  created_at   DateTime   @default(now())
+  updated_at   DateTime   @default(now())
+  limit_amount Decimal    @db.Decimal(12, 2)
+  scope        Scope      @default(personal)
+  type         BudgetType @default(expense)
+  category     Category   @relation(fields: [category_id], references: [id])
+  family       Family?    @relation(fields: [family_id], references: [id])
+  user         User       @relation(fields: [user_id], references: [id])
 
   @@unique([user_id, category_id, month, family_id])
 }
@@ -190,32 +250,60 @@ model RecurringTransaction {
   day_of_month   Int      @default(1)
   start_month    String
   comment        String?
-  is_private     Boolean  @default(false)
   active         Boolean  @default(true)
   last_run_month String?
   created_at     DateTime @default(now())
   updated_at     DateTime @default(now())
+  debt_id        Int?
+  goal_id        Int?
+  account_id     Int?
+  account        Account? @relation(fields: [account_id], references: [id])
   category       Category @relation(fields: [category_id], references: [id])
+  debt           Debt?    @relation(fields: [debt_id], references: [id])
   family         Family?  @relation(fields: [family_id], references: [id])
+  goal           Goal?    @relation(fields: [goal_id], references: [id])
   user           User     @relation(fields: [user_id], references: [id])
+
+  @@index([debt_id])
+  @@index([account_id])
 }
 
 model SafetyPillowSetting {
   id         Int      @id @default(autoincrement())
-  user_id    Int      @unique
+  user_id    Int?     @unique
   months     Int      @default(3)
   updated_at DateTime @default(now())
-  user       User     @relation(fields: [user_id], references: [id])
+  family_id  Int?     @unique
+  family     Family?  @relation(fields: [family_id], references: [id])
+  user       User?    @relation(fields: [user_id], references: [id])
+}
+
+model SafetyPillowSnapshot {
+  id             Int      @id @default(autoincrement())
+  user_id        Int?
+  family_id      Int?
+  total_income   Decimal  @db.Decimal(12, 2)
+  total_expenses Decimal  @db.Decimal(12, 2)
+  safety_pillow  Decimal  @db.Decimal(12, 2)
+  monthly_limit  Decimal  @db.Decimal(12, 2)
+  calculated_at  DateTime @default(now())
+  family         Family?  @relation(fields: [family_id], references: [id])
+  user           User?    @relation(fields: [user_id], references: [id])
+
+  @@index([user_id, calculated_at])
+  @@index([family_id, calculated_at])
 }
 
 model SafetyPillowHistory {
   id             Int      @id @default(autoincrement())
-  user_id        Int
+  user_id        Int?
   total_income   Decimal  @db.Decimal(12, 2)
   total_expenses Decimal  @db.Decimal(12, 2)
   safety_pillow  Decimal  @db.Decimal(12, 2)
   calculated_at  DateTime @default(now())
-  user           User     @relation(fields: [user_id], references: [id])
+  family_id      Int?
+  family         Family?  @relation(fields: [family_id], references: [id])
+  user           User?    @relation(fields: [user_id], references: [id])
 }
 
 model Notification {
@@ -248,4 +336,117 @@ model PasswordResetToken {
   token      String
   expires_at DateTime
   created_at DateTime @default(now())
+}
+
+model RefreshToken {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  token      String   @unique
+  expires_at DateTime
+  created_at DateTime @default(now())
+  revoked    Boolean  @default(false)
+  user       User     @relation(fields: [user_id], references: [id])
+
+  @@index([user_id])
+  @@index([token])
+}
+
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  user_id     Int?
+  action      String
+  entity_type String
+  entity_id   Int?
+  changes     Json?
+  metadata    Json?
+  ip_address  String?
+  user_agent  String?
+  created_at  DateTime @default(now())
+  user        User?    @relation(fields: [user_id], references: [id])
+
+  @@index([user_id])
+  @@index([entity_type, entity_id])
+  @@index([action])
+  @@index([created_at])
+}
+
+model Debt {
+  id                 Int                    @id @default(autoincrement())
+  user_id            Int
+  family_id          Int?
+  name               String
+  total_amount       Decimal                @db.Decimal(12, 2)
+  remaining          Decimal                @db.Decimal(12, 2)
+  interest_rate      Decimal?               @db.Decimal(5, 2)
+  monthly_payment    Decimal                @db.Decimal(12, 2)
+  type               String                 @default("credit")
+  start_date         DateTime
+  end_date           DateTime?
+  notes              String?
+  is_active          Boolean                @default(true)
+  created_at         DateTime               @default(now())
+  updated_at         DateTime               @default(now())
+  recurring_payments RecurringTransaction[]
+
+  @@index([user_id, is_active])
+  @@index([family_id, is_active])
+}
+
+model FailedJob {
+  id              Int       @id @default(autoincrement())
+  job_type        String
+  payload         Json
+  error           String
+  attempts        Int       @default(0)
+  max_attempts    Int       @default(3)
+  scheduled_at    DateTime  @default(now())
+  last_attempt_at DateTime?
+  next_retry_at   DateTime?
+  completed       Boolean   @default(false)
+  created_at      DateTime  @default(now())
+
+  @@index([job_type, next_retry_at])
+  @@index([completed, next_retry_at])
+}
+
+model UserWidgetConfig {
+  id               Int      @id @default(autoincrement())
+  user_id          Int      @unique
+  personal_widgets Json
+  family_widgets   Json
+  updated_at       DateTime @default(now())
+  user             User     @relation(fields: [user_id], references: [id])
+}
+
+enum FamilyRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+model FamilySettings {
+  id                    Int      @id @default(autoincrement())
+  family_id              Int      @unique
+  show_personal_in_stats Boolean  @default(false)
+  safety_pillow_months   Int      @default(3)
+  updated_at             DateTime @default(now())
+  family                 Family?  @relation(fields: [family_id], references: [id])
+}
+
+enum Scope {
+  personal
+  family
+  shared
+}
+
+enum BudgetType {
+  income
+  expense
+}
+
+enum InviteStatus {
+  active
+  used
+  revoked
 }

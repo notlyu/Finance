@@ -13,15 +13,17 @@ import {
   ArcElement,
   Filler,
 } from 'chart.js';
-import api, { API_BASE } from '../services/api';
+import api, { API_BASE, downloadFile } from '../services/api';
 import { formatMoney } from '../utils/format';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 ChartJS.register(
   CategoryScale, LinearScale, PointElement, LineElement,
   Title, Tooltip, Legend, ArcElement, Filler
 );
 
-export default function Analytics() {
+export default function Analytics({ space = 'personal' }) {
   const { selectedMember } = useOutletContext() || {};
   const [dynamics, setDynamics] = useState({ labels: [], income: [], expense: [] });
   const [expensesByCat, setExpensesByCat] = useState([]);
@@ -59,24 +61,47 @@ export default function Analytics() {
   const periodLabel = periodPreset === 'custom' ? `${period.start} – ${period.end}` : (periodPreset === '3m' ? '3 месяца' : periodPreset === '6m' ? '6 месяцев' : '12 месяцев');
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchDynamics = async () => {
       try {
         const apiParams = { startDate: period.start, endDate: period.end, start: period.start, end: period.end };
         if (selectedMember?.id) apiParams.memberId = selectedMember.id;
-        const [dynamicsRes, expensesRes, incomeRes, pillowRes] = await Promise.all([
-          api.get('/reports/dynamics', { params: apiParams }),
-          api.get('/reports/expenses-by-category', { params: apiParams }),
-          api.get('/reports/income-by-category', { params: apiParams }),
-          api.get('/safety-pillow/history', { params: { limit: 12 } }),
-        ]);
-        setDynamics(dynamicsRes.data);
-        setExpensesByCat(expensesRes.data);
-        setIncomeByCat(incomeRes.data);
-        setPillowHistory(pillowRes.data);
-      } catch (err) { console.error(err); }
-      finally { setLoading(false); }
+        const res = await api.get('/reports/dynamics', { params: apiParams });
+        setDynamics(res.data);
+      } catch (err) { console.error('Dynamics fetch error:', err); }
     };
-    fetchData();
+
+    const fetchExpensesByCat = async () => {
+      try {
+        const apiParams = { startDate: period.start, endDate: period.end, start: period.start, end: period.end };
+        if (selectedMember?.id) apiParams.memberId = selectedMember.id;
+        const res = await api.get('/reports/expenses-by-category', { params: apiParams });
+        setExpensesByCat(res.data);
+      } catch (err) { console.error('Expenses by category fetch error:', err); }
+    };
+
+    const fetchIncomeByCat = async () => {
+      try {
+        const apiParams = { startDate: period.start, endDate: period.end, start: period.start, end: period.end };
+        if (selectedMember?.id) apiParams.memberId = selectedMember.id;
+        const res = await api.get('/reports/income-by-category', { params: apiParams });
+        setIncomeByCat(res.data);
+      } catch (err) { console.error('Income by category fetch error:', err); }
+    };
+
+    const fetchPillowHistory = async () => {
+      try {
+        const res = await api.get('/safety-pillow/history', { params: { limit: 12 } });
+        setPillowHistory(res.data);
+      } catch (err) { console.error('Pillow history fetch error:', err); }
+    };
+
+    setLoading(true);
+    Promise.allSettled([
+      fetchDynamics(),
+      fetchExpensesByCat(),
+      fetchIncomeByCat(),
+      fetchPillowHistory(),
+    ]).finally(() => setLoading(false));
   }, [periodPreset, startDate, endDate, selectedMember]);
 
   // ALL hooks before any early return
@@ -171,13 +196,52 @@ export default function Analytics() {
     return params;
   };
 
-  const exportCSV = () => {
-    const token = localStorage.getItem('token');
-    window.open(`${API_BASE}/reports/export${buildExportParams()}&token=${token}`, '_blank');
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
+
+  const handleExport = async (format) => {
+    setExportDropdownOpen(false);
+    const params = buildExportParams();
+    const fmt = format === 'excel' ? 'xlsx' : 'csv';
+    const ext = format === 'excel' ? 'xlsx' : 'csv';
+    await downloadFile(`/api/export/transactions?format=${fmt}${params.replace('?', '&')}`, `transactions-${new Date().toISOString().slice(0, 10)}.${ext}`);
   };
-  const exportExcel = () => {
-    const token = localStorage.getItem('token');
-    window.open(`${API_BASE}/reports/export/excel${buildExportParams()}&token=${token}`, '_blank');
+
+  const exportPDF = async () => {
+    console.log('PDF export clicked');
+    const element = document.getElementById('analytics-content');
+    if (!element) return;
+    
+    const canvas = await html2canvas(element, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+    });
+    
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = canvas.width;
+    const imgHeight = canvas.height;
+    const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+    const width = imgWidth * ratio;
+    const height = imgHeight * ratio;
+    
+    let heightLeft = height;
+    let position = 0;
+    
+    pdf.addImage(imgData, 'PNG', 0, position, width, height);
+    heightLeft -= pdfHeight;
+    
+    while (heightLeft > 0) {
+      position = heightLeft - height;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, width, height);
+      heightLeft -= pdfHeight;
+    }
+    
+    pdf.save(`finance-report-${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
   if (loading) return (
@@ -193,7 +257,7 @@ export default function Analytics() {
   const incomeDonut = donutData(incomeByCat);
 
   return (
-    <div className="space-y-8">
+    <div id="analytics-content" className="space-y-8">
       {/* Section Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
@@ -204,13 +268,23 @@ export default function Analytics() {
           <h2 className="text-3xl font-extrabold tracking-tight text-on-surface font-headline">Аналитика</h2>
           <p className="text-on-surface-variant text-sm mt-1">{periodLabel}</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={exportCSV} className="btn-ghost px-4 py-2.5 text-sm flex items-center gap-2">
-            <span className="material-symbols-outlined text-sm">description</span> CSV
-          </button>
-          <button onClick={exportExcel} className="btn-primary px-4 py-2.5 text-sm flex items-center gap-2">
-            <span className="material-symbols-outlined text-sm">table_chart</span> Excel
-          </button>
+        <div className="flex gap-2 relative">
+          <div className="relative">
+            <button onClick={() => setExportDropdownOpen(!exportDropdownOpen)} className="btn-primary px-4 py-2.5 text-sm flex items-center gap-2">
+              <span className="material-symbols-outlined text-sm">download</span> Экспорт
+              <span className="material-symbols-outlined text-sm">{exportDropdownOpen ? 'expand_less' : 'expand_more'}</span>
+            </button>
+            {exportDropdownOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-surface-container-lowest rounded-xl shadow-card overflow-hidden z-50">
+                <button onClick={() => handleExport('excel')} className="w-full px-4 py-3 text-left text-sm hover:bg-surface-container flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">table_chart</span> Excel (.xlsx)
+                </button>
+                <button onClick={() => handleExport('csv')} className="w-full px-4 py-3 text-left text-sm hover:bg-surface-container flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">description</span> CSV
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

@@ -70,6 +70,7 @@
     --md-shadow: rgba(11, 28, 48, 0.06);
     --md-shadow-strong: rgba(11, 28, 48, 0.12);
     --md-shadow-vault: 0 20px 40px rgba(53, 37, 205, 0.06);
+    --md-shadow-premium: 0px 24px 48px -12px rgba(23, 28, 31, 0.08);
   }
 
   html.dark {
@@ -119,6 +120,7 @@
     --md-inverse-primary: #3525cd;
     --md-shadow: rgba(0, 0, 0, 0.2);
     --md-shadow-strong: rgba(0, 0, 0, 0.4);
+    --md-shadow-premium: 0px 24px 48px -12px rgba(0, 0, 0, 0.25);
   }
 
   * {

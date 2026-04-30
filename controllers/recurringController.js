@@ -38,13 +38,15 @@ exports.getRecurring = async (req, res, next) => {
       type: i.type,
       amount: i.amount,
       category_id: i.category_id,
+      account_id: i.account_id,
       category_name: categoryMap[i.category_id] || '',
       day_of_month: i.day_of_month,
       start_month: i.start_month,
       comment: i.comment,
-      is_private: !!i.is_private,
+      scope: i.scope || (i.family_id ? 'family' : 'personal'),
       active: !!i.active,
       last_run_month: i.last_run_month,
+      debt_id: i.debt_id,
     })));
   } catch (error) {
     next(error);
@@ -63,33 +65,50 @@ exports.createRecurring = async (req, res, next) => {
       day_of_month = 1,
       start_month = currentMonth(),
       comment,
-      is_private = false,
+      scope: reqScope,
+      account_id,
     } = req.body;
+    const scope = reqScope || 'personal';
 
     if (!['income', 'expense'].includes(type)) throw new ValidationError('Некорректный type');
     const a = Number(amount);
     if (!Number.isFinite(a) || a <= 0) throw new ValidationError('amount должен быть > 0');
     const day = Number(day_of_month);
-    if (!Number.isFinite(day) || day < 1 || day > 28) throw new ValidationError('day_of_month должен быть 1..28');
+    if (!Number.isFinite(day) || day < 1 || day > 31) throw new ValidationError('day_of_month должен быть 1..31');
+    const now = new Date();
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const validDay = Math.min(day, lastDay);
     if (!/^\d{4}-\d{2}$/.test(String(start_month))) throw new ValidationError('start_month должен быть YYYY-MM');
     if (!category_id) throw new ValidationError('category_id обязателен');
 
+    let accId = null;
+    if (account_id) {
+      const acc = await prisma.account.findFirst({
+        where: familyId
+          ? { id: Number(account_id), OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+          : { id: Number(account_id), family_id: null, user_id: user.id }
+      });
+      if (!acc) throw new NotFoundError('Счёт не найден');
+      accId = acc.id;
+    }
+
     const item = await prisma.recurringTransaction.create({
       data: {
-        family_id: familyId || null,
+        family_id: scope !== 'personal' && familyId ? familyId : null,
         user_id: user.id,
+        account_id: accId,
         category_id,
         amount: a,
         type,
-        day_of_month: day,
+        day_of_month: validDay,
         start_month,
         comment: comment || null,
-        is_private: !!is_private,
+        scope,
       }
     });
 
     logger.info(`User ${user.id} created recurring transaction ${item.id}`);
-    res.status(201).json(item);
+    res.status(201).json({ ...item, scope: item.scope || (item.family_id ? 'family' : 'personal') });
   } catch (error) {
     next(error);
   }
@@ -110,22 +129,37 @@ exports.updateRecurring = async (req, res, next) => {
 
      if (item.user_id !== user.id) throw new ForbiddenError('Нет прав');
 
-     const patch = {};
-     if (req.body.amount != null) {
-       const a = Number(req.body.amount);
-       if (!Number.isFinite(a) || a <= 0) throw new ValidationError('amount должен быть > 0');
-       patch.amount = a;
-     }
-     if (req.body.day_of_month != null) {
-       const day = Number(req.body.day_of_month);
-       if (!Number.isFinite(day) || day < 1 || day > 28) throw new ValidationError('day_of_month должен быть 1..28');
-       patch.day_of_month = day;
-     }
-     if (req.body.category_id != null) patch.category_id = req.body.category_id;
-     if (req.body.comment != null) patch.comment = req.body.comment || null;
-     if (req.body.is_private != null) patch.is_private = !!req.body.is_private;
-     if (req.body.active != null) patch.active = !!req.body.active;
-     patch.updated_at = new Date();
+      const patch = {};
+      if (req.body.amount != null) {
+        const a = Number(req.body.amount);
+        if (!Number.isFinite(a) || a <= 0) throw new ValidationError('amount должен быть > 0');
+        patch.amount = a;
+      }
+ if (req.body.day_of_month != null) {
+         const day = Number(req.body.day_of_month);
+         if (!Number.isFinite(day) || day < 1 || day > 31) throw new ValidationError('day_of_month должен быть 1..31');
+         const now = new Date();
+         const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+         patch.day_of_month = Math.min(day, lastDay);
+       }
+      if (req.body.category_id != null) patch.category_id = req.body.category_id;
+      if (req.body.comment != null) patch.comment = req.body.comment || null;
+      if (req.body.scope != null) patch.scope = req.body.scope;
+      if (req.body.active != null) patch.active = !!req.body.active;
+      if (req.body.account_id !== undefined) {
+        if (req.body.account_id === null || req.body.account_id === '') {
+          patch.account_id = null;
+        } else {
+          const acc = await prisma.account.findFirst({
+            where: familyId
+              ? { id: Number(req.body.account_id), OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+              : { id: Number(req.body.account_id), family_id: null, user_id: user.id }
+          });
+          if (!acc) throw new NotFoundError('Счёт не найден');
+          patch.account_id = acc.id;
+        }
+      }
+      patch.updated_at = new Date();
 
      const updated = await prisma.recurringTransaction.update({
        where: { id: item.id },

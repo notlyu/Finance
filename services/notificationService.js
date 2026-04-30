@@ -1,4 +1,5 @@
 const prisma = require('../lib/prisma-client');
+const { emitNotification } = require('../lib/socket');
 
 async function createNotification(userId, type, title, message, relatedId = null, relatedType = null) {
   try {
@@ -9,7 +10,7 @@ async function createNotification(userId, type, title, message, relatedId = null
       if (type === 'budget_exceeded' && !settings.notify_budget_exceeded) return null;
     }
 
-    return await prisma.notification.create({
+    const notification = await prisma.notification.create({
       data: {
         user_id: userId,
         type,
@@ -19,6 +20,10 @@ async function createNotification(userId, type, title, message, relatedId = null
         related_type: relatedType,
       }
     });
+
+    emitNotification(userId, notification);
+
+    return notification;
   } catch (err) {
     console.error('createNotification error:', err);
     return null;

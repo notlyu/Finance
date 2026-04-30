@@ -22,12 +22,23 @@ export default function Login() {
     e.preventDefault();
     setError('');
     try {
-      const response = isLogin
-        ? await api.post('/auth/login', { email, password })
-        : await api.post('/auth/register', { email, password, name });
-      localStorage.setItem('token', response.data.token);
-      navigate('/');
+      const res = await api.post(isLogin ? '/auth/login' : '/auth/register', { email, password, name }, { withCredentials: true });
+      if (res.status === 200 || res.status === 201) {
+        const { token, refreshToken, refreshTokenExpiresAt } = res.data;
+        if (token) {
+          localStorage.setItem('token', token);
+        }
+        if (refreshToken) {
+          localStorage.setItem('refreshToken', refreshToken);
+        }
+        if (refreshTokenExpiresAt) {
+          localStorage.setItem('refreshTokenExpiresAt', refreshTokenExpiresAt);
+        }
+        navigate('/');
+        return;
+      }
     } catch (err) {
+      console.error('Login error:', err);
       setError(err.response?.data?.message || 'Ошибка');
     }
   };

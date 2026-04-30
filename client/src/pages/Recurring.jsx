@@ -2,50 +2,93 @@ import { Link } from 'react-router-dom';
 import { useEffect, useState, useMemo } from 'react';
 import api from '../services/api';
 import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import FormattedInput from '../components/ui/FormattedInput';
 import { useForm } from 'react-hook-form';
 import { formatMoney } from '../utils/format';
+import { showError } from '../utils/toast';
 
-export default function Recurring() {
+export default function Recurring({ space = 'personal' }) {
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({ open: false, onConfirm: null, title: '', message: '' });
   const { register, handleSubmit, reset, setValue, watch } = useForm();
+
+  const fetchRecurring = async () => {
+    try {
+      const res = await api.get(`/${space}/recurring`);
+      setItems(res.data || []);
+    } catch (err) { console.error('Recurring fetch error:', err); }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const res = await api.get('/categories');
+      setCategories(res.data || []);
+    } catch (err) { console.error('Categories fetch error:', err); }
+  };
+
+  const fetchAccounts = async () => {
+    try {
+      const res = await api.get('/accounts');
+      setAccounts(res.data || []);
+    } catch (err) { console.error('Accounts fetch error:', err); }
+  };
 
   const fetchData = async () => {
     setLoading(true);
-    try {
-      const [recRes, catRes] = await Promise.all([
-        api.get('/recurring'), api.get('/categories'),
-      ]);
-      setItems(recRes.data || []);
-      setCategories(catRes.data || []);
-    } catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
-    finally { setLoading(false); }
+    await Promise.allSettled([
+      fetchRecurring(),
+      fetchCategories(),
+      fetchAccounts(),
+    ]);
+    setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [space]);
 
   const onCreate = async (data) => {
     try {
-      await api.post('/recurring', {
+      const today = new Date();
+      const startMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+      await api.post(`/${space}/recurring`, {
         type: data.type, amount: Number(data.amount), category_id: Number(data.category_id),
-        day_of_month: Number(data.day_of_month), comment: data.comment, is_private: !!data.is_private,
+        account_id: data.account_id ? Number(data.account_id) : null,
+        day_of_month: Number(data.day_of_month), comment: data.comment,
+        start_month: startMonth,
+        visibility: space === 'family' ? 'family' : 'personal',
       });
-      setModalOpen(false); reset(); fetchData();
-    } catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
+      setModalOpen(false); reset(); fetchRecurring();
+    } catch (err) { console.error(err); showError(err.response?.data?.message || 'Ошибка'); }
   };
 
   const toggleActive = async (item) => {
-    try { await api.put(`/recurring/${item.id}`, { active: !item.active }); fetchData(); }
-    catch (err) { alert(err.response?.data?.message || 'Ошибка'); }
+    try { await api.put(`/${space}/recurring/${item.id}`, { active: !item.active }); fetchRecurring(); }
+    catch (err) { showError(err.response?.data?.message || 'Ошибка'); }
   };
 
   const remove = async (id) => {
-    if (!window.confirm('Удалить регулярную операцию?')) return;
-    try { await api.delete(`/recurring/${id}`); fetchData(); }
-    catch (err) { alert(err.response?.data?.message || 'Ошибка'); }
+    const item = items.find(i => i.id === id);
+    let message = 'Это действие нельзя отменить.';
+    if (item?.goal_id) {
+      message = `Этот платёж связан с целью. Отключить автопополнение цели?`;
+    } else if (item?.debt_id) {
+      message = `Этот платёж связан с долгом. Отключить регулярный платёж по долгу?`;
+    }
+    setConfirmModal({
+      open: true,
+      variant: 'danger',
+      title: 'Удалить регулярную операцию?',
+      message,
+      confirmText: 'Удалить',
+      onConfirm: async () => {
+        try { await api.delete(`/${space}/recurring/${id}`); fetchRecurring(); }
+        catch (err) { showError(err.response?.data?.message || 'Ошибка'); }
+      }
+    });
   };
 
   // Stats — must be before any early return
@@ -79,7 +122,7 @@ export default function Recurring() {
           <h2 className="text-3xl font-extrabold tracking-tight text-on-surface font-headline">Регулярные операции</h2>
           <p className="text-on-surface-variant text-sm mt-1">Автоматически создаются раз в месяц (день 1–28)</p>
         </div>
-        <button onClick={() => { reset({ type: 'expense', day_of_month: 1, is_private: false }); setModalOpen(true); }} className="btn-primary px-6 py-2.5 flex items-center gap-2 text-sm">
+        <button onClick={() => { reset({ type: 'expense', day_of_month: 1, scope: 'personal' }); setModalOpen(true); }} className="btn-primary px-6 py-2.5 flex items-center gap-2 text-sm">
           <span className="material-symbols-outlined text-sm">add</span>
           Добавить
         </button>
@@ -161,6 +204,14 @@ export default function Recurring() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-on-surface">{formatMoney(i.amount)} ₽</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-on-surface-variant">{i.day_of_month}-е число</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-on-surface-variant max-w-48 truncate">{i.comment || '—'}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
+                      i.scope === 'family' || i.scope === 'shared' ? 'bg-primary/10 text-primary' : 'bg-tertiary-container text-tertiary'
+                    }`}>
+                      <span className="material-symbols-outlined text-xs">{i.scope === 'family' || i.scope === 'shared' ? 'home' : 'person'}</span>
+                      {i.scope === 'family' || i.scope === 'shared' ? 'Семейный' : 'Личный'}
+                    </span>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
                     <button onClick={() => remove(i.id)} className="w-9 h-9 inline-flex items-center justify-center rounded-lg text-error hover:bg-error-container transition-colors">
                       <span className="material-symbols-outlined text-sm">delete</span>
@@ -212,32 +263,54 @@ export default function Recurring() {
             </div>
           </div>
           <div>
+            <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Счёт (опционально)</label>
+            <select {...register('account_id')} className="select-ghost">
+              <option value="">Без счёта</option>
+              {accounts.map(acc => (
+                <option key={acc.id} value={acc.id}>{acc.name} ({formatMoney(acc.balance)} ₽)</option>
+              ))}
+            </select>
+            <p className="text-xs text-on-surface-variant mt-1">Если выбран счёт, при выполнении операции будет меняться его баланс</p>
+          </div>
+          <div>
             <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Комментарий</label>
             <input {...register('comment')} className="input-ghost" placeholder="Необязательно" />
           </div>
-          <div className="flex items-center justify-between p-4 bg-surface-container rounded-2xl">
-            <div>
-              <span className="text-sm font-semibold text-on-surface">Скрыть от семьи</span>
-              <p className="text-xs text-on-surface-variant">Операция будет видна только вам</p>
+          {space !== 'personal' && (
+            <div className="flex items-center justify-between p-4 bg-surface-container rounded-2xl">
+              <div>
+                <span className="text-sm font-semibold text-on-surface">Скрыть от семьи</span>
+                <p className="text-xs text-on-surface-variant">Операция будет видна только вам</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setValue('scope', watch('scope') === 'personal' ? 'family' : 'personal')}
+                className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
+                  watch('scope') === 'personal' ? 'bg-primary' : 'bg-outline-variant'
+                }`}
+              >
+                <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${
+                  watch('scope') === 'personal' ? 'translate-x-5' : 'translate-x-0.5'
+                }`}></div>
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setValue('is_private', !watch('is_private'))}
-              className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
-                watch('is_private') ? 'bg-primary' : 'bg-outline-variant'
-              }`}
-            >
-              <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${
-                watch('is_private') ? 'translate-x-5' : 'translate-x-0.5'
-              }`}></div>
-            </button>
-          </div>
+          )}
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={() => setModalOpen(false)} className="btn-ghost px-6 py-3">Отмена</button>
             <button type="submit" className="btn-primary px-8 py-3">Сохранить</button>
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={confirmModal.open}
+        onClose={() => setConfirmModal({ open: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        variant={confirmModal.variant}
+        confirmText={confirmModal.confirmText}
+      />
     </div>
   );
 }
