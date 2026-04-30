@@ -1,7 +1,7 @@
 const express = require('express');
 const prisma = require('../lib/prisma-client');
 const authMiddleware = require('../middleware/auth');
-const { validateMiddleware } = require('../lib/validation');
+const { validateMiddleware, validateObjectId } = require('../lib/validation');
 
 const router = express.Router();
 
@@ -12,23 +12,28 @@ router.get('/', async (req, res) => {
     const user = req.user;
     const familyId = user.family_id;
 
-    let categories = await prisma.category.findMany({
-      where: familyId
-        ? {
-            OR: [
-              { family_id: null, user_id: null, is_system: true },
-              { family_id: familyId },
-              { user_id: user.id }
-            ]
-          }
-        : {
-            OR: [
-              { family_id: null, user_id: null, is_system: true },
-              { user_id: user.id }
-            ]
-          },
-      orderBy: [{ type: 'asc' }, { name: 'asc' }]
-    });
+    let categories;
+    if (familyId) {
+      categories = await prisma.category.findMany({
+        where: {
+          OR: [
+            { is_system: true },
+            { family_id: familyId }
+          ]
+        },
+        orderBy: [{ type: 'asc' }, { name: 'asc' }]
+      });
+    } else {
+      categories = await prisma.category.findMany({
+        where: {
+          OR: [
+            { is_system: true },
+            { user_id: user.id, family_id: null }
+          ]
+        },
+        orderBy: [{ type: 'asc' }, { name: 'asc' }]
+      });
+    }
 
     const seen = new Set();
     const uniqueCategories = [];
@@ -50,17 +55,16 @@ router.get('/', async (req, res) => {
 router.post('/', validateMiddleware('category', 'create'), async (req, res) => {
   try {
     const user = req.user;
-    const { name, type } = req.body;
-    if (!name || !type || !['income', 'expense'].includes(type)) {
-      return res.status(400).json({ message: 'Некорректные данные' });
-    }
+    const { name, type, scope: reqScope } = req.body;
+    const scope = reqScope || (user.family_id ? 'family' : 'personal');
     const category = await prisma.category.create({
       data: {
         name,
         type,
-        family_id: user.family_id,
+        family_id: scope !== 'personal' ? user.family_id : null,
         user_id: user.id,
         is_system: false,
+        scope,
       }
     });
     res.status(201).json(category);
@@ -70,15 +74,19 @@ router.post('/', validateMiddleware('category', 'create'), async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', validateObjectId, async (req, res) => {
   try {
     const user = req.user;
     const { id } = req.params;
+    // Allow deletion if: user owns the category OR user is family owner with family category
     const category = await prisma.category.findFirst({
       where: {
         id: Number(id),
-        user_id: user.id,
         is_system: false,
+        OR: [
+          { user_id: user.id },
+          { family_id: user.family_id, family_id: { not: null } }
+        ]
       },
     });
     if (!category) {

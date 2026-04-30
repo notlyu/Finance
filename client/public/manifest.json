@@ -1,25 +1,51 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "name": "Финансы — Семейный трекер",
+  "short_name": "Финансы",
+  "description": "Семейный финансовый трекер — управляйте капиталом осознанно",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3525cd",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "ru-RU",
+  "categories": ["finance", "productivity"],
   "icons": [
     {
-      "src": "favicon.ico",
+      "src": "/favicon.ico",
       "sizes": "64x64 32x32 24x24 16x16",
       "type": "image/x-icon"
     },
     {
-      "src": "logo192.png",
+      "src": "/logo192.png",
+      "sizes": "192x192",
       "type": "image/png",
-      "sizes": "192x192"
+      "purpose": "any maskable"
     },
     {
-      "src": "logo512.png",
+      "src": "/logo512.png",
+      "sizes": "512x512",
       "type": "image/png",
-      "sizes": "512x512"
+      "purpose": "any maskable"
     }
   ],
-  "start_url": ".",
-  "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Операции",
+      "short_name": "Операции",
+      "description": "Просмотр операций",
+      "url": "/transactions",
+      "icons": [{ "src": "/logo192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Цели",
+      "short_name": "Цели",
+      "description": "Просмотр целей",
+      "url": "/goals",
+      "icons": [{ "src": "/logo192.png", "sizes": "192x192" }]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
 }

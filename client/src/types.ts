@@ -23,7 +23,7 @@ export interface Transaction {
   type: 'income' | 'expense';
   date: string;
   comment?: string;
-  is_private: boolean;
+  scope: 'personal' | 'family' | 'shared';
   category?: Category;
   user?: User;
 }
@@ -59,9 +59,9 @@ export interface Wish {
   cost: number;
   saved_amount: number;
   priority: number;
-  status: 'active' | 'completed' | 'postponed';
+  status: 'active' | 'completed' | 'cancelled';
   category_id?: number;
-  is_private: boolean;
+  scope: 'personal' | 'family' | 'shared';
   archived: boolean;
 }
 
@@ -71,8 +71,10 @@ export interface Budget {
   family_id: number | null;
   category_id: number;
   month: string;
-  limit: number;
+  limit_amount: number;
   spent: number;
+  type: 'income' | 'expense';
+  scope: 'personal' | 'family' | 'shared';
   Category?: Category;
 }
 
@@ -86,7 +88,7 @@ export interface RecurringTransaction {
   day_of_month: number;
   start_month: string;
   comment?: string;
-  is_private: boolean;
+  scope: 'personal' | 'family' | 'shared';
   active: boolean;
 }
 

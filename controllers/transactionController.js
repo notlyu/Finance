@@ -1,4 +1,5 @@
 const transactionService = require('../services/transactionService');
+const auditService = require('../services/auditService');
 const { logger, NotFoundError, ValidationError, UnauthorizedError } = require('../lib/errors');
 
 const getTransactions = async (req, res, next) => {
@@ -26,6 +27,10 @@ const createTransaction = async (req, res, next) => {
             type: result.tx?.type,
             action: 'createTransaction' 
         });
+
+        if (result.tx) {
+            auditService.logTransaction(req.user.id, 'create', result.tx.id, null, result.tx, req);
+        }
 
         const response = { transaction: result.tx };
         if (result.budgetWarning) {
@@ -57,6 +62,7 @@ const updateTransaction = async (req, res, next) => {
         throw new UnauthorizedError();
     }
     try {
+        const oldTx = await transactionService.getTransactionById(req.params.id, req.user.family_id, req.user.id);
         const transaction = await transactionService.updateTransaction(req.params.id, req.user.family_id, req.user.id, req.body);
         
         logger.info({ 
@@ -64,6 +70,10 @@ const updateTransaction = async (req, res, next) => {
             transactionId: transaction?.id, 
             action: 'updateTransaction' 
         });
+
+        if (transaction) {
+            auditService.logTransaction(req.user.id, 'update', transaction.id, oldTx, transaction, req);
+        }
         
         res.json(transaction);
     } catch (error) {
@@ -76,6 +86,7 @@ const deleteTransaction = async (req, res, next) => {
         throw new UnauthorizedError();
     }
     try {
+        const oldTx = await transactionService.getTransactionById(req.params.id, req.user.family_id, req.user.id);
         await transactionService.deleteTransaction(req.params.id, req.user.family_id, req.user.id);
         
         logger.info({ 
@@ -83,6 +94,10 @@ const deleteTransaction = async (req, res, next) => {
             transactionId: req.params.id, 
             action: 'deleteTransaction' 
         });
+
+        if (oldTx) {
+            auditService.logTransaction(req.user.id, 'delete', Number(req.params.id), oldTx, null, req);
+        }
         
         res.status(204).send();
     } catch (error) {

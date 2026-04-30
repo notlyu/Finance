@@ -3,10 +3,12 @@ import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import api from '../services/api';
 import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import FormattedInput from '../components/ui/FormattedInput';
 import { formatMoney } from '../utils/format';
+import { showError } from '../utils/toast';
 
-export default function Wishes() {
+export default function Wishes({ space = 'personal' }) {
   const [wishes, setWishes] = useState([]);
   const [categories, setCategories] = useState([]);
   const [currentUserId, setCurrentUserId] = useState(null);
@@ -23,6 +25,7 @@ export default function Wishes() {
   const [showArchived, setShowArchived] = useState(false);
   const [showCelebration, setShowCelebration] = useState(null);
   const [wishTab, setWishTab] = useState('all');
+  const [confirmModal, setConfirmModal] = useState({ open: false, onConfirm: null, title: '', message: '' });
   const { register, handleSubmit, reset, setValue, watch } = useForm();
 
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -52,25 +55,33 @@ export default function Wishes() {
   const onSubmit = async (data) => {
     try {
       const payload = { ...data, category_id: data.category_id ? Number(data.category_id) : undefined, created_at: todayStr };
+      payload.visibility = data.scope === 'personal' ? 'personal' : 'family';
       if (editingId) { await api.put(`/wishes/${editingId}`, payload); }
       else { await api.post('/wishes', payload); }
       setModalOpen(false); reset(); setEditingId(null); fetchData();
-    } catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
+    } catch (err) { console.error(err); showError(err.response?.data?.message || 'Ошибка'); }
   };
 
   const openEditModal = (wish) => {
     setEditingId(wish.id);
     setValue('name', wish.name); setValue('cost', wish.cost); setValue('priority', wish.priority);
     setValue('status', wish.status); setValue('saved_amount', wish.saved_amount);
-    setValue('is_private', wish.is_private); setValue('category_id', wish.category_id);
+    setValue('scope', wish.visibility === 'personal' ? 'personal' : 'family'); setValue('category_id', wish.category_id);
     setModalOpen(true);
   };
 
   const deleteWish = async (id) => {
-    if (window.confirm('Удалить желание?')) {
-      try { await api.delete(`/wishes/${id}`); fetchData(); }
-      catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
-    }
+    setConfirmModal({
+      open: true,
+      variant: 'danger',
+      title: 'Удалить желание?',
+      message: 'Это действие нельзя отменить.',
+      confirmText: 'Удалить',
+      onConfirm: async () => {
+        try { await api.delete(`/wishes/${id}`); fetchData(); }
+        catch (err) { console.error(err); showError(err.response?.data?.message || 'Ошибка'); }
+      }
+    });
   };
 
   const openFundModal = async (wish) => {
@@ -93,7 +104,7 @@ export default function Wishes() {
         setShowCelebration(fundWish.name);
         setTimeout(() => setShowCelebration(null), 3000);
       }
-    } catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
+    } catch (err) { console.error(err); showError(err.response?.data?.message || 'Ошибка'); }
     finally { setFundLoading(false); }
   };
 
@@ -124,8 +135,8 @@ export default function Wishes() {
   const activeWishes = wishes.filter(w => !w.archived && w.status !== 'completed');
   const archivedWishes = wishes.filter(w => w.archived || w.status === 'completed');
 
-  const familyWishes = activeWishes.filter(w => !w.is_hidden && w.family_id);
-  const personalWishes = activeWishes.filter(w => !w.family_id);
+  const familyWishes = activeWishes.filter(w => w.visibility === 'family' || w.family_id);
+  const personalWishes = activeWishes.filter(w => w.visibility === 'personal' || !w.family_id);
   const displayWishes = wishTab === 'family' ? familyWishes : wishTab === 'personal' ? personalWishes : activeWishes;
 
   return (
@@ -160,7 +171,7 @@ export default function Wishes() {
             </button>
           )}
           <button
-            onClick={() => { setEditingId(null); reset({ priority: 2, status: 'active', is_private: false, created_at: todayStr }); setModalOpen(true); }}
+            onClick={() => { setEditingId(null); reset({ priority: 2, status: 'active', scope: 'personal', created_at: todayStr }); setModalOpen(true); }}
             className="btn-primary px-6 py-2.5 flex items-center gap-2 text-sm"
           >
             <span className="material-symbols-outlined text-sm">add</span>
@@ -241,7 +252,8 @@ export default function Wishes() {
                         <h3 className={`text-lg font-bold font-headline truncate ${isCompleted ? 'text-secondary line-through' : 'text-on-surface'}`}>
                           {wish.name}
                         </h3>
-                        {wish.is_private && <span className="material-symbols-outlined text-sm text-on-surface-variant">lock</span>}
+                        {(wish.visibility === 'personal' || wish.scope === 'personal') && <span className="material-symbols-outlined text-sm text-on-surface-variant">lock</span>}
+                         {(wish.visibility === 'family' || wish.scope === 'family' || wish.scope === 'shared') && <span className="material-symbols-outlined text-sm text-primary">home</span>}
                         {isCompleted && <span className="material-symbols-outlined text-secondary animate-pulse">check_circle</span>}
                       </div>
                       <p className="text-sm text-on-surface-variant mt-1">
@@ -383,13 +395,13 @@ export default function Wishes() {
             </div>
             <button
               type="button"
-              onClick={() => setValue('is_private', !watch('is_private'))}
+              onClick={() => setValue('scope', watch('scope') === 'personal' ? 'family' : 'personal')}
               className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
-                watch('is_private') ? 'bg-primary' : 'bg-outline-variant'
+                watch('scope') === 'personal' ? 'bg-primary' : 'bg-outline-variant'
               }`}
             >
               <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${
-                watch('is_private') ? 'translate-x-5' : 'translate-x-0.5'
+                watch('scope') === 'personal' ? 'translate-x-5' : 'translate-x-0.5'
               }`}></div>
             </button>
           </div>
@@ -489,6 +501,16 @@ export default function Wishes() {
           </div>
         )}
       </Modal>
+
+      <ConfirmModal
+        isOpen={confirmModal.open}
+        onClose={() => setConfirmModal({ open: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        variant={confirmModal.variant}
+        confirmText={confirmModal.confirmText}
+      />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-const prisma = require('../lib/prisma-client');
+﻿const prisma = require('../lib/prisma-client');
 
 exports.getTransactions = async (userId, familyId, query = {}) => {
     const whereClause = familyId
@@ -15,7 +15,7 @@ exports.getTransactions = async (userId, familyId, query = {}) => {
     if (categoryIds.length) {
         whereClause.category_id = { in: categoryIds };
     } else if (query.categoryId) {
-        whereClause.category_id = query.categoryId;
+        whereClause.category_id = Number(query.categoryId);
     }
 
     if (query.minAmount || query.maxAmount) {
@@ -29,20 +29,24 @@ exports.getTransactions = async (userId, familyId, query = {}) => {
     }
 
     if (query.startDate && query.endDate) {
-        whereClause.date = { gte: new Date(query.startDate), lte: new Date(query.endDate) };
+        const startDate = new Date(query.startDate + 'T00:00:00');
+        const endDate = new Date(query.endDate + 'T23:59:59.999');
+        whereClause.date = { gte: startDate, lte: endDate };
     } else if (query.startDate) {
-        whereClause.date = { gte: new Date(query.startDate) };
+        whereClause.date = { gte: new Date(query.startDate + 'T00:00:00') };
     } else if (query.endDate) {
-        whereClause.date = { lte: new Date(query.endDate) };
+        whereClause.date = { lte: new Date(query.endDate + 'T23:59:59.999') };
     }
 
     const includePrivate = String(query.includePrivate || 'all');
-    if (includePrivate === 'only_private') {
-        whereClause.is_private = true;
+    // Frontend sends: 'all', 'my', 'family'
+    // Backend expects: 'all', 'only_private', 'only_visible'
+    if (includePrivate === 'only_private' || includePrivate === 'my') {
+        whereClause.scope = 'personal';
         whereClause.user_id = userId;
-    } else if (includePrivate === 'only_visible') {
+    } else if (includePrivate === 'only_visible' || includePrivate === 'family') {
         whereClause.OR = [
-            { is_private: false },
+            { scope: { in: ['family', 'shared'] } },
             { user_id: userId },
         ];
     }
@@ -52,7 +56,7 @@ exports.getTransactions = async (userId, familyId, query = {}) => {
     const paginate = String(query.paginate || '') === 'true';
 
     const mapTx = (t) => {
-        const isOtherUsersPrivate = !!t.is_private && t.user_id !== userId;
+        const isOtherUsersPrivate = t.scope === 'personal' && t.user_id !== userId;
         if (isOtherUsersPrivate) {
             return {
                 id: t.id,
@@ -60,12 +64,12 @@ exports.getTransactions = async (userId, familyId, query = {}) => {
                 type: t.type,
                 amount: null,
                 comment: null,
-                is_private: true,
+                scope: 'personal',
                 is_hidden: true,
                 category_id: t.category_id,
-                category_name: 'Скрыто',
+                category_name: '╨í╨║╤Ç╤ï╤é╨╛',
                 user_id: t.user_id,
-                user_name: t.user?.name || 'Участник',
+                user_name: t.user?.name || '╨ú╤ç╨░╤ü╤é╨╜╨╕╨║',
             };
         }
 
@@ -75,10 +79,10 @@ exports.getTransactions = async (userId, familyId, query = {}) => {
             type: t.type,
             amount: t.amount,
             comment: t.comment,
-            is_private: !!t.is_private,
+            scope: t.scope,
             is_hidden: false,
             category_id: t.category_id,
-            category_name: t.category?.name || 'Без категории',
+            category_name: t.category?.name || '╨æ╨╡╨╖ ╨║╨░╤é╨╡╨│╨╛╤Ç╨╕╨╕',
             user_id: t.user_id,
             user_name: t.user?.name || '',
         };
@@ -271,7 +275,7 @@ exports.getTransactionById = async (id, familyId, userId) => {
     });
     if (!t) return null;
 
-    const isOtherUsersPrivate = !!t.is_private && t.user_id !== userId;
+    const isOtherUsersPrivate = t.scope === 'personal' && t.user_id !== userId;
     if (isOtherUsersPrivate) {
         return {
             id: t.id,
@@ -279,12 +283,12 @@ exports.getTransactionById = async (id, familyId, userId) => {
             type: t.type,
             amount: null,
             comment: null,
-            is_private: true,
+            scope: 'personal',
             is_hidden: true,
             category_id: t.category_id,
-            category_name: 'Скрыто',
+            category_name: '╨í╨║╤Ç╤ï╤é╨╛',
             user_id: t.user_id,
-            user_name: t.user?.name || 'Участник',
+            user_name: t.user?.name || '╨ú╤ç╨░╤ü╤é╨╜╨╕╨║',
         };
     }
 
@@ -294,10 +298,10 @@ exports.getTransactionById = async (id, familyId, userId) => {
         type: t.type,
         amount: t.amount,
         comment: t.comment,
-        is_private: !!t.is_private,
+        scope: t.scope,
         is_hidden: false,
         category_id: t.category_id,
-        category_name: t.category?.name || 'Без категории',
+        category_name: t.category?.name || '╨æ╨╡╨╖ ╨║╨░╤é╨╡╨│╨╛╤Ç╨╕╨╕',
         user_id: t.user_id,
         user_name: t.user?.name || '',
     };

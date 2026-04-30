@@ -2,72 +2,165 @@ import { Link } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import api from '../services/api';
 import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import FormattedInput from '../components/ui/FormattedInput';
 import { useForm } from 'react-hook-form';
 import { formatMoney } from '../utils/format';
+import { showError } from '../utils/toast';
 
-function currentMonth() { return new Date().toISOString().slice(0, 7); }
+function formatMonth(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}
 
-export default function Budgets() {
+function currentMonth() { return formatMonth(new Date()); }
+function formatYear(date) { return String(date.getFullYear()); }
+function currentYear() { return formatYear(new Date()); }
+
+export default function Budgets({ space = 'personal' }) {
   const [month, setMonth] = useState(currentMonth());
+  const [year, setYear] = useState(currentYear());
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
+  // eslint-disable-next-line no-unused-vars
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [memberFilter, setMemberFilter] = useState(null);
   const [members, setMembers] = useState([]);
   const [memberContributions, setMemberContributions] = useState({});
-  const { register, handleSubmit, reset, watch, setValue } = useForm();
+  const [confirmModal, setConfirmModal] = useState({ open: false, onConfirm: null, title: '', message: '' });
+  const [editLimitModal, setEditLimitModal] = useState({ open: false, budgetId: null, currentLimit: 0, onSave: null });
+  const [periodType, setPeriodType] = useState('month');
+  const { register, handleSubmit, reset, watch, setValue } = useForm({
+    defaultValues: {
+      month: currentMonth(),
+      scope: 'family',
+      category_id: '',
+      limit_amount: '',
+      budgetType: 'expense',
+      is_year_budget: false,
+    }
+  });
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchBudgets = async () => {
+    const params = periodType === 'year' ? { period: 'year', year } : { month };
+    if (memberFilter) params.memberId = memberFilter;
     try {
-      const params = { month };
-      if (memberFilter) params.memberId = memberFilter;
-      const [budgetsRes, catRes, dashRes] = await Promise.all([
-        api.get('/budgets', { params }),
-        api.get('/categories'),
-        api.get('/dashboard'),
-      ]);
+      const budgetsRes = await api.get('/budgets', { params });
       setItems(budgetsRes.data?.items || []);
-      setCategories(catRes.data || []);
       setMemberContributions(budgetsRes.data?.memberContributions || {});
+    } catch (err) {
+      console.error('Budget fetch error:', err);
+      showError('Ошибка загрузки бюджетов: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const catRes = await api.get('/categories');
+      setCategories(catRes.data || []);
+    } catch (err) {
+      console.error('Categories fetch error:', err);
+    }
+  };
+
+  const fetchMembers = async () => {
+    try {
+      const dashRes = await api.get('/dashboard');
       if (dashRes.data?.family?.memberStats) {
         setMembers(dashRes.data.family.memberStats);
       }
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+    } catch (err) {
+      console.error('Dashboard fetch error:', err);
+    }
   };
 
-  useEffect(() => { fetchData(); }, [month, memberFilter]);
+  const fetchData = async () => {
+    setLoading(true);
+    // Независимые запросы — ошибка одного не блокирует другие
+    await Promise.allSettled([
+      fetchBudgets(),
+      fetchCategories(),
+      fetchMembers(),
+    ]);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchData(); }, [month, year, memberFilter, periodType]);
 
   const onCreate = async (data) => {
     try {
-      await api.post('/budgets', {
-        month,
-        type: data.type,
-        category_id: Number(data.category_id),
-        limit_amount: Number(data.limit_amount),
-        is_personal: data.is_personal === 'true',
-      });
-      setModalOpen(false); reset(); fetchData();
-    } catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
+      const budgetMonth = data.month || month;
+      const limitAmount = Number(data.limit_amount);
+      const yearNum = Number(year);
+      // scope from form: 'personal' or 'family'
+      const scope = data.scope || 'family';
+      const createPromises = [];
+
+      if (periodType === 'year' && data.is_year_budget) {
+        for (let m = 1; m <= 12; m++) {
+          const mm = String(m).padStart(2, '0');
+          createPromises.push(api.post('/budgets', {
+            month: `${yearNum}-${mm}`,
+            category_id: Number(data.category_id),
+            limit_amount: limitAmount,
+            scope,
+            type: data.budgetType || 'expense',
+            is_year_budget: true,
+          }));
+        }
+        await Promise.all(createPromises);
+      } else {
+        await api.post('/budgets', {
+          month: budgetMonth,
+          category_id: Number(data.category_id),
+          limit_amount: limitAmount,
+          scope,
+          type: data.budgetType || 'expense',
+        });
+      }
+      setModalOpen(false); 
+      reset(); 
+      if (budgetMonth !== month && periodType !== 'year') {
+        setMonth(budgetMonth);
+      }
+      fetchBudgets();
+    } catch (err) { 
+      console.error('Create budget error:', err); 
+      showError(err.response?.data?.message || 'Ошибка'); 
+    }
   };
 
   const onUpdate = async (id, nextLimit) => {
-    try { await api.put(`/budgets/${id}`, { limit_amount: Number(nextLimit) }); fetchData(); }
-    catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
+    try { await api.put(`/budgets/${id}`, { limit_amount: Number(nextLimit) }); fetchBudgets(); }
+    catch (err) { console.error(err); showError(err.response?.data?.message || 'Ошибка'); }
   };
 
   const onDelete = async (id) => {
-    if (!window.confirm('Удалить бюджет?')) return;
-    try { await api.delete(`/budgets/${id}`); fetchData(); }
-    catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
+    setConfirmModal({
+      open: true,
+      variant: 'danger',
+      title: 'Удалить бюджет?',
+      message: 'Это действие нельзя отменить.',
+      confirmText: 'Удалить',
+      onConfirm: async () => {
+        try { await api.delete(`/budgets/${id}`); fetchBudgets(); }
+        catch (err) { console.error(err); showError(err.response?.data?.message || 'Ошибка'); }
+      }
+    });
   };
 
   const totals = useMemo(() => {
     const byType = { income: { limit: 0, actual: 0 }, expense: { limit: 0, actual: 0 } };
-    for (const i of items) { byType[i.type].limit += Number(i.limit_amount || 0); byType[i.type].actual += Number(i.actual_amount || 0); }
+    if (!items || !Array.isArray(items)) return byType;
+    for (const i of items) {
+      if (!i || !i.category_type) continue;
+      const type = i.category_type === 'income' ? 'income' : 'expense';
+      if (!byType[type]) continue;
+      byType[type].limit += Number(i.limit_amount || 0);
+      byType[type].actual += Number(i.actual_amount || 0);
+    }
     return byType;
   }, [items]);
 
@@ -82,7 +175,7 @@ export default function Budgets() {
             Назад
           </Link>
           <h2 className="text-3xl font-extrabold tracking-tight text-on-surface font-headline">Бюджеты</h2>
-          <p className="text-on-surface-variant text-sm mt-1">План/факт по категориям за месяц</p>
+          <p className="text-on-surface-variant text-sm mt-1">{items.length} бюджетов • {periodType === 'year' ? `Год ${year}` : month}</p>
         </div>
         <div className="flex gap-2 items-center flex-wrap">
           {members.length > 1 && (
@@ -97,8 +190,59 @@ export default function Budgets() {
               ))}
             </select>
           )}
-          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="select-ghost py-2.5 text-sm" />
-          <button onClick={() => { reset({ type: 'expense', is_personal: 'false' }); setModalOpen(true); }} className="btn-primary px-6 py-2.5 flex items-center gap-2 text-sm">
+          <div className="flex bg-surface-container rounded-xl p-1">
+            <button 
+              type="button" 
+              onClick={() => { setPeriodType('month'); setMonth(currentMonth()); }} 
+              className={`flex px-4 py-2 rounded-lg text-sm font-bold transition-all ${periodType === 'month' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
+            >
+              <span className="material-symbols-outlined text-sm mr-1 align-middle">calendar_month</span>
+              Месяц
+            </button>
+            <button 
+              type="button" 
+              onClick={() => { setPeriodType('year'); setYear(currentYear()); }} 
+              className={`flex px-4 py-2 rounded-lg text-sm font-bold transition-all ${periodType === 'year' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
+            >
+              <span className="material-symbols-outlined text-sm mr-1 align-middle">event</span>
+              Год
+            </button>
+          </div>
+          {periodType === 'month' ? (
+            <>
+              <button onClick={() => { const [y, m] = month.split('-').map(Number); const newDate = new Date(y, m - 2, 15); setMonth(formatMonth(newDate)); }} className="w-10 h-10 flex items-center justify-center rounded-full bg-surface-container text-on-surface-variant hover:bg-primary hover:text-white transition-all" title="Предыдущий месяц">
+                <span className="material-symbols-outlined text-lg">chevron_left</span>
+              </button>
+              <div className="flex items-center gap-2 px-4 py-2 bg-surface-container rounded-full">
+                <span className="material-symbols-outlined text-primary text-lg">calendar_month</span>
+                <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="bg-transparent text-sm font-bold text-on-surface outline-none w-24" />
+              </div>
+              <button onClick={() => { const [y, m] = month.split('-').map(Number); const newDate = new Date(y, m, 15); setMonth(formatMonth(newDate)); }} className="w-10 h-10 flex items-center justify-center rounded-full bg-surface-container text-on-surface-variant hover:bg-primary hover:text-white transition-all" title="Следующий месяц">
+                <span className="material-symbols-outlined text-lg">chevron_right</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => setYear(String(Number(year) - 1))} className="w-10 h-10 flex items-center justify-center rounded-full bg-surface-container text-on-surface-variant hover:bg-primary hover:text-white transition-all" title="Предыдущий год">
+                <span className="material-symbols-outlined text-lg">chevron_left</span>
+              </button>
+              <div className="flex items-center gap-2 px-4 py-2 bg-surface-container rounded-full">
+                <span className="material-symbols-outlined text-primary text-lg">event</span>
+                <input type="number" value={year} onChange={(e) => setYear(e.target.value)} min="2020" max="2030" className="bg-transparent text-sm font-bold text-on-surface outline-none w-16 text-center" />
+              </div>
+              <button onClick={() => setYear(String(Number(year) + 1))} className="w-10 h-10 flex items-center justify-center rounded-full bg-surface-container text-on-surface-variant hover:bg-primary hover:text-white transition-all" title="Следующий год">
+                <span className="material-symbols-outlined text-lg">chevron_right</span>
+              </button>
+            </>
+          )}
+          <button onClick={() => {
+            if (periodType === 'month') {
+              reset({ month: currentMonth(), scope: 'family', category_id: '', limit_amount: '', budgetType: 'expense', is_year_budget: false });
+            } else {
+              reset({ month: year, scope: 'family', category_id: '', limit_amount: '', budgetType: 'expense', is_year_budget: true });
+            }
+            setModalOpen(true);
+          }} className="btn-primary px-5 py-2.5 flex items-center gap-2 text-sm rounded-full">
             <span className="material-symbols-outlined text-sm">add</span>
             Добавить
           </button>
@@ -158,6 +302,7 @@ export default function Budgets() {
           <table className="min-w-full">
             <thead className="bg-surface-container">
               <tr>
+                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Активно</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Тип</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Категория</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">План</th>
@@ -175,10 +320,10 @@ export default function Budgets() {
                   <tr key={b.id} className={`transition-colors hover:bg-surface-container ${i % 2 === 0 ? 'bg-surface-container-lowest' : 'bg-surface-container-low'}`}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
-                        b.type === 'expense' ? 'bg-error/10 text-error' : 'bg-secondary/10 text-secondary'
+                        (b.category_type || 'expense') === 'expense' ? 'bg-error/10 text-error' : 'bg-secondary/10 text-secondary'
                       }`}>
-                        <span className="material-symbols-outlined text-sm">{b.type === 'expense' ? 'trending_down' : 'trending_up'}</span>
-                        {b.type === 'expense' ? 'Расход' : 'Доход'}
+                        <span className="material-symbols-outlined text-sm">{(b.category_type || 'expense') === 'expense' ? 'trending_down' : 'trending_up'}</span>
+                        {(b.category_type || 'expense') === 'expense' ? 'Расход' : 'Доход'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -195,34 +340,34 @@ export default function Budgets() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-on-surface-variant">{formatMoney(b.limit_amount)} ₽</td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${isOver ? 'text-error' : 'text-on-surface'}`}>
-                      {formatMoney(b.actual_amount)} ₽
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-3">
-                        {hasMembers ? (
-                          <div className="flex-1 h-3 rounded-full overflow-hidden flex" style={{ minWidth: 128 }}>
-                            {b.spent_by_members.filter(m => m.amount > 0).map((m, idx) => (
-                              <div
-                                key={m.userId}
-                                className={`h-full ${colors[idx % colors.length]} transition-all`}
-                                style={{ width: `${m.percentage}%` }}
-                                title={`${m.name}: ${m.percentage}%`}
-                              ></div>
-                            ))}
-                            <div className="h-full bg-surface-container flex-1"></div>
-                          </div>
-                        ) : (
-                          <div className="progress-bar flex-1 w-32">
-                            <div className={`progress-bar-fill ${isOver ? 'bg-error' : 'bg-primary'}`} style={{ width: `${progress}%` }}></div>
-                          </div>
-                        )}
-                        <span className={`text-xs font-bold ${isOver ? 'text-error' : 'text-on-surface-variant'}`}>{progress}%</span>
-                      </div>
-                    </td>
+              <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${isOver ? (b.category_type === 'income' ? 'text-secondary' : 'text-error') : 'text-on-surface'}`}>
+                {formatMoney(b.actual_amount)} ₽
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="flex items-center gap-3">
+                  {hasMembers ? (
+                    <div className="flex-1 h-3 rounded-full overflow-hidden flex" style={{ minWidth: 128 }}>
+                      {b.spent_by_members.filter(m => m.amount > 0).map((m, idx) => (
+                        <div
+                          key={m.userId}
+                          className={`h-full ${colors[idx % colors.length]} transition-all`}
+                          style={{ width: `${m.percentage}%` }}
+                          title={`${m.name}: ${m.percentage}%`}
+                        ></div>
+                      ))}
+                      <div className="h-full bg-surface-container flex-1"></div>
+                    </div>
+                  ) : (
+                    <div className="progress-bar flex-1 w-32">
+                      <div className={`progress-bar-fill ${isOver ? (b.category_type === 'income' ? 'bg-secondary' : 'bg-error') : 'bg-primary'}`} style={{ width: `${progress}%` }}></div>
+                    </div>
+                  )}
+                  <span className={`text-xs font-bold ${isOver ? (b.category_type === 'income' ? 'text-secondary' : 'text-error') : 'text-on-surface-variant'}`}>{progress}%</span>
+                </div>
+              </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => { const next = prompt('Новый план (₽):', String(Math.trunc(Number(b.limit_amount || 0)))); if (next) onUpdate(b.id, next); }} className="w-9 h-9 flex items-center justify-center rounded-lg text-primary hover:bg-primary/10 transition-colors">
+                        <button onClick={() => setEditLimitModal({ open: true, budgetId: b.id, currentLimit: Number(b.limit_amount || 0), onSave: onUpdate })} className="w-9 h-9 flex items-center justify-center rounded-lg text-primary hover:bg-primary/10 transition-colors">
                           <span className="material-symbols-outlined text-sm">edit</span>
                         </button>
                         <button onClick={() => onDelete(b.id)} className="w-9 h-9 flex items-center justify-center rounded-lg text-error hover:bg-error-container transition-colors">
@@ -248,33 +393,73 @@ export default function Budgets() {
       </div>
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Новый бюджет">
+        <p className="text-xs text-on-surface-variant mb-4 -mt-2">
+          {periodType === 'year' ? 'Создайте годовой бюджет (будет распределён по 12 месяцам)' : 'Создайте бюджет на месяц'}
+        </p>
         <form onSubmit={handleSubmit(onCreate)} className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
+          {periodType === 'month' && (
             <div>
-              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Тип</label>
-              <select {...register('type', { required: true })} className="select-ghost">
-                <option value="expense">Расход</option>
-                <option value="income">Доход</option>
-              </select>
+              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Месяц</label>
+              <input type="month" {...register('month', { value: month })} className="select-ghost" />
             </div>
+          )}
+          {periodType === 'year' && (
             <div>
-              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Категория</label>
-              <select {...register('category_id', { required: true })} className="select-ghost">
-                <option value="">Выберите</option>
-                {categories.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.type === 'income' ? 'Доход' : 'Расход'})</option>)}
-              </select>
+              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Год</label>
+              <input type="number" {...register('month', { value: year })} min="2020" max="2030" className="select-ghost" />
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Тип бюджета</label>
+            <div className="flex bg-surface-container rounded-xl p-1">
+              <button type="button" onClick={() => setValue('budgetType', 'expense')} className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${watch('budgetType') === 'expense' || !watch('budgetType') ? 'bg-error text-white shadow-sm' : 'text-on-surface-variant hover:bg-surface-container-high'}`}>
+                <span className="material-symbols-outlined text-sm mr-1 align-middle">trending_down</span>
+                Расход
+              </button>
+              <button type="button" onClick={() => setValue('budgetType', 'income')} className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${watch('budgetType') === 'income' ? 'bg-secondary text-white shadow-sm' : 'text-on-surface-variant hover:bg-surface-container-high'}`}>
+                <span className="material-symbols-outlined text-sm mr-1 align-middle">trending_up</span>
+                Доход
+              </button>
             </div>
           </div>
           <div>
-            <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Бюджет</label>
-            <select {...register('is_personal')} className="select-ghost">
-              <option value="false">Семейный</option>
-              <option value="true">Личный</option>
+            <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Категория</label>
+            <select {...register('category_id', { required: true })} className="select-ghost">
+              <option value="">Выберите</option>
+              {categories.filter(c => c.type === (watch('budgetType') || 'expense')).map((c) => (
+                <option key={c.id} value={c.id}>{c.type === 'income' ? '💰' : '💸'} {c.name}</option>
+              ))}
             </select>
+            {categories.length === 0 && (
+              <p className="text-xs text-error mt-1">Нет доступных категорий</p>
+            )}
           </div>
+          <div className="flex items-center gap-3">
+            <input 
+              type="checkbox" 
+              id="is_year_budget"
+              {...register('is_year_budget')}
+              className="w-5 h-5 rounded text-primary focus:ring-primary"
+            />
+            <label htmlFor="is_year_budget" className="text-sm text-on-surface">
+              Распределить равными частями на весь год
+            </label>
+          </div>
+            <div>
+              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">
+                Лимит {periodType === 'year' && watch('is_year_budget') ? '(₽/год)' : '(₽)'}
+              </label>
+              <FormattedInput value={watch('limit_amount') || ''} onChange={(v) => setValue('limit_amount', v)} className="input-ghost" placeholder="0" min={1} max={999999999} label="Лимит" />
+              {periodType === 'year' && watch('is_year_budget') && (
+                <p className="text-xs text-on-surface-variant mt-1">Будет распределено по {watch('limit_amount') ? Number(watch('limit_amount'))/12 : 0} ₽/мес</p>
+              )}
+            </div>
           <div>
-            <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">План (₽)</label>
-            <FormattedInput value={watch('limit_amount') || ''} onChange={(v) => setValue('limit_amount', v)} className="input-ghost" placeholder="0" />
+            <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Тип бюджета</label>
+            <select {...register('scope')} className="select-ghost">
+              <option value="personal">Личный</option>
+              <option value="family">Семейный</option>
+            </select>
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={() => setModalOpen(false)} className="btn-ghost px-6 py-3">Отмена</button>
@@ -282,6 +467,55 @@ export default function Budgets() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={confirmModal.open}
+        onClose={() => setConfirmModal({ open: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        variant={confirmModal.variant}
+        confirmText={confirmModal.confirmText}
+      />
+
+      {editLimitModal.open && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-black/50" onClick={() => setEditLimitModal({ open: false })}></div>
+            </div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-surface-container-lowest rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
+              <div className="bg-surface-container-lowest px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <h3 className="text-lg leading-6 font-bold font-headline text-on-surface">Изменить лимит</h3>
+                <div className="mt-4">
+                  <input
+                    type="number"
+                    defaultValue={editLimitModal.currentLimit}
+                    className="input-ghost w-full"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const val = e.target.value;
+                        if (val) editLimitModal.onSave(editLimitModal.budgetId, val);
+                        setEditLimitModal({ open: false });
+                      }
+                    }}
+                  />
+                </div>
+                <div className="mt-6 flex gap-3 justify-end">
+                  <button onClick={() => setEditLimitModal({ open: false })} className="btn-ghost px-4 py-2.5">Отмена</button>
+                  <button onClick={(e) => {
+                    const val = e.target.parentElement.parentElement.querySelector('input').value;
+                    if (val) editLimitModal.onSave(editLimitModal.budgetId, val);
+                    setEditLimitModal({ open: false });
+                  }} className="btn-primary px-4 py-2.5">Сохранить</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

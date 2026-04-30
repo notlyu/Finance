@@ -2,7 +2,9 @@ import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import { formatMoney } from '../utils/format';
+import { showError, showSuccess } from '../utils/toast';
 import { FAMILY_CHANGED_EVENT } from '../components/Layout';
 
 export default function Family() {
@@ -15,21 +17,35 @@ export default function Family() {
   const [transferTarget, setTransferTarget] = useState(null);
   const [activeTab, setActiveTab] = useState('members');
   const [memberStats, setMemberStats] = useState([]);
+  const [confirmModal, setConfirmModal] = useState({ open: false, onConfirm: null, title: '', message: '' });
+  const [promptModal, setPromptModal] = useState({ open: false, title: '', onSubmit: null });
+
+  const fetchUser = async () => {
+    try {
+      const res = await api.get('/auth/me');
+      setUser(res.data);
+      setFamily(res.data.family);
+      setInviteCode(res.data.family?.invite_code || '');
+    } catch (err) { console.error('User fetch error:', err); }
+  };
+
+  const fetchMemberStats = async () => {
+    try {
+      const res = await api.get('/dashboard');
+      if (res.data?.family?.memberStats) {
+        setMemberStats(res.data.family.memberStats);
+      }
+    } catch (err) { console.error('Dashboard fetch error:', err); }
+  };
 
   const fetchData = async () => {
-    try {
-      const [meRes, dashRes] = await Promise.all([
-        api.get('/auth/me'),
-        api.get('/dashboard'),
-      ]);
-      setUser(meRes.data);
-      setFamily(meRes.data.family);
-      setInviteCode(meRes.data.family?.invite_code || '');
-      if (dashRes.data?.family?.memberStats) {
-        setMemberStats(dashRes.data.family.memberStats);
-      }
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+    setLoading(true);
+    await Promise.allSettled([
+      fetchUser(),
+      fetchMemberStats(),
+      fetchInvites(),
+    ]);
+    setLoading(false);
   };
 
   const fetchInvites = async () => {
@@ -37,22 +53,98 @@ export default function Family() {
     catch (err) { console.error(err); setInvites([]); }
   };
 
+  const revokeInvite = async (invId) => {
+    setConfirmModal({
+      open: true,
+      variant: 'danger',
+      title: 'Отозвать приглашение?',
+      message: 'Приглашение будет удалено без возможности восстановления.',
+      confirmText: 'Отозвать',
+      onConfirm: async () => {
+        try { await api.delete(`/auth/family/invites/${invId}`); fetchInvites(); }
+        catch (err) { showError(err.response?.data?.message || 'Ошибка'); }
+      }
+    });
+  };
+
+  const transferOwnership = async () => {
+    if (!transferTarget) return;
+    setConfirmModal({
+      open: true,
+      variant: 'warning',
+      title: 'Передать владение?',
+      message: `Передать владение семьей участнику ${transferTarget.name}?`,
+      confirmText: 'Передать',
+      onConfirm: async () => {
+        try {
+          await api.post('/auth/family/transfer-ownership', { newOwnerId: transferTarget.id });
+          window.dispatchEvent(new Event(FAMILY_CHANGED_EVENT));
+          setTransferModalOpen(false);
+          setTransferTarget(null);
+          fetchUser();
+        } catch (err) {
+          showError(err.response?.data?.message || 'Ошибка');
+        }
+      }
+    });
+  };
+
   useEffect(() => { fetchData(); }, []);
 
   const copyInviteCode = () => {
-    if (inviteCode) { navigator.clipboard.writeText(inviteCode); alert('Код приглашения скопирован'); }
+    if (inviteCode) { navigator.clipboard.writeText(inviteCode); showSuccess('Код приглашения скопирован'); }
   };
 
   const leaveFamily = async () => {
-    if (!window.confirm('Вы уверены, что хотите покинуть семью?')) return;
-    try { await api.post('/auth/family/leave'); window.dispatchEvent(new Event(FAMILY_CHANGED_EVENT)); fetchData(); }
-    catch (err) { alert(err.response?.data?.message || 'Ошибка'); }
+    setConfirmModal({
+      open: true,
+      variant: 'danger',
+      title: 'Покинуть семью?',
+      message: 'Вы уверены, что хотите покинуть семью?',
+      confirmText: 'Покинуть',
+      onConfirm: async () => {
+        try { await api.post('/auth/family/leave'); window.dispatchEvent(new Event(FAMILY_CHANGED_EVENT)); fetchUser(); }
+        catch (err) { showError(err.response?.data?.message || 'Ошибка'); }
+      }
+    });
   };
 
   const removeMember = async (memberId, memberName) => {
-    if (!window.confirm(`Удалить ${memberName} из семьи?`)) return;
-    try { await api.delete(`/auth/family/members/${memberId}`); window.dispatchEvent(new Event(FAMILY_CHANGED_EVENT)); fetchData(); }
-    catch (err) { alert(err.response?.data?.message || 'Ошибка'); }
+    setConfirmModal({
+      open: true,
+      variant: 'danger',
+      title: 'Удалить участника?',
+      message: `Удалить ${memberName} из семьи?`,
+      confirmText: 'Удалить',
+      onConfirm: async () => {
+        try { await api.delete(`/auth/family/members/${memberId}`); window.dispatchEvent(new Event(FAMILY_CHANGED_EVENT)); fetchUser(); }
+        catch (err) { showError(err.response?.data?.message || 'Ошибка'); }
+      }
+    });
+  };
+
+  const createFamily = () => {
+    setPromptModal({
+      open: true,
+      title: 'Создать семью',
+      placeholder: 'Название семьи',
+      onSubmit: async (name) => {
+        try { await api.post('/auth/family/create', { name }); window.dispatchEvent(new Event(FAMILY_CHANGED_EVENT)); fetchUser(); }
+        catch (err) { showError(err.response?.data?.message || 'Ошибка'); }
+      }
+    });
+  };
+
+  const joinFamily = () => {
+    setPromptModal({
+      open: true,
+      title: 'Присоединиться к семье',
+      placeholder: 'Код приглашения',
+      onSubmit: async (code) => {
+        try { await api.post('/auth/family/join', { inviteCode: code }); window.dispatchEvent(new Event(FAMILY_CHANGED_EVENT)); fetchUser(); }
+        catch (err) { showError(err.response?.data?.message || 'Ошибка'); }
+      }
+    });
   };
 
   if (loading) return (
@@ -81,11 +173,11 @@ export default function Family() {
           <h3 className="text-xl font-bold text-on-surface mb-2">Вы пока не состоите в семье</h3>
           <p className="text-on-surface-variant text-sm mb-8 max-w-md mx-auto">Создайте семью или присоединитесь по коду приглашения, чтобы управлять финансами вместе</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button onClick={async () => { const name = prompt('Введите название новой семьи'); if (!name) return; try { await api.post('/auth/family/create', { name }); window.dispatchEvent(new Event(FAMILY_CHANGED_EVENT)); fetchData(); } catch (err) { alert(err.response?.data?.message || 'Ошибка'); } }} className="btn-primary px-8 py-3">
+            <button onClick={createFamily} className="btn-primary px-8 py-3">
               <span className="material-symbols-outlined text-sm mr-1">add_circle</span>
               Создать семью
             </button>
-            <button onClick={async () => { const code = prompt('Введите код приглашения'); if (!code) return; try { await api.post('/auth/family/join', { inviteCode: code }); window.dispatchEvent(new Event(FAMILY_CHANGED_EVENT)); fetchData(); } catch (err) { alert(err.response?.data?.message || 'Ошибка'); } }} className="btn-ghost px-8 py-3">
+            <button onClick={joinFamily} className="btn-ghost px-8 py-3">
               <span className="material-symbols-outlined text-sm mr-1">login</span>
               Присоединиться
             </button>
@@ -150,7 +242,7 @@ export default function Family() {
                   <p className="text-sm text-on-surface-variant">Временные коды для новых участников</p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={async () => { try { await api.post('/auth/family/invites', { expiresInDays: 7 }); fetchInvites(); } catch (err) { alert(err.response?.data?.message || 'Ошибка'); } }} className="btn-primary px-4 py-2.5 text-sm flex items-center gap-2">
+                  <button onClick={async () => { try { await api.post('/auth/family/invites', { expiresInDays: 7 }); fetchInvites(); } catch (err) { showError(err.response?.data?.message || 'Ошибка'); } }} className="btn-primary px-4 py-2.5 text-sm flex items-center gap-2">
                     <span className="material-symbols-outlined text-sm">add</span>
                     Создать (7 дней)
                   </button>
@@ -169,8 +261,8 @@ export default function Family() {
                         </p>
                       </div>
                       <div className="flex gap-2 shrink-0">
-                        <button onClick={() => { navigator.clipboard.writeText(inv.code); alert('Код скопирован'); }} className="btn-ghost px-3 py-1.5 text-xs">Копировать</button>
-                        <button onClick={async () => { if (!window.confirm('Отозвать приглашение?')) return; try { await api.delete(`/auth/family/invites/${inv.id}`); fetchInvites(); } catch (err) { alert(err.response?.data?.message || 'Ошибка'); } }} className="px-3 py-1.5 rounded-xl text-xs font-semibold text-error bg-error-container hover:opacity-90 transition-colors">Отозвать</button>
+                        <button onClick={() => { navigator.clipboard.writeText(inv.code); showSuccess('Код скопирован'); }} className="btn-ghost px-3 py-1.5 text-xs">Копировать</button>
+                        <button onClick={() => revokeInvite(inv.id)} className="px-3 py-1.5 rounded-xl text-xs font-semibold text-error bg-error-container hover:opacity-90 transition-colors">Отозвать</button>
                       </div>
                     </div>
                   ))}
@@ -313,10 +405,57 @@ export default function Family() {
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button onClick={() => { setTransferModalOpen(false); setTransferTarget(null); }} className="btn-ghost px-6 py-3">Отмена</button>
-            <button disabled={!transferTarget} onClick={async () => { if (!transferTarget) return; if (!window.confirm(`Передать владение участнику ${transferTarget.name}?`)) return; try { await api.post('/auth/family/transfer-ownership', { newOwnerId: transferTarget.id }); window.dispatchEvent(new Event(FAMILY_CHANGED_EVENT)); setTransferModalOpen(false); setTransferTarget(null); fetchData(); } catch (err) { alert(err.response?.data?.message || 'Ошибка'); } }} className="btn-primary px-8 py-3 disabled:opacity-50 disabled:cursor-not-allowed">Передать</button>
+            <button disabled={!transferTarget} onClick={transferOwnership} className="btn-primary px-8 py-3 disabled:opacity-50 disabled:cursor-not-allowed">Передать</button>
           </div>
         </div>
       </Modal>
+
+      <ConfirmModal
+        isOpen={confirmModal.open}
+        onClose={() => setConfirmModal({ open: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        variant={confirmModal.variant}
+        confirmText={confirmModal.confirmText}
+      />
+
+      {promptModal.open && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-black/50" onClick={() => setPromptModal({ open: false })}></div>
+            </div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-surface-container-lowest rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
+              <div className="bg-surface-container-lowest px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <h3 className="text-lg leading-6 font-bold font-headline text-on-surface">{promptModal.title}</h3>
+                <div className="mt-4">
+                  <input
+                    type="text"
+                    className="input-ghost w-full"
+                    placeholder={promptModal.placeholder}
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && e.target.value.trim()) {
+                        promptModal.onSubmit(e.target.value.trim());
+                        setPromptModal({ open: false });
+                      }
+                    }}
+                  />
+                </div>
+                <div className="mt-6 flex gap-3 justify-end">
+                  <button onClick={() => setPromptModal({ open: false })} className="btn-ghost px-4 py-2.5">Отмена</button>
+                  <button onClick={(e) => {
+                    const val = e.target.parentElement.parentElement.querySelector('input').value.trim();
+                    if (val) { promptModal.onSubmit(val); setPromptModal({ open: false }); }
+                  }} className="btn-primary px-4 py-2.5">ОК</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

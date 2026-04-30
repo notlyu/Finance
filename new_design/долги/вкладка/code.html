@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+
+<html class="light" lang="ru"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Архитектурный гроссбух | Кредиты и долги</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-variant": "#dfe3e7",
+                        "surface-tint": "#005db5",
+                        "surface-container": "#eaeef2",
+                        "on-primary-fixed": "#001b3d",
+                        "secondary-fixed": "#c5eccc",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-high": "#e4e9ed",
+                        "primary-fixed": "#d6e3ff",
+                        "error-container": "#ffdad6",
+                        "primary-fixed-dim": "#a8c8ff",
+                        "inverse-surface": "#2c3134",
+                        "surface-container-low": "#f0f4f8",
+                        "error": "#ba1a1a",
+                        "inverse-primary": "#a8c8ff",
+                        "secondary-fixed-dim": "#a9d0b1",
+                        "on-surface": "#171c1f",
+                        "on-tertiary-fixed": "#380c07",
+                        "surface-bright": "#f6fafe",
+                        "outline-variant": "#c2c6d4",
+                        "secondary-container": "#c2e9c9",
+                        "on-error-container": "#93000a",
+                        "surface-dim": "#d6dade",
+                        "tertiary": "#71382f",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed-variant": "#2c4e36",
+                        "surface": "#f6fafe",
+                        "on-secondary-fixed": "#00210e",
+                        "background": "#f6fafe",
+                        "tertiary-fixed": "#ffdad4",
+                        "on-surface-variant": "#424752",
+                        "on-secondary-container": "#486a51",
+                        "on-background": "#171c1f",
+                        "inverse-on-surface": "#edf1f5",
+                        "secondary": "#43664d",
+                        "on-primary-fixed-variant": "#00468b",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-container": "#005fb8",
+                        "on-secondary": "#ffffff",
+                        "outline": "#727783",
+                        "on-primary": "#ffffff",
+                        "on-tertiary-container": "#ffd1c9",
+                        "tertiary-container": "#8d4f45",
+                        "primary": "#00488d",
+                        "on-primary-container": "#cadcff",
+                        "surface-container-highest": "#dfe3e7",
+                        "on-tertiary-fixed-variant": "#6f362e",
+                        "tertiary-fixed-dim": "#ffb4a8"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "display": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #f6fafe; color: #171c1f; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .premium-gradient { background: linear-gradient(135deg, #00488d 0%, #005fb8 100%); }
+        .ghost-border { outline: 1px solid rgba(194, 198, 212, 0.15); }
+        .editorial-label { letter-spacing: 0.05em; font-size: 0.6875rem; text-transform: uppercase; }
+        .shadow-premium { box-shadow: 0px 24px 48px -12px rgba(23, 28, 31, 0.08); }
+    </style>
+</head>
+<body class="bg-surface selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-40 bg-[#f6fafe]/80 backdrop-blur-xl flex items-center justify-between px-8 py-4 w-full shadow-[0px_24px_48px_-12px_rgba(23,28,31,0.08)]">
+<div class="flex items-center gap-8">
+<span class="text-xl font-bold tracking-[-0.02em] text-[#171c1f]">Architectural Ledger</span>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-[#171c1f]/60 font-medium hover:bg-[#f0f4f8]/50 px-3 py-1 rounded-lg transition-colors" href="#">Обзор</a>
+<a class="text-[#005FB8] font-semibold after:content-[''] after:block after:w-1 after:h-1 after:bg-[#005FB8] after:rounded-full after:mx-auto" href="#">Активы</a>
+<a class="text-[#171c1f]/60 font-medium hover:bg-[#f0f4f8]/50 px-3 py-1 rounded-lg transition-colors" href="#">Отчеты</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="hidden md:flex items-center bg-surface-container-low px-4 py-2 rounded-full border-none">
+<span class="material-symbols-outlined text-outline text-sm mr-2">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm w-48" placeholder="Поиск инструментов..." type="text"/>
+</div>
+<button class="p-2 hover:bg-[#f0f4f8]/50 rounded-full transition-colors active:scale-[0.98]">
+<span class="material-symbols-outlined">family_restroom</span>
+</button>
+<button class="p-2 hover:bg-[#f0f4f8]/50 rounded-full transition-colors active:scale-[0.98]">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 hover:bg-[#f0f4f8]/50 rounded-full transition-colors active:scale-[0.98]">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<img alt="User profile avatar" class="w-10 h-10 rounded-full object-cover ml-2" data-alt="Close-up portrait of a professional man in a minimal office setting with soft natural light" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCXKNd09WCeQmiarMTygR67gsw-g8ZxRFKENs22vaUZ1aOVZqqD7d7ypRyt0kXfJS_i26Af9r_KH9O3tH5NfKBcaAmRl07rSKHuI3xaqIC1FfzhYP_vpB4CQSx6-57kSVsTauqycQbxM7d8bJYED5TD2TFHjuqztLKkLOW9tYLVjMA4RFHIeqOVaDvD7X5M1DG7-yDiOUpFLt45TgB9XfnNL1KNV_rLlEOY1Yd6xcHfYCdHnWWRBkuJMWJyiSMkFzQaH0e25uR5HQMv"/>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-screen w-64 z-50 bg-[#f6fafe] flex flex-col h-full p-6 border-r border-[#c2c6d4]/15 hidden md:flex">
+<div class="mb-10 pt-2">
+<h2 class="text-lg font-black uppercase text-[#005FB8]">The Vault</h2>
+<p class="text-xs text-on-surface-variant/70 tracking-widest uppercase mt-1">Financial Curator</p>
+</div>
+<nav class="flex-1 space-y-2">
+<a class="flex items-center gap-3 text-[#171c1f]/70 hover:text-[#005FB8] px-4 py-3 hover:bg-[#f0f4f8] transition-all duration-300 rounded-xl font-medium" href="#">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span>Budgets</span>
+</a>
+<a class="flex items-center gap-3 bg-[#f0f4f8] text-[#005FB8] rounded-xl font-bold px-4 py-3 transition-all duration-300" href="#">
+<span class="material-symbols-outlined">credit_score</span>
+<span>Debts</span>
+</a>
+<a class="flex items-center gap-3 text-[#171c1f]/70 hover:text-[#005FB8] px-4 py-3 hover:bg-[#f0f4f8] transition-all duration-300 rounded-xl font-medium" href="#">
+<span class="material-symbols-outlined">event_repeat</span>
+<span>Recurring</span>
+</a>
+<a class="flex items-center gap-3 text-[#171c1f]/70 hover:text-[#005FB8] px-4 py-3 hover:bg-[#f0f4f8] transition-all duration-300 rounded-xl font-medium" href="#">
+<span class="material-symbols-outlined">insights</span>
+<span>Analytics</span>
+</a>
+</nav>
+<div class="mt-auto space-y-4">
+<button class="w-full premium-gradient text-white py-4 px-4 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition-transform">
+<span class="material-symbols-outlined">add</span>
+<span>Add Transaction</span>
+</button>
+<div class="pt-6 border-t border-outline-variant/20 space-y-2">
+<a class="flex items-center gap-3 text-[#171c1f]/70 hover:text-[#005FB8] px-4 py-2 transition-all" href="#">
+<span class="material-symbols-outlined">help_outline</span>
+<span class="text-sm">Support</span>
+</a>
+<a class="flex items-center gap-3 text-[#171c1f]/70 hover:text-[#005FB8] px-4 py-2 transition-all" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="text-sm">Sign Out</span>
+</a>
+</div>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="md:ml-64 pt-24 pb-12 px-8 min-h-screen">
+<div class="max-w-6xl mx-auto">
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
+<div class="space-y-1">
+<span class="editorial-label text-on-surface-variant">Общая задолженность</span>
+<h1 class="text-5xl md:text-[3.5rem] font-extrabold tracking-[-0.03em] text-on-surface leading-none">
+                        4 280 500 <span class="text-2xl font-medium text-outline-variant ml-1">₽</span>
+</h1>
+</div>
+<div class="flex gap-4">
+<button class="bg-surface-container-high text-on-primary-fixed-variant px-6 py-3 rounded-xl font-semibold flex items-center gap-2 hover:bg-surface-dim transition-colors active:scale-95">
+<span class="material-symbols-outlined">payments</span>
+                        Закрыть часть
+                    </button>
+<button class="premium-gradient text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2 shadow-premium hover:opacity-90 transition-all active:scale-95">
+<span class="material-symbols-outlined">add_circle</span>
+                        Добавить долг
+                    </button>
+</div>
+</div>
+<!-- Bento Grid Content -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Summary Card 1 -->
+<div class="col-span-1 bg-surface-container-low p-8 rounded-[1.5rem] space-y-6 relative overflow-hidden group">
+<div class="relative z-10">
+<span class="editorial-label text-on-surface-variant block mb-2">Ближайший платеж</span>
+<p class="text-2xl font-bold text-on-surface">15 Сентября</p>
+<p class="text-sm text-on-surface-variant mt-1">Ипотека • 45 200 ₽</p>
+</div>
+<div class="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform duration-500">
+<span class="material-symbols-outlined text-[8rem]" style="font-variation-settings: 'FILL' 1;">calendar_today</span>
+</div>
+</div>
+<!-- Summary Card 2 -->
+<div class="col-span-1 bg-tertiary-fixed p-8 rounded-[1.5rem] space-y-6 relative overflow-hidden">
+<div class="relative z-10 text-on-tertiary-fixed">
+<span class="editorial-label opacity-70 block mb-2 text-on-tertiary-fixed">Средняя ставка</span>
+<p class="text-2xl font-bold">12.4%</p>
+<p class="text-sm opacity-70 mt-1">+1.2% к прошлому месяцу</p>
+</div>
+<div class="absolute -right-4 -bottom-4 opacity-10">
+<span class="material-symbols-outlined text-[8rem]" style="font-variation-settings: 'FILL' 1;">trending_up</span>
+</div>
+</div>
+<!-- Analytics Card -->
+<div class="col-span-1 bg-secondary-container p-8 rounded-[1.5rem] space-y-4 flex flex-col justify-between">
+<div>
+<span class="editorial-label text-on-secondary-container opacity-80 block mb-2">Прогресс погашения</span>
+<div class="flex items-end gap-2">
+<p class="text-2xl font-bold text-on-secondary-container">32%</p>
+<p class="text-sm text-on-secondary-container mb-1">выплачено</p>
+</div>
+</div>
+<div class="w-full h-2 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full premium-gradient rounded-full" style="width: 32%"></div>
+</div>
+</div>
+<!-- Debt List (Fluid Rows Pattern) -->
+<div class="col-span-1 md:col-span-3 space-y-4 mt-8">
+<div class="flex items-center justify-between px-4 mb-2">
+<h3 class="text-xl font-bold">Активные обязательства</h3>
+<span class="editorial-label text-outline">Всего: 4</span>
+</div>
+<!-- Card 1 -->
+<div class="group bg-surface-container-lowest p-6 rounded-[1.5rem] shadow-sm hover:shadow-premium transition-all duration-300 ghost-border flex flex-col md:flex-row md:items-center justify-between gap-6">
+<div class="flex items-center gap-6">
+<div class="w-14 h-14 bg-surface-container rounded-2xl flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-3xl">home</span>
+</div>
+<div>
+<h4 class="font-bold text-lg text-on-surface">Ипотека «Приморский»</h4>
+<p class="text-xs editorial-label text-outline-variant mt-1">Кредит • Сбербанк</p>
+</div>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-3 gap-8 flex-1 md:ml-12">
+<div>
+<p class="editorial-label text-outline-variant mb-1">Остаток</p>
+<p class="font-bold text-on-surface">3 850 000 ₽</p>
+</div>
+<div>
+<p class="editorial-label text-outline-variant mb-1">Платеж</p>
+<p class="font-bold text-on-surface">45 200 ₽</p>
+</div>
+<div class="hidden md:block">
+<p class="editorial-label text-outline-variant mb-1">Процент</p>
+<p class="font-bold text-secondary">8.5%</p>
+</div>
+</div>
+<button class="p-3 hover:bg-surface-container rounded-full transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+<!-- Card 2 -->
+<div class="group bg-surface-container-lowest p-6 rounded-[1.5rem] shadow-sm hover:shadow-premium transition-all duration-300 ghost-border flex flex-col md:flex-row md:items-center justify-between gap-6">
+<div class="flex items-center gap-6">
+<div class="w-14 h-14 bg-surface-container rounded-2xl flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined text-3xl">directions_car</span>
+</div>
+<div>
+<h4 class="font-bold text-lg text-on-surface">Автокредит BMW</h4>
+<p class="text-xs editorial-label text-outline-variant mt-1">Кредит • ВТБ</p>
+</div>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-3 gap-8 flex-1 md:ml-12">
+<div>
+<p class="editorial-label text-outline-variant mb-1">Остаток</p>
+<p class="font-bold text-on-surface">420 000 ₽</p>
+</div>
+<div>
+<p class="editorial-label text-outline-variant mb-1">Платеж</p>
+<p class="font-bold text-on-surface">32 500 ₽</p>
+</div>
+<div class="hidden md:block">
+<p class="editorial-label text-outline-variant mb-1">Процент</p>
+<p class="font-bold text-secondary">16.9%</p>
+</div>
+</div>
+<button class="p-3 hover:bg-surface-container rounded-full transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+<!-- Card 3 -->
+<div class="group bg-surface-container-lowest p-6 rounded-[1.5rem] shadow-sm hover:shadow-premium transition-all duration-300 ghost-border flex flex-col md:flex-row md:items-center justify-between gap-6">
+<div class="flex items-center gap-6">
+<div class="w-14 h-14 bg-surface-container rounded-2xl flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined text-3xl">person</span>
+</div>
+<div>
+<h4 class="font-bold text-lg text-on-surface">Долг Антону</h4>
+<p class="text-xs editorial-label text-outline-variant mt-1">Частный долг</p>
+</div>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-3 gap-8 flex-1 md:ml-12">
+<div>
+<p class="editorial-label text-outline-variant mb-1">Остаток</p>
+<p class="font-bold text-on-surface">10 500 ₽</p>
+</div>
+<div>
+<p class="editorial-label text-outline-variant mb-1">Платеж</p>
+<p class="font-bold text-on-surface">По возм.</p>
+</div>
+<div class="hidden md:block">
+<p class="editorial-label text-outline-variant mb-1">Процент</p>
+<p class="font-bold text-secondary">0%</p>
+</div>
+</div>
+<button class="p-3 hover:bg-surface-container rounded-full transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Contextual Insight Footer -->
+<div class="mt-12 p-8 bg-surface-container-low rounded-[2rem] flex flex-col md:flex-row items-center gap-8">
+<img alt="Financial insight" class="w-full md:w-48 h-32 object-cover rounded-2xl shadow-sm" data-alt="Abstract macro shot of glass prisms reflecting light in shades of deep blue and gold, creating an architectural feel" src="https://lh3.googleusercontent.com/aida-public/AB6AXuADimbVq5Ydj3SIJeyCRtGTNc45xYpJZRWE2Bc2mLMb3PeQvC52_rsx1nKis0W_b2YSgqmh_2OZFU7hKSBRAnTFoNBf7vkVFsrg7Rl-fyEKUS-DlYHm8DciCd8DvtId-5PPA94OhWEjBcDaUHgQgwfFV_eq_6oZxFYmMiS5MQPQa6MGKIbt-Ca5caDrkGgWnL3rcIjrap5aDko_CjXkSqR1r_B1khx70tEY9rsa4l3ndI2yjIvoWR-l1MTD6poQd394BVcC_kTaOHd-"/>
+<div class="flex-1">
+<div class="flex items-center gap-2 text-primary mb-2">
+<span class="material-symbols-outlined text-xl">auto_awesome</span>
+<span class="editorial-label font-bold">Совет куратора</span>
+</div>
+<p class="text-on-surface text-lg leading-relaxed">
+                        Если вы внесете дополнительные <span class="font-bold text-primary">15 000 ₽</span> в счет ипотеки в этом месяце, вы сократите срок кредита на <span class="font-bold text-secondary">4 месяца</span> и сэкономите на процентах.
+                    </p>
+</div>
+<button class="whitespace-nowrap px-8 py-4 bg-surface-container-lowest text-primary rounded-xl font-bold shadow-sm hover:bg-white transition-all active:scale-95">
+                    Рассчитать досрочно
+                </button>
+</div>
+</div>
+</main>
+<!-- Mobile Navigation Shell (Platform Pivot) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full bg-surface-container-lowest/90 backdrop-blur-lg flex justify-around items-center py-4 px-6 border-t border-outline-variant/10 z-50">
+<button class="flex flex-col items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<span class="text-[10px] editorial-label">Бюджет</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">credit_score</span>
+<span class="text-[10px] editorial-label">Долги</span>
+</button>
+<div class="relative -top-8">
+<button class="w-14 h-14 premium-gradient text-white rounded-full shadow-2xl flex items-center justify-center">
+<span class="material-symbols-outlined text-3xl">add</span>
+</button>
+</div>
+<button class="flex flex-col items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined">event_repeat</span>
+<span class="text-[10px] editorial-label">График</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined">insights</span>
+<span class="text-[10px] editorial-label">Анализ</span>
+</button>
+</nav>
+</body></html>

@@ -1,0 +1,718 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-size:14px;color:var(--color-text-primary);line-height:1.6}
+.nav{display:flex;gap:6px;flex-wrap:wrap;padding:0 0 20px}
+.nav button{padding:6px 14px;border-radius:99px;font-size:13px;cursor:pointer;border:0.5px solid var(--color-border-tertiary);background:transparent;color:var(--color-text-secondary);transition:all .15s;white-space:nowrap}
+.nav button.on{background:var(--color-background-secondary);color:var(--color-text-primary);border-color:var(--color-border-primary);font-weight:500}
+.page{display:none}.page.on{display:block}
+h2{font-size:16px;font-weight:500;margin:0 0 14px}
+h3{font-size:14px;font-weight:500;margin:16px 0 8px}
+.card{background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+.card p,.card li{font-size:13px;color:var(--color-text-secondary);line-height:1.65}
+.card ul{padding-left:16px}
+.card li{margin-bottom:4px}
+.badge{display:inline-block;font-size:11px;font-weight:500;padding:2px 8px;border-radius:99px;margin:2px 3px 2px 0;vertical-align:middle}
+.b-p{background:#EEEDFE;color:#3C3489}.b-f{background:#E1F5EE;color:#085041}.b-s{background:#FAEEDA;color:#633806}
+.b-ok{background:#EAF3DE;color:#27500A}.b-warn{background:#FAEEDA;color:#633806}.b-err{background:#FCEBEB;color:#791F1F}.b-gray{background:#F1EFE8;color:#444441}
+@media(prefers-color-scheme:dark){
+  .b-p{background:#3C3489;color:#CECBF6}.b-f{background:#085041;color:#9FE1CB}.b-s{background:#633806;color:#FAC775}
+  .b-ok{background:#173404;color:#C0DD97}.b-warn{background:#412402;color:#FAC775}.b-err{background:#501313;color:#F7C1C1}.b-gray{background:#2C2C2A;color:#B4B2A9}
+}
+.rule-row{display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-bottom:0.5px solid var(--color-border-tertiary);font-size:13px}
+.rule-row:last-child{border-bottom:none}
+.rule-icon{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;margin-top:1px}
+.ri-y{background:#EAF3DE;color:#27500A}.ri-n{background:#FCEBEB;color:#791F1F}.ri-m{background:#FAEEDA;color:#633806}
+@media(prefers-color-scheme:dark){.ri-y{background:#173404;color:#C0DD97}.ri-n{background:#501313;color:#F7C1C1}.ri-m{background:#412402;color:#FAC775}}
+.field-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+.field-table th{text-align:left;padding:5px 8px;font-weight:500;font-size:11px;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary)}
+.field-table td{padding:5px 8px;border-bottom:0.5px solid var(--color-border-tertiary);vertical-align:top;color:var(--color-text-secondary)}
+.field-table td:first-child{font-family:var(--font-mono);color:var(--color-text-primary);font-size:11px}
+.field-table tr:last-child td{border-bottom:none}
+.field-table .new{color:#0F6E56;font-size:10px;font-weight:500}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:500px){.two{grid-template-columns:1fr}}
+.scenario{border:0.5px solid var(--color-border-tertiary);border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.scenario-title{font-weight:500;font-size:13px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.step{font-size:12px;color:var(--color-text-secondary);padding:3px 0;padding-left:12px;position:relative}
+.step::before{content:"→";position:absolute;left:0;color:var(--color-text-tertiary)}
+.priority-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--color-border-tertiary);font-size:13px}
+.priority-row:last-child{border-bottom:none}
+.pnum{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;flex-shrink:0}
+.p1{background:#FCEBEB;color:#791F1F}.p2{background:#FAEEDA;color:#633806}.p3{background:#EAF3DE;color:#27500A}
+@media(prefers-color-scheme:dark){.p1{background:#501313;color:#F7C1C1}.p2{background:#412402;color:#FAC775}.p3{background:#173404;color:#C0DD97}}
+.effort{display:flex;gap:4px;align-items:center}
+.dot{width:8px;height:8px;border-radius:50%}
+.dot.on.h{background:#E24B4A}.dot.on.m{background:#EF9F27}.dot.on.l{background:#639922}.dot.off{background:var(--color-border-tertiary)}
+code{font-family:var(--font-mono);font-size:11px;background:var(--color-background-secondary);padding:1px 5px;border-radius:4px;border:0.5px solid var(--color-border-tertiary)}
+.divider{border:none;border-top:0.5px solid var(--color-border-tertiary);margin:16px 0}
+.tag-new{display:inline-block;font-size:10px;background:#EAF3DE;color:#27500A;padding:1px 5px;border-radius:4px;margin-left:6px;font-weight:500}
+@media(prefers-color-scheme:dark){.tag-new{background:#173404;color:#C0DD97}}
+.highlight{border-left:3px solid #1D9E75;border-radius:0 10px 10px 0;padding:10px 14px;background:var(--color-background-secondary);margin-bottom:10px}
+.highlight.warn{border-color:#EF9F27}.highlight.err{border-color:#E24B4A}
+.ux-block{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+@media(max-width:500px){.ux-block{grid-template-columns:1fr}}
+.ux-card{border:0.5px solid var(--color-border-tertiary);border-radius:10px;overflow:hidden}
+.ux-label{font-size:11px;font-weight:500;padding:6px 10px;border-bottom:0.5px solid var(--color-border-tertiary)}
+.ux-label.was{background:#FCEBEB;color:#791F1F}
+.ux-label.now{background:#EAF3DE;color:#27500A}
+@media(prefers-color-scheme:dark){.ux-label.was{background:#501313;color:#F7C1C1}.ux-label.now{background:#173404;color:#C0DD97}}
+.ux-body{font-size:12px;color:var(--color-text-secondary);padding:8px 10px;line-height:1.6}
+</style>
+
+<div class="nav">
+  <button class="on" onclick="show('model')">Модель данных</button>
+  <button onclick="show('visibility')">Правила видимости</button>
+  <button onclick="show('flows')">Денежные потоки</button>
+  <button onclick="show('ux')">UX-решения</button>
+  <button onclick="show('scenarios')">Сценарии</button>
+  <button onclick="show('migration')">Миграция</button>
+</div>
+
+<div id="p-model" class="page on">
+  <h2>Исправленная модель данных</h2>
+
+  <div class="highlight">
+    Главный принцип: единственный источник правды о принадлежности записи — поле <code>scope</code>. Никаких двойных флагов.
+  </div>
+
+  <h3>Transaction <span class="tag-new">изменена</span></h3>
+  <div class="card">
+    <table class="field-table">
+      <tr><th>Поле</th><th>Тип</th><th>Описание</th></tr>
+      <tr><td>id</td><td>uuid PK</td><td></td></tr>
+      <tr><td>user_id</td><td>uuid FK NOT NULL</td><td>Всегда указан — кто создал</td></tr>
+      <tr><td>family_id</td><td>uuid FK NULL</td><td>NULL = личная, NOT NULL = семейная</td></tr>
+      <tr><td>account_id</td><td>uuid FK NOT NULL <span class="new">★ обязательный</span></td><td>Без счёта транзакций нет</td></tr>
+      <tr><td>category_id</td><td>uuid FK NOT NULL</td><td></td></tr>
+      <tr><td>scope</td><td>ENUM NOT NULL <span class="new">★ новое</span></td><td>'personal' | 'family' | 'shared'</td></tr>
+      <tr><td>amount</td><td>decimal NOT NULL</td><td></td></tr>
+      <tr><td>type</td><td>ENUM NOT NULL</td><td>'income' | 'expense'</td></tr>
+      <tr><td>date</td><td>date NOT NULL</td><td></td></tr>
+      <tr><td>comment</td><td>text NULL</td><td></td></tr>
+      <tr><td>created_at, updated_at</td><td>timestamp</td><td></td></tr>
+    </table>
+    <hr class="divider">
+    <p><span class="badge b-err">Удалено</span> <code>is_private</code>, <code>is_personal</code> — заменены на <code>scope</code></p>
+    <p style="margin-top:6px"><span class="badge b-ok">Правило</span> Если <code>family_id = NULL</code>, scope всегда <code>'personal'</code> (автоматически). Если <code>family_id != NULL</code>, scope = <code>'family'</code> или <code>'shared'</code>.</p>
+  </div>
+
+  <h3>RecurringTransaction <span class="tag-new">изменена</span></h3>
+  <div class="card">
+    <table class="field-table">
+      <tr><th>Поле</th><th>Тип</th><th>Описание</th></tr>
+      <tr><td>id</td><td>uuid PK</td><td></td></tr>
+      <tr><td>user_id</td><td>uuid FK NOT NULL</td><td></td></tr>
+      <tr><td>family_id</td><td>uuid FK NULL</td><td></td></tr>
+      <tr><td>account_id</td><td>uuid FK NOT NULL <span class="new">★ новое</span></td><td>Из какого счёта создавать транзакции</td></tr>
+      <tr><td>category_id</td><td>uuid FK NOT NULL</td><td></td></tr>
+      <tr><td>scope</td><td>ENUM NOT NULL <span class="new">★ новое</span></td><td>'personal' | 'family' | 'shared'</td></tr>
+      <tr><td>amount</td><td>decimal NOT NULL</td><td></td></tr>
+      <tr><td>type</td><td>ENUM NOT NULL</td><td>'income' | 'expense'</td></tr>
+      <tr><td>day_of_month</td><td>int 1-28 <span class="new">★ max 28</span></td><td>29-31 → всегда последний день месяца</td></tr>
+      <tr><td>start_month</td><td>date</td><td></td></tr>
+      <tr><td>comment</td><td>text NULL</td><td></td></tr>
+      <tr><td>active</td><td>bool DEFAULT true</td><td></td></tr>
+      <tr><td>last_run_month</td><td>date NULL</td><td>Защита от двойного запуска</td></tr>
+      <tr><td>goal_id</td><td>uuid FK NULL</td><td>Связь с целью (авто-пополнение)</td></tr>
+      <tr><td>debt_id</td><td>uuid FK NULL</td><td>Связь с долгом</td></tr>
+    </table>
+    <hr class="divider">
+    <p><span class="badge b-err">Удалено</span> <code>is_private</code> — заменён на <code>scope</code></p>
+  </div>
+
+  <div class="two">
+    <div>
+      <h3>Budget <span class="tag-new">изменена</span></h3>
+      <div class="card">
+        <table class="field-table">
+          <tr><th>Поле</th><th>Тип</th></tr>
+          <tr><td>id</td><td>uuid PK</td></tr>
+          <tr><td>user_id</td><td>uuid FK NOT NULL</td></tr>
+          <tr><td>family_id</td><td>uuid FK NULL</td></tr>
+          <tr><td>category_id</td><td>uuid FK NOT NULL</td></tr>
+          <tr><td>type</td><td>ENUM NOT NULL <span class="new">★</span></td></tr>
+          <tr><td>scope</td><td>ENUM NOT NULL <span class="new">★</span></td></tr>
+          <tr><td>month</td><td>date NOT NULL</td></tr>
+          <tr><td>limit_amount</td><td>decimal NOT NULL</td></tr>
+          <tr><td>created_at</td><td>timestamp</td></tr>
+          <tr><td>updated_at</td><td>timestamp</td></tr>
+        </table>
+        <p style="margin-top:8px"><code>type</code>: 'income' | 'expense'</p>
+        <p><code>scope</code>: 'personal' | 'family'</p>
+      </div>
+    </div>
+    <div>
+      <h3>Account <span class="tag-new">изменена</span></h3>
+      <div class="card">
+        <table class="field-table">
+          <tr><th>Поле</th><th>Тип</th></tr>
+          <tr><td>id</td><td>uuid PK</td></tr>
+          <tr><td>user_id</td><td>uuid FK NOT NULL</td></tr>
+          <tr><td>family_id</td><td>uuid FK NULL</td></tr>
+          <tr><td>name</td><td>text NOT NULL</td></tr>
+          <tr><td>type</td><td>ENUM NOT NULL</td></tr>
+          <tr><td>scope</td><td>ENUM NOT NULL <span class="new">★</span></td></tr>
+          <tr><td>balance</td><td>decimal DEFAULT 0</td></tr>
+          <tr><td>currency</td><td>char(3) DEFAULT 'RUB'</td></tr>
+          <tr><td>is_active</td><td>bool DEFAULT true</td></tr>
+          <tr><td>is_liquid</td><td>bool DEFAULT false</td></tr>
+          <tr><td>created_at</td><td>timestamp</td></tr>
+          <tr><td>updated_at</td><td>timestamp</td></tr>
+        </table>
+        <p style="margin-top:8px"><span class="badge b-err">Удалено</span> <code>is_shared</code> → заменён на <code>scope</code></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="two">
+    <div>
+      <h3>Goal <span class="tag-new">изменена</span></h3>
+      <div class="card">
+        <table class="field-table">
+          <tr><th>Поле</th><th>Тип</th></tr>
+          <tr><td>id</td><td>uuid PK</td></tr>
+          <tr><td>user_id</td><td>uuid FK NOT NULL</td></tr>
+          <tr><td>family_id</td><td>uuid FK NULL</td></tr>
+          <tr><td>account_id</td><td>uuid FK NOT NULL <span class="new">★</span></td></tr>
+          <tr><td>scope</td><td>ENUM NOT NULL <span class="new">★</span></td></tr>
+          <tr><td>name</td><td>text NOT NULL</td></tr>
+          <tr><td>target_amount</td><td>decimal NOT NULL</td></tr>
+          <tr><td>current_amount</td><td>decimal DEFAULT 0</td></tr>
+          <tr><td>deadline</td><td>date NULL</td></tr>
+          <tr><td>category_id</td><td>uuid FK NULL</td></tr>
+          <tr><td>is_archived</td><td>bool DEFAULT false</td></tr>
+          <tr><td>auto_contribute_enabled</td><td>bool DEFAULT false</td></tr>
+          <tr><td>auto_contribute_type</td><td>ENUM NULL</td></tr>
+          <tr><td>auto_contribute_value</td><td>decimal NULL</td></tr>
+        </table>
+        <p style="margin-top:8px"><code>auto_contribute_type</code>: 'fixed' | 'percent_income' — процент только от дохода создателя цели, не семейного</p>
+      </div>
+    </div>
+    <div>
+      <h3>Debt <span class="tag-new">изменена</span></h3>
+      <div class="card">
+        <table class="field-table">
+          <tr><th>Поле</th><th>Тип</th></tr>
+          <tr><td>id</td><td>uuid PK</td></tr>
+          <tr><td>user_id</td><td>uuid FK NOT NULL</td></tr>
+          <tr><td>family_id</td><td>uuid FK NULL</td></tr>
+          <tr><td>account_id</td><td>uuid FK NOT NULL <span class="new">★</span></td></tr>
+          <tr><td>scope</td><td>ENUM NOT NULL <span class="new">★</span></td></tr>
+          <tr><td>name</td><td>text NOT NULL</td></tr>
+          <tr><td>total_amount</td><td>decimal NOT NULL</td></tr>
+          <tr><td>remaining</td><td>decimal NOT NULL</td></tr>
+          <tr><td>interest_rate</td><td>decimal NULL</td></tr>
+          <tr><td>monthly_payment</td><td>decimal NOT NULL</td></tr>
+          <tr><td>type</td><td>ENUM NOT NULL</td></tr>
+          <tr><td>start_date</td><td>date NOT NULL</td></tr>
+          <tr><td>notes</td><td>text NULL</td></tr>
+          <tr><td>is_active</td><td>bool DEFAULT true</td></tr>
+        </table>
+        <p style="margin-top:8px"><span class="badge b-ok">Новое правило</span> Recurring job при выполнении платежа автоматически уменьшает <code>remaining</code>. Ручное «Закрыть часть» только для внеплановых платежей и проверяет, нет ли уже запланированного на этот месяц.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>Новые таблицы <span class="tag-new">добавить</span></h3>
+  <div class="two">
+    <div class="card">
+      <strong>UserWidgetConfig</strong>
+      <table class="field-table" style="margin-top:8px">
+        <tr><td>id</td><td>uuid PK</td></tr>
+        <tr><td>user_id</td><td>uuid FK UNIQUE</td></tr>
+        <tr><td>personal_widgets</td><td>jsonb</td></tr>
+        <tr><td>family_widgets</td><td>jsonb</td></tr>
+        <tr><td>updated_at</td><td>timestamp</td></tr>
+      </table>
+      <p style="margin-top:8px">Заменяет localStorage. Конфигурация синхронизируется между устройствами.</p>
+    </div>
+    <div class="card">
+      <strong>FamilySettings</strong>
+      <table class="field-table" style="margin-top:8px">
+        <tr><td>id</td><td>uuid PK</td></tr>
+        <tr><td>family_id</td><td>uuid FK UNIQUE</td></tr>
+        <tr><td>show_personal_in_stats</td><td>bool DEFAULT false</td></tr>
+        <tr><td>safety_pillow_months</td><td>int DEFAULT 3</td></tr>
+        <tr><td>updated_at</td><td>timestamp</td></tr>
+      </table>
+      <p style="margin-top:8px">Настройки семьи: включать ли личные траты участников в семейную статистику.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <strong>FamilyInvite <span class="tag-new">добавить поля</span></strong>
+    <table class="field-table" style="margin-top:8px">
+      <tr><th>Поле</th><th>Тип</th><th>Описание</th></tr>
+      <tr><td>id</td><td>uuid PK</td><td></td></tr>
+      <tr><td>family_id</td><td>uuid FK</td><td></td></tr>
+      <tr><td>code</td><td>text UNIQUE</td><td></td></tr>
+      <tr><td>created_by</td><td>uuid FK</td><td></td></tr>
+      <tr><td>status</td><td>ENUM NOT NULL <span class="new">★</span></td><td>'active' | 'used' | 'revoked'</td></tr>
+      <tr><td>used_by</td><td>uuid FK NULL <span class="new">★</span></td><td>Кто использовал</td></tr>
+      <tr><td>used_at</td><td>timestamp NULL <span class="new">★</span></td><td></td></tr>
+      <tr><td>expires_at</td><td>timestamp NULL</td><td></td></tr>
+      <tr><td>created_at</td><td>timestamp</td><td></td></tr>
+    </table>
+    <p style="margin-top:8px"><span class="badge b-ok">Правило</span> При использовании кода: статус → 'used', заполняется used_by и used_at. Одновременное использование невозможно — транзакция БД с SELECT FOR UPDATE.</p>
+  </div>
+</div>
+
+<div id="p-visibility" class="page">
+  <h2>Правила видимости и область применения scope</h2>
+
+  <div class="highlight">
+    Scope определяет три вещи одновременно: кто видит запись, входит ли она в статистику, из какого «кошелька» берутся деньги.
+  </div>
+
+  <h3>Значения scope и их смысл</h3>
+  <div class="card">
+    <div class="rule-row">
+      <span class="badge b-p" style="flex-shrink:0">personal</span>
+      <div>
+        <p>Вижу только я. Не входит в семейную статистику, бюджеты, аналитику. Деньги — с моего личного счёта. Доступно только в личном пространстве.</p>
+      </div>
+    </div>
+    <div class="rule-row">
+      <span class="badge b-f" style="flex-shrink:0">family</span>
+      <div>
+        <p>Видят все участники семьи. Входит в семейную статистику. Деньги — с общего семейного счёта (scope='family' у Account). Только в семейном пространстве.</p>
+      </div>
+    </div>
+    <div class="rule-row" style="border:none">
+      <span class="badge b-s" style="flex-shrink:0">shared</span>
+      <div>
+        <p>Видят все участники. Входит в статистику с маркером «от [имя участника]». Деньги — с личного счёта участника, но операция видна семье. Используется когда: «я заплатил за семью со своей карты».</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>Матрица видимости по сущностям</h3>
+  <div class="card" style="overflow-x:auto">
+    <table class="field-table" style="min-width:520px">
+      <tr>
+        <th>Сущность</th>
+        <th>personal</th>
+        <th>family</th>
+        <th>shared</th>
+        <th>В семейной статистике?</th>
+      </tr>
+      <tr>
+        <td>Transaction</td>
+        <td><span class="badge b-gray">только я</span></td>
+        <td><span class="badge b-f">все</span></td>
+        <td><span class="badge b-s">все + маркер</span></td>
+        <td>family + shared (+ personal если FamilySettings.show_personal_in_stats=true)</td>
+      </tr>
+      <tr>
+        <td>Budget</td>
+        <td><span class="badge b-gray">только я</span></td>
+        <td><span class="badge b-f">все</span></td>
+        <td>—</td>
+        <td>только family</td>
+      </tr>
+      <tr>
+        <td>Goal</td>
+        <td><span class="badge b-gray">только я</span></td>
+        <td><span class="badge b-f">все</span></td>
+        <td>—</td>
+        <td>только family</td>
+      </tr>
+      <tr>
+        <td>Wish</td>
+        <td><span class="badge b-gray">только я</span></td>
+        <td><span class="badge b-f">все</span></td>
+        <td>—</td>
+        <td>только family</td>
+      </tr>
+      <tr>
+        <td>RecurringTransaction</td>
+        <td><span class="badge b-gray">только я</span></td>
+        <td><span class="badge b-f">все</span></td>
+        <td>—</td>
+        <td>family</td>
+      </tr>
+      <tr>
+        <td>Debt</td>
+        <td><span class="badge b-gray">только я</span></td>
+        <td><span class="badge b-f">все</span></td>
+        <td>—</td>
+        <td>только family</td>
+      </tr>
+      <tr>
+        <td>Account</td>
+        <td><span class="badge b-gray">только я</span></td>
+        <td><span class="badge b-f">все</span></td>
+        <td>—</td>
+        <td>family счета в семейной подушке</td>
+      </tr>
+    </table>
+  </div>
+
+  <h3>Правила пространства и автоматического scope</h3>
+  <div class="card">
+    <div class="rule-row">
+      <span class="rule-icon ri-y">P</span>
+      <div><strong>Личное пространство (/personal/*)</strong> — все записи scope='personal', family_id=NULL. Семейный переключатель недоступен.</div>
+    </div>
+    <div class="rule-row">
+      <span class="rule-icon ri-m">F</span>
+      <div><strong>Семейное пространство (/family/*)</strong> — по умолчанию scope='family'. Пользователь может выбрать 'shared' (я плачу за семью со своей карты). Scope 'personal' недоступен — личные операции добавляются только в личном пространстве.</div>
+    </div>
+    <div class="rule-row" style="border:none">
+      <span class="rule-icon ri-y">A</span>
+      <div><strong>Автоматические транзакции (recurring job)</strong> — наследуют scope от шаблона RecurringTransaction. Счёт берётся из account_id шаблона.</div>
+    </div>
+  </div>
+
+  <h3>Подушка безопасности: какие счета считать</h3>
+  <div class="card">
+    <div class="rule-row">
+      <span class="rule-icon ri-y">L</span>
+      <div><strong>Личная подушка</strong> — все счета пользователя где is_liquid=true и scope='personal'.</div>
+    </div>
+    <div class="rule-row" style="border:none">
+      <span class="rule-icon ri-m">F</span>
+      <div><strong>Семейная подушка</strong> — только счета где is_liquid=true и scope='family' (family_id = текущая семья). Личные счета участников не учитываются.</div>
+    </div>
+  </div>
+
+  <h3>Категории: правило видимости</h3>
+  <div class="card">
+    <div class="rule-row">
+      <span class="rule-icon ri-y">S</span>
+      <div>Системные категории (<code>is_system=true</code>) — видны всем, нельзя удалить.</div>
+    </div>
+    <div class="rule-row">
+      <span class="rule-icon ri-y">P</span>
+      <div>Личные категории (<code>user_id!=NULL, family_id=NULL</code>) — видны только создателю. В семейных dropdown не отображаются.</div>
+    </div>
+    <div class="rule-row" style="border:none">
+      <span class="rule-icon ri-m">F</span>
+      <div>Семейные категории (<code>family_id!=NULL</code>) — видны всем участникам семьи.</div>
+    </div>
+  </div>
+</div>
+
+<div id="p-flows" class="page">
+  <h2>Денежные потоки без дыр</h2>
+
+  <div class="highlight warn">
+    Главная дыра старой архитектуры: транзакция существует, но баланс счёта не меняется (account_id необязательный). Решение — account_id обязателен везде, баланс обновляется в одном месте.
+  </div>
+
+  <h3>Механизм обновления баланса счёта</h3>
+  <div class="card">
+    <p><strong>Единственное место изменения баланса</strong> — хук после записи Transaction в БД (Prisma middleware или database trigger):</p>
+    <ul style="margin-top:8px">
+      <li>Создание транзакции expense → <code>Account.balance -= amount</code></li>
+      <li>Создание транзакции income → <code>Account.balance += amount</code></li>
+      <li>Удаление транзакции → откат изменения баланса</li>
+      <li>Редактирование суммы → разница применяется к балансу</li>
+    </ul>
+    <p style="margin-top:8px"><span class="badge b-ok">Атомарность</span> Всё в одной транзакции БД. Либо и запись, и баланс меняются, либо ничего.</p>
+  </div>
+
+  <h3>Recurring job: исправленный алгоритм</h3>
+  <div class="card">
+    <p>Текущая проблема: нет защиты от двойного запуска, нет счёта. Исправленный алгоритм:</p>
+    <ol style="padding-left:16px;margin-top:8px;font-size:13px;color:var(--color-text-secondary)">
+      <li style="margin-bottom:6px">Выбрать все <code>RecurringTransaction</code> где <code>active=true</code> и <code>last_run_month &lt; текущий_месяц</code> (или NULL)</li>
+      <li style="margin-bottom:6px">Для каждого — начать транзакцию БД: <code>SELECT ... FOR UPDATE</code> (блокировка строки)</li>
+      <li style="margin-bottom:6px">Создать Transaction с <code>account_id</code> из шаблона, scope из шаблона, date = day_of_month текущего месяца</li>
+      <li style="margin-bottom:6px">Если <code>goal_id != NULL</code> — создать GoalContribution, обновить <code>Goal.current_amount</code></li>
+      <li style="margin-bottom:6px">Если <code>debt_id != NULL</code> — обновить <code>Debt.remaining -= amount</code></li>
+      <li style="margin-bottom:6px">Обновить <code>last_run_month = текущий_месяц</code></li>
+      <li>Зафиксировать транзакцию. При ошибке — откат, запись в FailedJob</li>
+    </ol>
+  </div>
+
+  <h3>Долги: синхронизация remaining</h3>
+  <div class="card">
+    <div class="highlight err" style="margin-bottom:12px">
+      Старая проблема: recurring платёж по долгу не уменьшал remaining. Ручное «закрыть часть» и автоматический платёж могли задвоиться.
+    </div>
+    <p><strong>Новое правило:</strong></p>
+    <ul style="margin-top:8px">
+      <li>Любое погашение долга (ручное или автоматическое) создаёт Transaction + обновляет <code>Debt.remaining</code> в одной БД-транзакции</li>
+      <li>«Закрыть часть» — проверяет: если в этом месяце уже создан recurring-платёж по этому долгу, сумма учитывается. UI показывает уже погашено в этом месяце</li>
+      <li>При <code>Debt.remaining &lt;= 0</code> → автоматически <code>is_active = false</code>, уведомление пользователю, деактивация связанного RecurringTransaction</li>
+    </ul>
+  </div>
+
+  <h3>GoalContribution: защита от потери при удалении транзакции</h3>
+  <div class="card">
+    <p>Добавить <code>ON DELETE SET NULL</code> на <code>GoalContribution.transaction_id</code>, но при этом пересчитывать <code>Goal.current_amount</code>:</p>
+    <ul style="margin-top:8px">
+      <li>При удалении Transaction → GoalContribution.transaction_id = NULL, Goal.current_amount -= contribution.amount</li>
+      <li>Это реализуется через Prisma middleware: перехватить delete Transaction, найти связанные contributions, обновить цели</li>
+      <li>Аналогично для WishContribution</li>
+    </ul>
+    <p style="margin-top:8px"><span class="badge b-ok">Результат</span> Удаление транзакции всегда корректно отражается в прогрессе цели</p>
+  </div>
+
+  <h3>auto_contribute_type = 'percent_income': как считать</h3>
+  <div class="card">
+    <p>Старая проблема: «% от дохода» — от чьего дохода в семейной цели?</p>
+    <p style="margin-top:8px"><strong>Решение:</strong> процент считается от дохода создателя цели за предыдущий месяц. Алгоритм в interestJob (1-го числа):</p>
+    <ol style="padding-left:16px;margin-top:8px;font-size:13px;color:var(--color-text-secondary)">
+      <li style="margin-bottom:4px">Найти все цели с <code>auto_contribute_enabled=true</code> и <code>auto_contribute_type='percent_income'</code></li>
+      <li style="margin-bottom:4px">Для каждой: взять сумму income-транзакций <code>user_id = goal.user_id</code> за прошлый месяц</li>
+      <li style="margin-bottom:4px">Рассчитать сумму = total_income × (auto_contribute_value / 100)</li>
+      <li>Создать RecurringTransaction с этой суммой (или сразу создать Transaction + Contribution)</li>
+    </ol>
+    <p style="margin-top:8px"><span class="badge b-warn">UX</span> В форме цели показывать: «~N ₽ в месяц на основе вашего дохода за последний месяц»</p>
+  </div>
+</div>
+
+<div id="p-ux" class="page">
+  <h2>UX-решения: было → стало</h2>
+
+  <h3>Форма «Новая операция»: переключатель scope</h3>
+  <div class="ux-block">
+    <div class="ux-card">
+      <div class="ux-label was">Было</div>
+      <div class="ux-body">Eye-icon toggle «Личное: вкл/выкл». Скрыт в личном пространстве. Непонятно, что именно скрывается и от кого.</div>
+    </div>
+    <div class="ux-card">
+      <div class="ux-label now">Стало</div>
+      <div class="ux-body">Явные кнопки-таблетки: <strong>[Личное]</strong> / <strong>[Семейное]</strong> / <strong>[Я платил за семью]</strong>. В личном пространстве только «Личное» — без выбора. Тултип на каждом варианте.</div>
+    </div>
+  </div>
+
+  <h3>Страница бюджетов: два таба</h3>
+  <div class="ux-block">
+    <div class="ux-card">
+      <div class="ux-label was">Было</div>
+      <div class="ux-body">Одна таблица со смешанными личными и семейными бюджетами. Нет поля type в БД. При создании нет фильтра категорий по типу.</div>
+    </div>
+    <div class="ux-card">
+      <div class="ux-label now">Стало</div>
+      <div class="ux-body">Два таба: «Личные бюджеты» и «Семейные бюджеты». При создании — обязательный toggle «Расход / Доход», dropdown категорий фильтруется по нему. Лимит доходного бюджета = ожидаемый доход.</div>
+    </div>
+  </div>
+
+  <h3>Space Switcher: ориентация пользователя</h3>
+  <div class="ux-block">
+    <div class="ux-card">
+      <div class="ux-label was">Было</div>
+      <div class="ux-body">Кнопка переключения без обратной связи. Пользователь не понимает, что данные изменились полностью.</div>
+    </div>
+    <div class="ux-card">
+      <div class="ux-label now">Стало</div>
+      <div class="ux-body">При переключении — toast «Личное пространство» / «Семейное пространство». В header — чёткий маркер текущего пространства с иконкой. Тултип при наведении объясняет разницу.</div>
+    </div>
+  </div>
+
+  <h3>Категории в Settings: структура</h3>
+  <div class="ux-block">
+    <div class="ux-card">
+      <div class="ux-label was">Было</div>
+      <div class="ux-body">Системные, личные, семейные перемешаны. Нет типа (расход/доход) при создании. Dropdown для бюджетов не фильтруется.</div>
+    </div>
+    <div class="ux-card">
+      <div class="ux-label now">Стало</div>
+      <div class="ux-body">Три секции: «Системные» (только просмотр), «Мои категории», «Семейные категории». При создании — обязательный тип. Category.type используется для фильтрации в бюджетах.</div>
+    </div>
+  </div>
+
+  <h3>Транзакции в семейном пространстве: маркер участника</h3>
+  <div class="ux-block">
+    <div class="ux-card">
+      <div class="ux-label was">Было</div>
+      <div class="ux-body">Все операции выглядят одинаково. Нельзя понять, кто из участников добавил расход.</div>
+    </div>
+    <div class="ux-card">
+      <div class="ux-label now">Стало</div>
+      <div class="ux-body">У каждой карточки — аватар участника + имя. Scope 'shared' маркируется «[Имя] платил за семью». Фильтр «Только мои» / «Все участники» / «[Имя участника]».</div>
+    </div>
+  </div>
+
+  <h3>Виджеты дашборда: синхронизация</h3>
+  <div class="ux-block">
+    <div class="ux-card">
+      <div class="ux-label was">Было</div>
+      <div class="ux-body">Конфигурация в localStorage. На разных устройствах разный вид дашборда.</div>
+    </div>
+    <div class="ux-card">
+      <div class="ux-label now">Стало</div>
+      <div class="ux-body">UserWidgetConfig в БД. При загрузке — fetch конфигурации. Оптимистичное обновление: сначала применяется локально, потом сохраняется на сервер.</div>
+    </div>
+  </div>
+
+  <h3>Роуты import и export</h3>
+  <div class="ux-block">
+    <div class="ux-card">
+      <div class="ux-label was">Было</div>
+      <div class="ux-body">Import.jsx и Export.jsx существуют, но роуты не добавлены. Ссылка в sidebar ведёт в никуда.</div>
+    </div>
+    <div class="ux-card">
+      <div class="ux-label now">Стало</div>
+      <div class="ux-body">Добавить в App.js: <code>/personal/import</code>, <code>/family/import</code>, <code>/personal/export</code>, <code>/family/export</code>. Sidebar ссылки исправлены.</div>
+    </div>
+  </div>
+</div>
+
+<div id="p-scenarios" class="page">
+  <h2>Сценарии использования</h2>
+
+  <h3>Личные финансы</h3>
+
+  <div class="scenario">
+    <div class="scenario-title"><span class="badge b-p">personal</span> Иван платит 500₽ за кофе</div>
+    <div class="step">Иван в /personal/transactions → «+ Добавить»</div>
+    <div class="step">scope автоматически = 'personal', переключатель заблокирован</div>
+    <div class="step">Выбирает счёт «Дебетовая карта» (scope='personal'), категорию «Кафе»</div>
+    <div class="step">Транзакция сохранена → Account.balance -= 500 (атомарно)</div>
+    <div class="step">Жена Мария: не видит операцию нигде. В семейной аналитике — не учтена (если show_personal_in_stats=false)</div>
+  </div>
+
+  <div class="scenario">
+    <div class="scenario-title"><span class="badge b-s">shared</span> Иван покупает продукты 3000₽ за всю семью со своей карты</div>
+    <div class="step">Иван в /family/transactions → «+ Добавить» → выбирает «Я платил за семью»</div>
+    <div class="step">scope = 'shared', family_id = семья Ивановых</div>
+    <div class="step">Счёт — личная карта Ивана (scope='personal'), но операция видна семье</div>
+    <div class="step">Мария видит в семейных транзакциях: «Иван → Продукты -3000₽»</div>
+    <div class="step">Семейный бюджет «Продукты» уменьшается. Account Ивана -= 3000 (его деньги, но семейный расход)</div>
+  </div>
+
+  <h3>Семейные финансы</h3>
+
+  <div class="scenario">
+    <div class="scenario-title"><span class="badge b-f">family</span> Создание семейной цели «Отпуск» 150 000₽ с авто-пополнением</div>
+    <div class="step">Мария создаёт цель в /family/goals: сумма 150 000₽, дедлайн через год</div>
+    <div class="step">scope = 'family', account_id = «Общий накопительный счёт»</div>
+    <div class="step">Включает авто-пополнение: «Фиксированная» 5000₽ в месяц</div>
+    <div class="step">Создаётся RecurringTransaction: type='expense', amount=5000, account_id=«Общий счёт», goal_id=цель</div>
+    <div class="step">1-го числа recurring job: создаёт Transaction + GoalContribution + обновляет Goal.current_amount</div>
+    <div class="step">Иван видит прогресс цели. При 100% — celebration overlay для обоих через WebSocket</div>
+  </div>
+
+  <div class="scenario">
+    <div class="scenario-title"><span class="badge b-f">family</span> Погашение ипотеки: автоматическое + внеплановое</div>
+    <div class="step">Долг «Ипотека»: total=3 000 000₽, monthly_payment=30 000₽, account_id=«Общий счёт»</div>
+    <div class="step">RecurringTransaction создан автоматически при добавлении долга</div>
+    <div class="step">1 декабря recurring job: Transaction -30 000₽ + Debt.remaining -= 30 000</div>
+    <div class="step">15 декабря Иван хочет погасить ещё 50 000₽ досрочно → «Закрыть часть»</div>
+    <div class="step">UI показывает: «В этом месяце уже погашено: 30 000₽. Остаток: [remaining]»</div>
+    <div class="step">Иван вводит 50 000₽ → Transaction + Debt.remaining -= 50 000 (атомарно)</div>
+    <div class="step">Если remaining &lt;= 0 → Debt.is_active = false, RecurringTransaction.active = false, уведомление «Долг закрыт!»</div>
+  </div>
+
+  <div class="scenario">
+    <div class="scenario-title"><span class="badge b-f">family</span> Семейный бюджет на продукты превышен</div>
+    <div class="step">Budget: category=«Продукты», type='expense', scope='family', limit=20 000₽</div>
+    <div class="step">При каждой транзакции scope='family' + scope='shared' категории «Продукты» → бюджет пересчитывается</div>
+    <div class="step">При достижении 80% → push-уведомление (если включено в NotificationSettings)</div>
+    <div class="step">При превышении 100% → уведомление «Бюджет превышен», прогресс-бар красный у обоих участников</div>
+  </div>
+</div>
+
+<div id="p-migration" class="page">
+  <h2>План миграции</h2>
+
+  <div class="highlight">
+    Порядок важен: сначала добавляем новые поля со значениями по умолчанию, потом мигрируем данные, потом делаем поля обязательными, потом удаляем старые.
+  </div>
+
+  <h3>Приоритет задач</h3>
+
+  <div class="priority-row">
+    <span class="pnum p1">1</span>
+    <div style="flex:1">
+      <div style="font-weight:500;font-size:13px">Добавить Budget.type + Budget.scope в схему</div>
+      <div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px">Prisma migration. Существующие бюджеты: type='expense', scope='family' если family_id!=NULL, иначе 'personal'. Обновить форму создания.</div>
+    </div>
+    <div class="effort"><span class="dot on l"></span><span class="dot on l"></span><span class="dot off"></span><span class="dot off"></span><span class="dot off"></span></div>
+  </div>
+
+  <div class="priority-row">
+    <span class="pnum p1">2</span>
+    <div style="flex:1">
+      <div style="font-weight:500;font-size:13px">Добавить роуты /import и /export в App.js</div>
+      <div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px">Одна строка в App.js на каждый роут. Исправить ссылки в sidebar. Тест: проверить что страницы открываются.</div>
+    </div>
+    <div class="effort"><span class="dot on l"></span><span class="dot off"></span><span class="dot off"></span><span class="dot off"></span><span class="dot off"></span></div>
+  </div>
+
+  <div class="priority-row">
+    <span class="pnum p1">3</span>
+    <div style="flex:1">
+      <div style="font-weight:500;font-size:13px">FamilyInvite: добавить status, used_by, used_at</div>
+      <div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px">Migration. Существующие активные инвайты: status='active'. Добавить SELECT FOR UPDATE при использовании кода.</div>
+    </div>
+    <div class="effort"><span class="dot on l"></span><span class="dot on l"></span><span class="dot off"></span><span class="dot off"></span><span class="dot off"></span></div>
+  </div>
+
+  <div class="priority-row">
+    <span class="pnum p1">4</span>
+    <div style="flex:1">
+      <div style="font-weight:500;font-size:13px">Добавить UserWidgetConfig в БД</div>
+      <div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px">Новая таблица + API endpoint GET/PUT /api/widget-config. Обновить widgetStorage.js: при загрузке — fetch из API, fallback на localStorage для оффлайн. При сохранении — оптимистично в localStorage + async сохранение в API.</div>
+    </div>
+    <div class="effort"><span class="dot on m"></span><span class="dot on m"></span><span class="dot on m"></span><span class="dot off"></span><span class="dot off"></span></div>
+  </div>
+
+  <div class="priority-row">
+    <span class="pnum p2">5</span>
+    <div style="flex:1">
+      <div style="font-weight:500;font-size:13px">Добавить account_id к RecurringTransaction</div>
+      <div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px">Шаг 1: добавить поле nullable. Шаг 2: заполнить существующие записи (для каждого пользователя взять первый активный счёт). Шаг 3: сделать NOT NULL. Обновить recurringJob.</div>
+    </div>
+    <div class="effort"><span class="dot on m"></span><span class="dot on m"></span><span class="dot on m"></span><span class="dot off"></span><span class="dot off"></span></div>
+  </div>
+
+  <div class="priority-row">
+    <span class="pnum p2">6</span>
+    <div style="flex:1">
+      <div style="font-weight:500;font-size:13px">Добавить scope ко всем сущностям (без удаления старых полей)</div>
+      <div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px">Добавить scope как nullable. Заполнить: если is_personal=true → 'personal'; если family_id!=NULL и is_private=false → 'family'; иначе 'personal'. Запустить на staging, проверить статистику расхождений.</div>
+    </div>
+    <div class="effort"><span class="dot on m"></span><span class="dot on m"></span><span class="dot on m"></span><span class="dot off"></span><span class="dot off"></span></div>
+  </div>
+
+  <div class="priority-row">
+    <span class="pnum p2">7</span>
+    <div style="flex:1">
+      <div style="font-weight:500;font-size:13px">Обновить все контроллеры и фильтры на scope</div>
+      <div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px">Параллельная работа старых полей и нового scope. Покрыть тестами: getTransactions, getDashboard, getAnalytics, getBudgets. Только после зелёных тестов — удалить is_private и is_personal.</div>
+    </div>
+    <div class="effort"><span class="dot on h"></span><span class="dot on h"></span><span class="dot on h"></span><span class="dot on h"></span><span class="dot off"></span></div>
+  </div>
+
+  <div class="priority-row">
+    <span class="pnum p3">8</span>
+    <div style="flex:1">
+      <div style="font-weight:500;font-size:13px">Добавить FamilySettings + show_personal_in_stats</div>
+      <div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px">Новая таблица + UI в Settings семьи. Аналитика и дашборд учитывают этот флаг при агрегации.</div>
+    </div>
+    <div class="effort"><span class="dot on l"></span><span class="dot on l"></span><span class="dot on l"></span><span class="dot off"></span><span class="dot off"></span></div>
+  </div>
+
+  <div class="priority-row" style="border:none">
+    <span class="pnum p3">9</span>
+    <div style="flex:1">
+      <div style="font-weight:500;font-size:13px">Обновить recurring job: защита от двойного запуска</div>
+      <div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px">Добавить SELECT FOR UPDATE. Проверку last_run_month в начале job. Логировать каждое создание транзакции в AuditLog. Тест на idempotency: запустить job дважды подряд — второй должен ничего не создать.</div>
+    </div>
+    <div class="effort"><span class="dot on l"></span><span class="dot on l"></span><span class="dot off"></span><span class="dot off"></span><span class="dot off"></span></div>
+  </div>
+
+  <hr class="divider">
+  <div class="card">
+    <strong>Итого по трудоёмкости</strong>
+    <p style="margin-top:8px">Задачи 1–4: ~1–2 дня, минимальный риск, видимый результат для пользователя</p>
+    <p>Задачи 5–7: ~3–5 дней, архитектурный рефакторинг, требует тестов перед деплоем</p>
+    <p>Задачи 8–9: ~1–2 дня, финальная полировка</p>
+    <p style="margin-top:8px"><span class="badge b-ok">Рекомендация</span> Деплоить задачи 1–4 немедленно — они не ломают текущую логику. Задачи 5–7 — отдельным спринтом с feature flag.</p>
+  </div>
+</div>
+
+<script>
+function show(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.nav button').forEach(b => b.classList.remove('on'));
+  document.getElementById('p-' + name).classList.add('on');
+  event.target.classList.add('on');
+}
+</script>

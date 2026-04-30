@@ -10,5 +10,6 @@ router.get('/settings', safetyPillowController.getSettings);
 router.put('/settings', safetyPillowController.updateSettings);
 router.get('/current', safetyPillowController.getSafetyPillow);
 router.get('/history', safetyPillowController.getHistory);
+router.post('/snapshot', safetyPillowController.createSnapshot);
 
 module.exports = router;

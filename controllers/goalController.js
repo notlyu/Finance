@@ -1,6 +1,10 @@
 const prisma = require('../lib/prisma-client');
 const { logger, ValidationError, NotFoundError, AppError, ForbiddenError } = require('../lib/errors');
 
+function currentMonth() {
+  return new Date().toISOString().slice(0, 7);
+}
+
 const calculateMonthlyContribution = (targetAmount, currentAmount, monthsRemaining, interestRate = 0) => {
   if (monthsRemaining <= 0) return 0;
   const remaining = targetAmount - currentAmount;
@@ -48,7 +52,7 @@ exports.getGoals = async (req, res, next) => {
       }
       const achieved = !!g.is_archived || (Number(g.current_amount || 0) >= Number(g.target_amount || 0));
       const progress = (Number(g.target_amount || 0) > 0) ? Math.min(100, Math.max(0, (Number(g.current_amount || 0) / Number(g.target_amount || 0)) * 100)) : 0;
-      return { ...g, auto_contribute_percent, achieved, progress };
+      return { ...g, auto_contribute_percent, achieved, progress, scope: g.scope || (g.family_id ? 'family' : 'personal') };
     });
     logger.info(`User ${user.id} fetched ${goals.length} goals`);
     res.json(mapped);
@@ -115,9 +119,9 @@ exports.getGoalById = async (req, res, next) => {
     }
 
     const achieved = !!goal.is_archived || (Number(goal.current_amount) >= Number(goal.target_amount));
-
+    
     logger.info(`User ${user.id} fetched goal ${id}`);
-    res.json({ ...goal, forecast, achieved });
+    res.json({ ...goal, forecast, achieved, scope: goal.scope || (goal.family_id ? 'family' : 'personal') });
   } catch (error) {
     next(error);
   }
@@ -136,30 +140,35 @@ exports.createGoal = async (req, res, next) => {
       auto_contribute_enabled,
       auto_contribute_type,
       auto_contribute_value,
-      is_family_goal
+      scope: reqScope,
+      is_family_goal,
+      category_id,
     } = req.body;
 
     if (!name || !target_amount) {
       throw new ValidationError('Название и целевая сумма обязательны');
     }
 
+    const scope = reqScope || (is_family_goal ? 'family' : 'personal');
+
     const goalData = {
       name,
-      target_amount,
+      target_amount: Number(target_amount),
       deadline: target_date ? new Date(target_date) : null,
-      current_amount: current_amount || 0,
+      current_amount: Number(current_amount || 0),
+      interest_rate: interest_rate ? Number(interest_rate) : null,
+      category_id: category_id ? Number(category_id) : null,
       auto_contribute_enabled: auto_contribute_enabled || false,
       auto_contribute_type: auto_contribute_type || null,
-      auto_contribute_value: auto_contribute_value || null
+      auto_contribute_value: auto_contribute_value ? Number(auto_contribute_value) : null,
     };
 
     if ((Number(target_amount) || 0) > 0 && (Number(current_amount) || 0) >= Number(target_amount)) {
       goalData.is_archived = true;
       goalData.archived_at = new Date();
-      goalData.status = 'completed';
     }
 
-    if (is_family_goal && familyId) {
+    if (scope !== 'personal' && familyId) {
       goalData.family_id = familyId;
       goalData.user_id = user.id;
     } else {
@@ -168,6 +177,39 @@ exports.createGoal = async (req, res, next) => {
     }
 
     const goal = await prisma.goal.create({ data: goalData });
+
+    if (auto_contribute_enabled) {
+      let categoryId = goal.category_id;
+      if (!categoryId) {
+        let cat = await prisma.category.findFirst({
+          where: { name: 'Пополнение целей', family_id: goal.family_id }
+        });
+        if (!cat) {
+          cat = await prisma.category.create({
+            data: { name: 'Пополнение целей', family_id: goal.family_id, type: 'expense' }
+          });
+        }
+        categoryId = cat.id;
+      }
+
+      const amount = auto_contribute_type === 'fixed' ? Number(auto_contribute_value) : 0;
+
+      await prisma.recurringTransaction.create({
+        data: {
+          user_id: user.id,
+          family_id: goal.family_id,
+          category_id: categoryId,
+          amount,
+          type: 'expense',
+          day_of_month: 1,
+          start_month: currentMonth(),
+          comment: `Автопополнение цели: ${goal.name}`,
+          scope: goal.scope || 'personal',
+          goal_id: goal.id,
+        }
+      });
+    }
+
     logger.info(`User ${user.id} created goal ${goal.id}`);
     res.status(201).json(goal);
   } catch (error) {
@@ -179,7 +221,7 @@ exports.updateGoal = async (req, res, next) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    const updateData = req.body;
+    const { scope: reqScope, ...restData } = req.body;
 
     const goal = await prisma.goal.findFirst({
       where: {
@@ -200,12 +242,70 @@ exports.updateGoal = async (req, res, next) => {
       throw new ForbiddenError('Нет прав на редактирование');
     }
 
+    const scope = reqScope || (goal.family_id ? 'family' : 'personal');
+    if (scope !== 'personal' && user.family_id) {
+      updateData.family_id = user.family_id;
+    } else {
+      updateData.family_id = null;
+    }
+
     const updated = await prisma.goal.update({
       where: { id: Number(id) },
       data: updateData
     });
+
+    if (restData.auto_contribute_enabled !== undefined || restData.auto_contribute_type !== undefined || restData.auto_contribute_value !== undefined) {
+      const existingRecurring = await prisma.recurringTransaction.findFirst({
+        where: { goal_id: Number(id) }
+      });
+
+      const newAutoContributeEnabled = restData.auto_contribute_enabled !== undefined ? restData.auto_contribute_enabled : goal.auto_contribute_enabled;
+      const newAutoContributeType = restData.auto_contribute_type !== undefined ? restData.auto_contribute_type : goal.auto_contribute_type;
+      const newAutoContributeValue = restData.auto_contribute_value !== undefined ? restData.auto_contribute_value : goal.auto_contribute_value;
+
+      if (newAutoContributeEnabled && existingRecurring) {
+        const amount = newAutoContributeType === 'fixed' ? Number(newAutoContributeValue) : 0;
+        await prisma.recurringTransaction.update({
+          where: { id: existingRecurring.id },
+          data: { amount, comment: `Автопополнение цели: ${updated.name}` }
+        });
+      } else if (newAutoContributeEnabled && !existingRecurring) {
+        let categoryId = updated.category_id;
+        if (!categoryId) {
+          let cat = await prisma.category.findFirst({
+            where: { name: 'Пополнение целей', family_id: updated.family_id }
+          });
+          if (!cat) {
+            cat = await prisma.category.create({
+              data: { name: 'Пополнение целей', family_id: updated.family_id, type: 'expense' }
+            });
+          }
+          categoryId = cat.id;
+        }
+
+        const amount = newAutoContributeType === 'fixed' ? Number(newAutoContributeValue) : 0;
+
+        await prisma.recurringTransaction.create({
+          data: {
+            user_id: user.id,
+            family_id: updated.family_id,
+            category_id: categoryId,
+            amount,
+            type: 'expense',
+            day_of_month: 1,
+            start_month: currentMonth(),
+            comment: `Автопополнение цели: ${updated.name}`,
+            scope: updated.scope || 'personal',
+            goal_id: updated.id,
+          }
+        });
+      } else if (!newAutoContributeEnabled && existingRecurring) {
+        await prisma.recurringTransaction.delete({ where: { id: existingRecurring.id } });
+      }
+    }
+
     logger.info(`User ${user.id} updated goal ${id}`);
-    res.json(updated);
+    res.json({ ...updated, scope: updated.scope || (updated.family_id ? 'family' : 'personal') });
   } catch (error) {
     next(error);
   }
@@ -235,6 +335,7 @@ exports.deleteGoal = async (req, res, next) => {
       throw new ForbiddenError('Нет прав на удаление');
     }
 
+    await prisma.recurringTransaction.deleteMany({ where: { goal_id: goal.id } });
     await prisma.goal.delete({ where: { id: Number(id) } });
     logger.info(`User ${user.id} deleted goal ${id}`);
     res.json({ message: 'Цель удалена' });
@@ -303,7 +404,7 @@ exports.contributeToGoal = async (req, res, next) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    const { amount, date, createTransaction, category_id, comment, is_private, skipWarning } = req.body;
+    const { amount, date, createTransaction, category_id, comment, scope: reqScope, skipWarning } = req.body;
 
     if (!amount || amount <= 0) {
       throw new ValidationError('Сумма должна быть положительным числом');
@@ -344,17 +445,26 @@ exports.contributeToGoal = async (req, res, next) => {
           data: {
             user_id: user.id,
             family_id: goal.family_id,
+            account_id: account_id ? Number(account_id) : null,
             amount,
             type: 'expense',
             category_id: catId,
             date: date ? new Date(date) : new Date(),
             comment: comment || `Пополнение цели: ${goal.name}`,
-            is_private: !!is_private,
+            scope: goal.scope || 'personal',
           }
         });
         transactionId = newTx.id;
-      }
 
+        // Decrement account balance if account_id provided
+        if (account_id) {
+          await tx.account.update({
+            where: { id: Number(account_id) },
+            data: { balance: { decrement: amount } }
+          });
+        }
+      }
+      
       const contribution = await tx.goalContribution.create({
         data: {
           goal_id: goal.id,

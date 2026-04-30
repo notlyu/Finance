@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
+import socketService from '../services/socket';
 
 const typeIcons = {
   goal_reached: '🎯',
@@ -40,6 +41,16 @@ export default function NotificationBell() {
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const handleNewNotification = (notification) => {
+      setNotifications(prev => [notification, ...prev].slice(0, 15));
+      setUnreadCount(prev => prev + 1);
+    };
+
+    socketService.on('notification', handleNewNotification);
+    return () => socketService.off('notification', handleNewNotification);
   }, []);
 
   useEffect(() => {

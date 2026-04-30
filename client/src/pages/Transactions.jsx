@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
-import api from '../services/api';
+import api, { downloadFile } from '../services/api';
 import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import FormattedInput from '../components/ui/FormattedInput';
 import { formatMoney } from '../utils/format';
+import { showError } from '../utils/toast';
 
 const categoryIconMap = {
   income: 'payments',
@@ -32,21 +34,29 @@ const getCategoryIcon = (catName) => {
   return 'receipt_long';
 };
 
-export default function Transactions() {
+export default function Transactions({ space = 'personal' }) {
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState({ items: [], limit: 30, offset: 0, hasMore: false });
-  const [filters, setFilters] = useState({
-    startDate: '', endDate: '', type: '', categoryId: '', includePrivate: 'all'
+  const [filters, setFilters] = useState(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return { startDate: today, endDate: today, type: '', categoryId: '', includePrivate: 'all', q: '' };
   });
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [datePreset, setDatePreset] = useState('today');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
+  const [confirmModal, setConfirmModal] = useState({ open: false, onConfirm: null, title: '', message: '', variant: 'danger' });
+  const [pendingBudgetWarning, setPendingBudgetWarning] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
   const { register, handleSubmit, reset, setValue, watch } = useForm();
+  
+  const hasFamily = currentUser?.family_id;
 
   const updateDateFilter = (preset) => {
     setDatePreset(preset);
@@ -84,27 +94,69 @@ export default function Transactions() {
     }
   }, [customStart, customEnd, datePreset]);
 
-  const fetchData = async () => {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (filters.q) {
+        fetchTransactions(0);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [filters.q, fetchTransactions]);
+
+  useEffect(() => {
+    api.get('/auth/me').then(res => setCurrentUser(res.data)).catch(console.error);
+  }, []);
+
+  const buildParams = (offset = 0) => {
+    const params = { paginate: true, limit: page.limit, offset };
+    if (filters.startDate) params.startDate = filters.startDate;
+    if (filters.endDate) params.endDate = filters.endDate;
+    if (filters.type) params.type = filters.type;
+    if (filters.categoryId) params.categoryId = filters.categoryId;
+    if (filters.includePrivate && filters.includePrivate !== 'all') params.includePrivate = filters.includePrivate;
+    if (filters.q) params.q = filters.q;
+    return params;
+  };
+
+  const fetchTransactions = useCallback(async (offset = 0) => {
+    const params = buildParams(offset);
     try {
-      const [transRes, catRes] = await Promise.all([
-        api.get('/transactions', { params: { ...filters, paginate: true, limit: page.limit, offset: 0 } }),
-        api.get('/categories')
-      ]);
-      const items = transRes.data?.items || [];
-      const meta = transRes.data?.meta || {};
+      const res = await api.get('/transactions', { params });
+      const items = res.data?.items || [];
+      const meta = res.data?.meta || {};
       setTransactions(items);
-      setPage(prev => ({ ...prev, items, offset: meta.offset ?? 0, hasMore: !!meta.hasMore }));
-      setCategories(catRes.data);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+      setPage(prev => ({ ...prev, items, offset: meta.offset ?? offset, hasMore: !!meta.hasMore }));
+    } catch (err) { console.error('Transactions fetch error:', err); }
+  }, [buildParams]);
+
+  const fetchCategories = async () => {
+    try {
+      const res = await api.get('/categories');
+      setCategories(res.data);
+    } catch (err) { console.error('Categories fetch error:', err); }
+  };
+
+  const fetchAccounts = async () => {
+    try {
+      const res = await api.get('/accounts');
+      setAccounts(res.data || []);
+    } catch (err) { console.error('Accounts fetch error:', err); }
+  };
+
+  const fetchData = async () => {
+    setLoading(true);
+    await Promise.allSettled([
+      fetchTransactions(0),
+      fetchCategories(),
+      fetchAccounts(),
+    ]);
+    setLoading(false);
   };
 
   const loadMore = async () => {
     try {
       const nextOffset = transactions.length;
-      const res = await api.get('/transactions', {
-        params: { ...filters, paginate: true, limit: page.limit, offset: nextOffset },
-      });
+      const res = await api.get('/transactions', { params: buildParams(nextOffset) });
       const items = res.data?.items || [];
       const meta = res.data?.meta || {};
       setTransactions(prev => [...prev, ...items]);
@@ -113,35 +165,43 @@ export default function Transactions() {
   };
 
   useEffect(() => {
-    fetchData();
-    if (datePreset === 'today') {
-      const today = new Date().toISOString().slice(0, 10);
-      setFilters(prev => ({ ...prev, startDate: today, endDate: today }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.startDate, filters.endDate, filters.type, filters.categoryId, filters.includePrivate]);
+    fetchTransactions(0);
+  }, [filters.startDate, filters.endDate, filters.type, filters.categoryId, filters.includePrivate, fetchTransactions]);
 
   const onSubmit = async (data) => {
     try {
       if (editingId) {
         await api.put(`/transactions/${editingId}`, data);
       } else {
-        const payload = { ...data };
+        const payload = { 
+          ...data, 
+          amount: Number(data.amount),
+          category_id: Number(data.category_id)
+        };
+        if (data.account_id) payload.account_id = Number(data.account_id);
         if (!payload.date) payload.date = new Date().toISOString().slice(0, 10);
         const res = await api.post('/transactions', payload);
         if (res.data.budgetWarning) {
           const w = res.data.budgetWarning;
-          const confirmed = window.confirm(
-            `⚠️ Бюджет превышен!\n\nПотрачено: ${w.spent} ₽\nПосле операции: ${w.newTotal} ₽\nЛимит: ${w.limit} ₽\nПревышение: ${w.overBy} ₽\n\nПродолжить?`
-          );
-          if (!confirmed) {
-            await api.delete(`/transactions/${res.data.transaction.id}`);
-            return;
-          }
+          setPendingBudgetWarning({ txId: res.data.transaction.id });
+          setConfirmModal({
+            open: true,
+            variant: 'warning',
+            title: '⚠️ Бюджет превышен',
+            message: `Потрачено: ${w.spent} ₽\nПосле операции: ${w.newTotal} ₽\nЛимит: ${w.limit} ₽\nПревышение: ${w.overBy} ₽`,
+             onConfirm: async () => {
+               setModalOpen(false);
+               reset();
+               setEditingId(null);
+               setPendingBudgetWarning(null);
+               fetchTransactions(0);
+             }
+          });
+          return;
         }
       }
-      setModalOpen(false); reset(); setEditingId(null); fetchData();
-    } catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
+      setModalOpen(false); reset(); setEditingId(null); fetchTransactions(0);
+    } catch (err) { console.error(err); showError(err.response?.data?.message || 'Ошибка'); }
   };
 
   const openEditModal = (t) => {
@@ -149,22 +209,64 @@ export default function Transactions() {
     setValue('amount', t.amount);
     setValue('type', t.type);
     setValue('category_id', t.category_id);
+    setValue('account_id', t.account_id || '');
     setValue('date', t.date);
     setValue('comment', t.comment || '');
-    setValue('is_private', t.is_private || false);
+    setValue('scope', t.scope || (t.is_personal !== false ? 'personal' : 'family'));
     setModalOpen(true);
   };
 
   const deleteTransaction = async (id) => {
-    if (window.confirm('Удалить операцию?')) {
-      try { await api.delete(`/transactions/${id}`); fetchData(); }
-      catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
+    setConfirmModal({
+      open: true,
+      variant: 'danger',
+      title: 'Удалить операцию?',
+      message: 'Это действие нельзя отменить.',
+      confirmText: 'Удалить',
+      onConfirm: async () => {
+        try { await api.delete(`/transactions/${id}`); fetchTransactions(0); }
+        catch (err) { console.error(err); showError(err.response?.data?.message || 'Ошибка'); }
+      }
+    });
+  };
+
+  const duplicateTransaction = (t) => {
+    setEditingId(null);
+    setValue('amount', t.amount);
+    setValue('type', t.type);
+    setValue('category_id', t.category_id);
+    setValue('account_id', t.account_id || '');
+    setValue('date', new Date().toISOString().slice(0, 10));
+    setValue('comment', t.comment || '');
+    setValue('scope', t.scope || (t.is_personal !== false ? 'personal' : 'family'));
+    setModalOpen(true);
+  };
+
+  const handleConfirmClose = async () => {
+    if (pendingBudgetWarning) {
+      try { await api.delete(`/transactions/${pendingBudgetWarning.txId}`); }
+      catch (err) { console.error(err); }
     }
+    setConfirmModal({ open: false });
+    setPendingBudgetWarning(null);
   };
 
   const resetFilters = () => {
-    setFilters({ startDate: '', endDate: '', type: '', categoryId: '', includePrivate: 'all' });
-    setDatePreset('custom'); setCustomStart(''); setCustomEnd('');
+    const today = new Date().toISOString().slice(0, 10);
+    setFilters({ startDate: today, endDate: today, type: '', categoryId: '', includePrivate: 'all', q: '' });
+    setDatePreset('today'); setCustomStart(''); setCustomEnd('');
+  };
+
+  const handleExport = async (format) => {
+    setExportDropdownOpen(false);
+    const params = [];
+    if (filters.startDate) params.push(`startDate=${filters.startDate}`);
+    if (filters.endDate) params.push(`endDate=${filters.endDate}`);
+    if (filters.type) params.push(`type=${filters.type}`);
+    if (filters.categoryId) params.push(`categoryId=${filters.categoryId}`);
+    const query = params.length ? `?${params.join('&')}` : '';
+    const ext = format === 'excel' ? 'xlsx' : 'csv';
+    await downloadFile(`/api/export/transactions?format=${format === 'excel' ? 'xlsx' : 'csv'}${query}`, `transactions-${new Date().toISOString().slice(0, 10)}.${ext}`);
   };
 
   if (loading) return (
@@ -199,11 +301,28 @@ export default function Transactions() {
             <span className="material-symbols-outlined text-lg mr-1 align-middle">filter_list</span>
             Фильтры
           </button>
+          <div className="relative">
+            <button onClick={() => setExportDropdownOpen(!exportDropdownOpen)} className="px-4 py-2.5 rounded-xl border-2 border-outline-variant text-on-surface-variant font-medium text-sm hover:bg-surface-container transition-colors">
+              <span className="material-symbols-outlined text-lg mr-1 align-middle">download</span>
+              Экспорт
+              <span className="material-symbols-outlined text-sm ml-1">{exportDropdownOpen ? 'expand_less' : 'expand_more'}</span>
+            </button>
+            {exportDropdownOpen && (
+              <div className="absolute right-0 mt-2 w-44 bg-surface-container-lowest rounded-xl shadow-card overflow-hidden z-50">
+                <button onClick={() => handleExport('excel')} className="w-full px-4 py-3 text-left text-sm hover:bg-surface-container flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">table_chart</span> Excel (.xlsx)
+                </button>
+                <button onClick={() => handleExport('csv')} className="w-full px-4 py-3 text-left text-sm hover:bg-surface-container flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">description</span> CSV
+                </button>
+              </div>
+            )}
+          </div>
           <button
             onClick={() => {
               setEditingId(null);
               const today = new Date().toISOString().slice(0, 10);
-              reset({ type: 'expense', is_private: false, date: today });
+              reset({ type: 'expense', scope: 'personal', date: today });
               setModalOpen(true);
             }}
             className="btn-primary px-6 py-2.5 flex items-center gap-2 text-sm"
@@ -213,6 +332,27 @@ export default function Transactions() {
             <span className="sm:hidden">Добавить</span>
           </button>
         </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+        <input
+          type="text"
+          placeholder="Поиск по комментарию..."
+          value={filters.q}
+          onChange={(e) => setFilters(prev => ({ ...prev, q: e.target.value }))}
+          onKeyDown={(e) => e.key === 'Enter' && fetchData()}
+          className="w-full pl-12 pr-4 py-3 bg-surface-container rounded-xl border-2 border-outline-variant focus:border-primary outline-none transition-colors text-on-surface placeholder:text-on-surface-variant/50"
+        />
+        {filters.q && (
+          <button
+            onClick={() => setFilters(prev => ({ ...prev, q: '' }))}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        )}
       </div>
 
       {/* Filters */}
@@ -236,7 +376,7 @@ export default function Transactions() {
             <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Тип</label>
             <select
               value={filters.type}
-              onChange={e => setFilters({ ...filters, type: e.target.value })}
+              onChange={e => setFilters(prev => ({ ...prev, type: e.target.value }))}
               className="select-ghost"
             >
               <option value="">Все типы</option>
@@ -248,7 +388,7 @@ export default function Transactions() {
             <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Категория</label>
             <select
               value={filters.categoryId}
-              onChange={e => setFilters({ ...filters, categoryId: e.target.value })}
+              onChange={e => setFilters(prev => ({ ...prev, categoryId: e.target.value }))}
               className="select-ghost"
             >
               <option value="">Все категории</option>
@@ -256,15 +396,15 @@ export default function Transactions() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Видимость</label>
+            <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Фильтр</label>
             <select
               value={filters.includePrivate}
-              onChange={e => setFilters({ ...filters, includePrivate: e.target.value })}
+              onChange={e => setFilters(prev => ({ ...prev, includePrivate: e.target.value }))}
               className="select-ghost"
             >
               <option value="all">Все операции</option>
-              <option value="only_visible">Только видимые</option>
-              <option value="only_private">Только скрытые</option>
+              <option value="my">Только мои</option>
+              <option value="family">Семейные</option>
             </select>
           </div>
         </div>
@@ -321,6 +461,7 @@ export default function Transactions() {
                   </p>
                   <p className="text-xs text-on-surface-variant mt-0.5">
                     {new Date(t.date).toLocaleDateString('ru-RU')} • {t.user_name}
+                    {t.account_name && ` • ${t.account_name}`}
                   </p>
                 </div>
               </div>
@@ -334,12 +475,15 @@ export default function Transactions() {
               <p className="text-sm text-on-surface-variant mt-3">{t.comment}</p>
             )}
             {!t.is_hidden && (
-              <div className="mt-3 flex gap-2">
-                <button onClick={() => openEditModal(t)} className="flex-1 py-2 rounded-xl text-sm font-semibold text-primary bg-primary/5 hover:bg-primary/10 transition-colors">
-                  Изменить
+              <div className="flex items-center justify-end gap-2 mt-3">
+                <button onClick={() => duplicateTransaction(t)} title="Дублировать" className="w-10 h-10 flex items-center justify-center rounded-xl text-on-surface-variant bg-surface-container hover:bg-surface-container-high hover:text-primary transition-colors">
+                  <span className="material-symbols-outlined text-lg">content_copy</span>
                 </button>
-                <button onClick={() => deleteTransaction(t.id)} className="flex-1 py-2 rounded-xl text-sm font-semibold text-error bg-error-container hover:opacity-90 transition-colors">
-                  Удалить
+                <button onClick={() => openEditModal(t)} title="Изменить" className="w-10 h-10 flex items-center justify-center rounded-xl text-primary bg-primary/5 hover:bg-primary/10 transition-colors">
+                  <span className="material-symbols-outlined text-lg">edit</span>
+                </button>
+                <button onClick={() => deleteTransaction(t.id)} title="Удалить" className="w-10 h-10 flex items-center justify-center rounded-xl text-error bg-error-container hover:opacity-90 transition-colors">
+                  <span className="material-symbols-outlined text-lg">delete</span>
                 </button>
               </div>
             )}
@@ -366,6 +510,7 @@ export default function Transactions() {
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Дата</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Категория</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Счет</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Сумма</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Комментарий</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Автор</th>
@@ -391,6 +536,9 @@ export default function Transactions() {
                       </span>
                     </div>
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-on-surface-variant">
+                    {t.account_name || '—'}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`font-bold font-headline ${t.type === 'income' ? 'text-secondary' : 'text-on-surface'}`}>
                       {t.type === 'income' ? '+' : '-'}{t.is_hidden ? '••••' : formatMoney(t.amount)} ₽
@@ -399,22 +547,29 @@ export default function Transactions() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-on-surface-variant max-w-48 truncate">{t.comment || '—'}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-on-surface-variant">{t.user_name}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
-                    {!t.is_hidden && (
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEditModal(t)} className="w-9 h-9 flex items-center justify-center rounded-lg text-primary hover:bg-primary/10 transition-colors">
-                          <span className="material-symbols-outlined text-sm">edit</span>
-                        </button>
-                        <button onClick={() => deleteTransaction(t.id)} className="w-9 h-9 flex items-center justify-center rounded-lg text-error hover:bg-error-container transition-colors">
-                          <span className="material-symbols-outlined text-sm">delete</span>
-                        </button>
-                      </div>
-                    )}
+                    <div className="flex items-center justify-end gap-1">
+                      {t.is_hidden ? (
+                        <span className="text-xs text-on-surface-variant px-2">Скрыто</span>
+                      ) : (
+                        <>
+                          <button onClick={() => duplicateTransaction(t)} title="Дублировать" className="w-9 h-9 flex items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors">
+                            <span className="material-symbols-outlined text-sm">content_copy</span>
+                          </button>
+                          <button onClick={() => openEditModal(t)} title="Редактировать" className="w-9 h-9 flex items-center justify-center rounded-lg text-primary hover:bg-primary/10 transition-colors">
+                            <span className="material-symbols-outlined text-sm">edit</span>
+                          </button>
+                          <button onClick={() => deleteTransaction(t.id)} title="Удалить" className="w-9 h-9 flex items-center justify-center rounded-lg text-error hover:bg-error-container transition-colors">
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
               {transactions.length === 0 && (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center">
+                  <td colSpan="7" className="px-6 py-12 text-center">
                     <span className="material-symbols-outlined text-4xl text-outline mb-2">receipt_long</span>
                     <p className="text-on-surface-variant text-sm">Нет операций</p>
                   </td>
@@ -445,9 +600,16 @@ export default function Transactions() {
                 onChange={(v) => setValue('amount', v)}
                 className="w-full py-5 px-6 bg-surface-container-low border-2 border-transparent rounded-2xl text-3xl font-extrabold text-on-surface outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10 placeholder:text-outline/40"
                 placeholder="0"
+                min={1}
+                max={999999999}
+                label="Сумма"
+                showValidation={true}
               />
               <span className="absolute right-6 top-1/2 -translate-y-1/2 text-2xl font-bold text-on-surface-variant">₽</span>
             </div>
+            <p className="text-xs text-on-surface-variant mt-2 ml-1">
+              Максимальная сумма: 999 999 999 ₽
+            </p>
           </div>
 
           {/* Segmented Toggle: Income/Expense */}
@@ -494,27 +656,65 @@ export default function Transactions() {
               <input type="date" {...register('date', { required: true })} className="select-ghost" />
             </div>
           </div>
+          {accounts.length > 0 && (
+            <div>
+              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Счет</label>
+              <select {...register('account_id')} className="select-ghost">
+                <option value="">Выберите счет</option>
+                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Комментарий</label>
             <textarea {...register('comment')} rows="2" className="input-ghost" placeholder="Необязательно" />
           </div>
           <div className="flex items-center justify-between p-4 bg-surface-container rounded-2xl">
             <div>
-              <span className="text-sm font-semibold text-on-surface">Скрыть от семьи</span>
-              <p className="text-xs text-on-surface-variant">Операция будет видна только вам как «Сюрприз»</p>
+              <span className="text-sm font-semibold text-on-surface">🔒 Скрытая операция</span>
+              <p className="text-xs text-on-surface-variant">Операция будет видна только вам (другие участники увидят «Сюрприз» вместо суммы)</p>
             </div>
             <button
               type="button"
-              onClick={() => setValue('is_private', !watch('is_private'))}
+              onClick={() => setValue('scope', watch('scope') === 'personal' ? 'family' : 'personal')}
               className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
-                watch('is_private') ? 'bg-primary' : 'bg-outline-variant'
+                watch('scope') === 'personal' ? 'bg-primary' : 'bg-outline-variant'
               }`}
             >
               <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${
-                watch('is_private') ? 'translate-x-5' : 'translate-x-0.5'
+                watch('scope') === 'personal' ? 'translate-x-5' : 'translate-x-0.5'
               }`}></div>
             </button>
           </div>
+          {space !== 'personal' && hasFamily && (
+            <div className="flex items-center justify-between p-4 bg-surface-container rounded-2xl">
+              <div>
+                <span className="text-sm font-semibold text-on-surface">👥 Тип операции</span>
+                <p className="text-xs text-on-surface-variant">
+                  {watch('scope') === 'personal'
+                    ? 'Личная операция — только ваша, не учитывается в семейном бюджете'
+                    : 'Семейная операция — видна всем участникам, учитывается в общем бюджете'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setValue('scope', watch('scope') === 'personal' ? 'family' : 'personal')}
+                className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
+                  watch('scope') === 'personal' ? 'bg-primary' : 'bg-secondary'
+                }`}
+              >
+                <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${
+                  watch('scope') === 'personal' ? 'translate-x-5' : 'translate-x-0.5'
+                }`}></div>
+              </button>
+            </div>
+          )}
+          {hasFamily && (
+            <div className="flex items-center gap-2 text-xs text-on-surface-variant bg-surface-container p-3 rounded-xl">
+              <span className="material-symbols-outlined text-sm">lightbulb</span>
+              <span>Переключатель «Личное/Семья» влияет только на видимость. Для сокрытия суммы от других участников используйте переключатель «Скрытая операция».</span>
+            </div>
+          )}
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={() => setModalOpen(false)} className="btn-ghost px-6 py-3">Отмена</button>
             <button type="submit" className="btn-primary px-8 py-3">
@@ -523,6 +723,16 @@ export default function Transactions() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={confirmModal.open}
+        onClose={handleConfirmClose}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        variant={confirmModal.variant}
+        confirmText={confirmModal.confirmText}
+      />
     </div>
   );
 }

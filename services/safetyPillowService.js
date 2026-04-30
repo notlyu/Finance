@@ -8,9 +8,14 @@ const PILLOW_LEVELS = {
 
 async function calculateSafetyPillow(userId, familyId) {
   const isFamily = !!familyId;
+
+  // Фильтрация с учётом scope
+  // Личные транзакции (scope='personal'): family_id=null, user_id=self
+  // Семейные транзакции (scope='family'/'shared'): family_id=familyId
   const txFilter = isFamily
-    ? { OR: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
-    : { family_id: null, user_id: userId };
+    ? { OR: [{ family_id: familyId, scope: { in: ['family', 'shared'] } }, { family_id: null, user_id: userId, scope: 'personal' }] }
+    : { family_id: null, user_id: userId, scope: 'personal' };
+
   const reserveFilter = isFamily
     ? { OR: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
     : { family_id: null, user_id: userId };
@@ -18,25 +23,25 @@ async function calculateSafetyPillow(userId, familyId) {
   const threeMonthsAgo = new Date();
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
-  // Get expenses for last 3 months using Prisma
-  const expenses = await prisma.transaction.findMany({
+  const threeMonthExpensesAgg = await prisma.transaction.aggregate({
     where: { ...txFilter, type: 'expense', date: { gte: threeMonthsAgo } },
+    _sum: { amount: true },
   });
-  const totalExpenses = expenses.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+  const totalExpenses = Number(threeMonthExpensesAgg._sum?.amount || 0);
   const monthlyAverage = totalExpenses / 3;
 
-  // Total income/expense
-  const incomeAgg = await prisma.transaction.aggregate({
-    where: { ...txFilter, type: 'income' },
-    _sum: { amount: true }
+  // Liquid funds = sum of balances of liquid accounts
+  const liquidAccounts = await prisma.account.findMany({
+    where: {
+      is_liquid: true,
+      is_active: true,
+      OR: isFamily
+        ? [{ family_id: familyId }, { family_id: null, user_id: userId }]
+        : [{ family_id: null, user_id: userId }]
+    },
+    select: { balance: true }
   });
-  const expenseAgg = await prisma.transaction.aggregate({
-    where: { ...txFilter, type: 'expense' },
-    _sum: { amount: true }
-  });
-  const totalIncomeAll = incomeAgg._sum && incomeAgg._sum.amount != null ? incomeAgg._sum.amount : 0;
-  const totalExpenseAll = expenseAgg._sum && expenseAgg._sum.amount != null ? expenseAgg._sum.amount : 0;
-  const liquidFunds = Number(totalIncomeAll) - Number(totalExpenseAll);
+  const liquidFunds = liquidAccounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
 
   // Goals and wishes reserved
   const goalsAgg = await prisma.goal.aggregate({ where: reserveFilter, _sum: { current_amount: true } });
@@ -45,7 +50,14 @@ async function calculateSafetyPillow(userId, familyId) {
   const totalWishes = (wishesAgg._sum && wishesAgg._sum.saved_amount) ? wishesAgg._sum.saved_amount : 0;
   const reservedTotal = Number(totalGoals || 0) + Number(totalWishes || 0);
 
-  const settings = await prisma.safetyPillowSetting.findFirst({ where: { user_id: userId } });
+  // Получаем настройки - сначала семейные, потом личные
+  let settings;
+  if (isFamily) {
+    settings = await prisma.safetyPillowSetting.findFirst({ where: { family_id: familyId } });
+  }
+  if (!settings) {
+    settings = await prisma.safetyPillowSetting.findFirst({ where: { user_id: userId } });
+  }
   const months = settings ? settings.months : 3;
   const target = monthlyAverage * months;
 
@@ -79,8 +91,13 @@ async function calculateSafetyPillow(userId, familyId) {
 
   const twelveMonthsAgo = new Date();
   twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-  const history = await prisma.safetyPillowHistory.findMany({
-    where: { user_id: userId, calculated_at: { gte: twelveMonthsAgo } },
+  
+  const historyWhere = isFamily
+    ? { family_id: familyId, calculated_at: { gte: twelveMonthsAgo } }
+    : { user_id: userId, calculated_at: { gte: twelveMonthsAgo } };
+  
+  const history = await prisma.safetyPillowSnapshot.findMany({
+    where: historyWhere,
     orderBy: { calculated_at: 'asc' },
     take: 12,
   });
@@ -106,7 +123,7 @@ async function calculateSafetyPillow(userId, familyId) {
     history: history.map(h => ({
       id: h.id,
       value: Number(h.safety_pillow),
-      target_value: Math.round(target * 100) / 100,
+      target_value: Number(h.monthly_limit),
       calculated_at: h.calculated_at,
     })),
   };
@@ -117,7 +134,8 @@ async function recalculateAndSave(userId, familyId) {
     const result = await calculateSafetyPillow(userId, familyId);
     await prisma.safetyPillowHistory.create({
       data: {
-        user_id: userId,
+        user_id: familyId ? null : userId,
+        family_id: familyId || null,
         total_income: 0,
         total_expenses: 0,
         safety_pillow: result.liquidFunds,

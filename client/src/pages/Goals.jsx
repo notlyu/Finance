@@ -3,9 +3,11 @@ import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import Modal from '../components/Modal';
+import ConfirmModal from '../components/ConfirmModal';
 import ForecastModal from '../components/ForecastModal';
 import FormattedInput from '../components/ui/FormattedInput';
 import { formatMoney } from '../utils/format';
+import { showError } from '../utils/toast';
 
 const categoryIcons = {
   car: 'directions_car',
@@ -25,7 +27,7 @@ function getGoalIcon(goalName) {
   return categoryIcons.default;
 }
 
-export default function Goals() {
+export default function Goals({ space = 'personal' }) {
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -40,8 +42,9 @@ export default function Goals() {
   const [showCelebration, setShowCelebration] = useState(null);
   const [forecastOpen, setForecastOpen] = useState(false);
   const [forecastGoal, setForecastGoal] = useState(null);
-  const [goalTab, setGoalTab] = useState('family');
+  const [goalTab, setGoalTab] = useState('personal');
   const [contribLoading, setContribLoading] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({ open: false, onConfirm: null, title: '', message: '' });
   const { register, handleSubmit, reset, setValue, watch } = useForm();
 
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -63,14 +66,15 @@ export default function Goals() {
       if (payload.interest_rate) payload.interest_rate = Number(payload.interest_rate);
       if (payload.auto_contribute_value) payload.auto_contribute_value = Number(payload.auto_contribute_value);
       payload.current_amount = Number(payload.current_amount || 0);
-      payload.is_family_goal = !!payload.is_family_goal;
+      payload.scope = payload.is_family_goal ? 'family' : 'personal';
+      delete payload.is_family_goal;
       if (editingId) {
         await api.put(`/goals/${editingId}`, payload);
       } else {
         await api.post('/goals', payload);
       }
       setModalOpen(false); reset(); setEditingId(null); fetchData();
-    } catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
+    } catch (err) { console.error(err); showError(err.response?.data?.message || 'Ошибка'); }
   };
 
   const openEditModal = (goal) => {
@@ -83,16 +87,23 @@ export default function Goals() {
     setValue('auto_contribute_enabled', goal.auto_contribute_enabled);
     setValue('auto_contribute_type', goal.auto_contribute_type || 'percentage');
     setValue('auto_contribute_value', goal.auto_contribute_value || '');
-    setValue('is_family_goal', !!goal.family_id);
+    setValue('is_family_goal', goal.visibility === 'family' || goal.family_id);
     setValue('category_id', goal.category_id);
     setModalOpen(true);
   };
 
   const deleteGoal = async (id) => {
-    if (window.confirm('Удалить цель?')) {
-      try { await api.delete(`/goals/${id}`); fetchData(); }
-      catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
-    }
+    setConfirmModal({
+      open: true,
+      variant: 'danger',
+      title: 'Удалить цель?',
+      message: 'Это действие нельзя отменить. Все накопления будут потеряны.',
+      confirmText: 'Удалить',
+      onConfirm: async () => {
+        try { await api.delete(`/goals/${id}`); fetchData(); }
+        catch (err) { console.error(err); showError(err.response?.data?.message || 'Ошибка'); }
+      }
+    });
   };
 
   const openContribModal = async (goal) => {
@@ -121,7 +132,7 @@ export default function Goals() {
         setShowCelebration(contribGoal.name);
         setTimeout(() => setShowCelebration(null), 3000);
       }
-    } catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
+    } catch (err) { console.error(err); showError(err.response?.data?.message || 'Ошибка'); }
     finally { setContribLoading(false); }
   };
 
@@ -146,8 +157,8 @@ export default function Goals() {
   const activeGoals = goals.filter(g => !g.archived && !g.achieved);
   const archivedGoals = goals.filter(g => g.archived || g.achieved);
 
-  const familyGoals = activeGoals.filter(g => g.family_id);
-  const personalGoals = activeGoals.filter(g => !g.family_id);
+  const familyGoals = activeGoals.filter(g => g.visibility === 'family' || g.family_id);
+  const personalGoals = activeGoals.filter(g => g.visibility === 'personal' || !g.family_id);
   const displayGoals = goalTab === 'family' ? familyGoals : personalGoals;
 
   return (
@@ -155,7 +166,7 @@ export default function Goals() {
       {/* Celebration overlay */}
       {showCelebration && (
         <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-          <div className="bg-surface-container-lowest rounded-3xl shadow-ambient p-8 text-center animate-bounce">
+          <div className="bg-surface-container-lowest dark:bg-surface-container-low rounded-3xl shadow-ambient p-8 text-center animate-bounce">
             <div className="text-6xl mb-2">🎉</div>
             <h3 className="text-2xl font-bold text-secondary font-headline">Цель достигнута!</h3>
             <p className="text-on-surface-variant mt-1">{showCelebration}</p>
@@ -174,13 +185,13 @@ export default function Goals() {
         </div>
         <div className="flex gap-2">
           {archivedGoals.length > 0 && (
-            <button onClick={() => setShowArchived(!showArchived)} className="btn-ghost px-4 py-3 text-sm">
+            <button onClick={() => setShowArchived(!showArchived)} className="px-4 py-3 rounded-xl text-sm font-semibold bg-surface-container dark:bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest dark:hover:bg-surface-container-highest transition-colors">
               {showArchived ? 'Скрыть архив' : 'Архив'}
             </button>
           )}
           <button
             onClick={() => { setEditingId(null); reset({ auto_contribute_enabled: false, auto_contribute_type: 'percentage', auto_contribute_value: '', is_family_goal: false, target_date: todayStr }); setModalOpen(true); }}
-            className="btn-primary px-6 py-3 flex items-center gap-2 text-sm"
+            className="px-6 py-3 rounded-xl font-bold flex items-center gap-2 text-sm bg-primary text-white hover:shadow-xl hover:shadow-primary/20 transition-all"
           >
             <span className="material-symbols-outlined text-sm">add</span>
             Добавить цель
@@ -192,13 +203,13 @@ export default function Goals() {
       <div className="flex gap-2">
         <button
           onClick={() => setGoalTab('family')}
-          className={`px-5 py-2.5 rounded-2xl text-sm font-bold transition-colors ${goalTab === 'family' ? 'bg-primary text-white' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}`}
+          className={`px-5 py-2.5 rounded-2xl text-sm font-bold transition-colors ${goalTab === 'family' ? 'bg-primary text-white' : 'bg-surface-container dark:bg-surface-container-high text-on-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest'}`}
         >
           Семейные ({familyGoals.length})
         </button>
         <button
           onClick={() => setGoalTab('personal')}
-          className={`px-5 py-2.5 rounded-2xl text-sm font-bold transition-colors ${goalTab === 'personal' ? 'bg-primary text-white' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}`}
+          className={`px-5 py-2.5 rounded-2xl text-sm font-bold transition-colors ${goalTab === 'personal' ? 'bg-primary text-white' : 'bg-surface-container dark:bg-surface-container-high text-on-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-container-highest'}`}
         >
           Мои ({personalGoals.length})
         </button>
@@ -211,10 +222,10 @@ export default function Goals() {
           const remaining = Math.max(0, Number(goal.target_amount) - Number(goal.current_amount));
           const achieved = goal.achieved || (Number(goal.current_amount) >= Number(goal.target_amount));
           return (
-            <div key={goal.id} className="group bg-surface-container-lowest rounded-[2rem] p-8 transition-all hover:shadow-2xl hover:shadow-indigo-500/5 relative overflow-hidden">
+            <div key={goal.id} className="group bg-surface-container-lowest dark:bg-surface-container-low rounded-[2rem] p-8 transition-all hover:shadow-2xl hover:shadow-indigo-500/5 relative overflow-hidden">
               {/* Icon */}
               <div className="absolute top-0 right-0 p-6">
-                <div className="w-12 h-12 rounded-2xl bg-primary-fixed flex items-center justify-center text-primary">
+                <div className="w-12 h-12 rounded-2xl bg-primary-fixed dark:bg-primary/20 flex items-center justify-center text-primary dark:text-primary">
                   <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
                     {getGoalIcon(goal.name)}
                   </span>
@@ -245,7 +256,7 @@ export default function Goals() {
                 </div>
 
                 {/* Progress Bar */}
-                <div className="relative w-full h-4 bg-surface-container rounded-full overflow-hidden">
+                <div className="relative w-full h-4 bg-surface-container dark:bg-surface-container-high rounded-full overflow-hidden">
                   <div
                     className="absolute top-0 left-0 h-full bg-gradient-to-r from-primary to-primary-container rounded-full transition-all duration-700"
                     style={{ width: `${Math.min(progress, 100)}%` }}
@@ -260,14 +271,14 @@ export default function Goals() {
                 <div className="grid grid-cols-2 gap-4 pt-4">
                   <button
                     onClick={() => openContribModal(goal)}
-                    className="py-4 bg-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                    className="py-4 bg-primary text-white rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform hover:shadow-xl hover:shadow-primary/20"
                   >
                     <span className="material-symbols-outlined text-sm">account_balance_wallet</span>
                     Пополнить
                   </button>
                   <button
                     onClick={() => openForecast(goal)}
-                    className="py-4 bg-surface-container text-on-surface rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-surface-container-high transition-colors active:scale-95"
+                    className="py-4 bg-surface-container dark:bg-surface-container-high text-on-surface rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors active:scale-95"
                   >
                     <span className="material-symbols-outlined text-sm">trending_up</span>
                     Прогноз
@@ -278,15 +289,15 @@ export default function Goals() {
           );
         })}
         {activeGoals.length === 0 && (
-          <div className="col-span-2 bg-surface-container-lowest rounded-[2rem] p-16 text-center">
-            <div className="w-20 h-20 mx-auto rounded-3xl bg-primary/10 flex items-center justify-center mb-6">
-              <span className="material-symbols-outlined text-4xl text-primary">track_changes</span>
+          <div className="col-span-2 bg-surface-container-lowest dark:bg-surface-container-low rounded-[2rem] p-16 text-center">
+            <div className="w-20 h-20 mx-auto rounded-3xl bg-primary/10 dark:bg-primary/20 flex items-center justify-center mb-6">
+              <span className="material-symbols-outlined text-4xl text-primary dark:text-primary">track_changes</span>
             </div>
             <h3 className="text-xl font-bold font-headline text-on-surface mb-2">Нет активных целей</h3>
             <p className="text-on-surface-variant text-sm mb-6">Создайте первую цель накоплений</p>
             <button
               onClick={() => { reset({ auto_contribute_enabled: false, auto_contribute_type: 'percentage', auto_contribute_value: '', is_family_goal: false, target_date: todayStr }); setModalOpen(true); }}
-              className="btn-primary px-8 py-3 inline-flex items-center gap-2"
+              className="px-8 py-3 rounded-xl font-bold inline-flex items-center gap-2 bg-primary text-white hover:shadow-xl hover:shadow-primary/20 transition-all"
             >
               <span className="material-symbols-outlined text-sm">add</span>
               Добавить цель
@@ -301,10 +312,10 @@ export default function Goals() {
           <h3 className="text-2xl font-headline font-bold text-on-surface">Архив выполненных</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {archivedGoals.map(g => (
-              <div key={g.id} className="group bg-surface-container-lowest/50 rounded-[2rem] p-8 border border-outline-variant/20 backdrop-blur-sm relative overflow-hidden">
+              <div key={g.id} className="group bg-surface-container-lowest/50 dark:bg-surface-container-low/50 rounded-[2rem] p-8 border border-white/50 dark:border-white/10 backdrop-blur-sm relative overflow-hidden">
                 <div className="absolute inset-0 bg-secondary/5 pointer-events-none"></div>
                 <div className="absolute top-0 right-0 p-6">
-                  <div className="w-12 h-12 rounded-2xl bg-secondary-container flex items-center justify-center text-secondary">
+                  <div className="w-12 h-12 rounded-2xl bg-secondary-container dark:bg-secondary/20 flex items-center justify-center text-secondary dark:text-secondary">
                     <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
                   </div>
                 </div>
@@ -322,13 +333,13 @@ export default function Goals() {
                       <div className="text-3xl font-headline font-extrabold text-secondary">{formatMoney(g.current_amount)} ₽</div>
                     </div>
                   </div>
-                  <div className="relative w-full h-4 bg-secondary-container/30 rounded-full">
+                  <div className="relative w-full h-4 bg-secondary-container/30 dark:bg-secondary/20 rounded-full">
                     <div className="absolute top-0 left-0 h-full bg-secondary rounded-full" style={{ width: '100%' }}></div>
                   </div>
                   <div className="pt-4">
                     <button
                       onClick={async () => { try { await api.put(`/goals/${g.id}`, { archived: false }); fetchData(); } catch (err) { console.error(err); } }}
-                      className="w-full py-4 bg-surface-container text-on-surface rounded-2xl font-bold hover:bg-surface-container-high transition-colors"
+                      className="w-full py-4 bg-surface-container dark:bg-surface-container-high text-on-surface rounded-2xl font-bold hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors"
                     >
                       Вернуть в активные
                     </button>
@@ -389,7 +400,7 @@ export default function Goals() {
 
             <div>
               <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Сумма пополнения</label>
-              <FormattedInput value={contribAmount} onChange={setContribAmount} className="input-ghost text-lg font-bold" placeholder="0" />
+              <FormattedInput value={contribAmount} onChange={setContribAmount} className="input-ghost text-lg font-bold" placeholder="0" min={1} max={contribAvailable} label="Сумма пополнения" />
             </div>
 
             <div>
@@ -445,11 +456,11 @@ export default function Goals() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Целевая сумма</label>
-              <FormattedInput value={watch('target_amount') || ''} onChange={(v) => setValue('target_amount', v)} className="input-ghost" placeholder="0" />
+              <FormattedInput value={watch('target_amount') || ''} onChange={(v) => setValue('target_amount', v)} className="input-ghost" placeholder="0" min={1} max={999999999} label="Целевая сумма" />
             </div>
             <div>
               <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Текущая сумма</label>
-              <FormattedInput value={watch('current_amount') || ''} onChange={(v) => setValue('current_amount', v)} className="input-ghost" placeholder="0" />
+              <FormattedInput value={watch('current_amount') || ''} onChange={(v) => setValue('current_amount', v)} className="input-ghost" placeholder="0" min={0} max={999999999} label="Текущая сумма" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -480,20 +491,59 @@ export default function Goals() {
               }`}></div>
             </button>
           </label>
+          {watch('auto_contribute_enabled') && (
+            <p className="text-xs text-primary flex items-center gap-1 -mt-2">
+              <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
+              Цель будет пополняться автоматически при каждом доходе
+            </p>
+          )}
 
           {watch('auto_contribute_enabled') && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Тип</label>
-                <select {...register('auto_contribute_type')} className="select-ghost">
-                  <option value="percentage">% от дохода</option>
-                  <option value="fixed">Фикс. сумма</option>
-                </select>
+            <div className="space-y-4">
+              <div className="p-4 bg-primary/5 rounded-2xl border border-primary/20">
+                <div className="flex items-start gap-2">
+                  <span className="material-symbols-outlined text-primary mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>info</span>
+                  <div>
+                    <p className="text-sm font-semibold text-on-surface">Как работает автопополнение</p>
+                    <p className="text-xs text-on-surface-variant mt-1">
+                      С каждого полученного <strong>дохода</strong> автоматически откладывается часть денег на эту цель.
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Значение</label>
-                <input type="number" step="0.01" {...register('auto_contribute_value')} className="input-ghost" placeholder="0" />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Тип</label>
+                  <select {...register('auto_contribute_type')} className="select-ghost">
+                    <option value="percentage">% от дохода</option>
+                    <option value="fixed">Фикс. сумма</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">
+                    {watch('auto_contribute_type') === 'percentage' ? 'Процент' : 'Сумма (₽)'}
+                  </label>
+                  <FormattedInput 
+                    value={watch('auto_contribute_value') || ''} 
+                    onChange={(v) => setValue('auto_contribute_value', v)} 
+                    className="input-ghost" 
+                    placeholder="0" 
+                    min={0}
+                    max={watch('auto_contribute_type') === 'percentage' ? 100 : 999999999}
+                    label={watch('auto_contribute_type') === 'percentage' ? 'Процент' : 'Сумма'}
+                  />
+                </div>
               </div>
+              {watch('auto_contribute_type') === 'percentage' && watch('auto_contribute_value') && (
+                <p className="text-xs text-on-surface-variant">
+                  Пример: если доход составит 50 000 ₽, то на цель отложится {Math.round(50000 * Number(watch('auto_contribute_value')) / 100)} ₽
+                </p>
+              )}
+              {watch('auto_contribute_type') === 'fixed' && watch('auto_contribute_value') && (
+                <p className="text-xs text-on-surface-variant">
+                  С каждого дохода на цель будет поступать фиксированная сумма: {Number(watch('auto_contribute_value')).toLocaleString('ru-RU')} ₽
+                </p>
+              )}
             </div>
           )}
 
@@ -521,6 +571,16 @@ export default function Goals() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={confirmModal.open}
+        onClose={() => setConfirmModal({ open: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        variant={confirmModal.variant}
+        confirmText={confirmModal.confirmText}
+      />
     </div>
   );
 }

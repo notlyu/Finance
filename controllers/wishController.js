@@ -2,50 +2,25 @@ const prisma = require('../lib/prisma-client');
 const { logger, ValidationError, NotFoundError, AppError, ForbiddenError } = require('../lib/errors');
 
 async function calcAvailableFunds(userId, familyId) {
+  // Баланс = сумма ликвидных счетов
+  let accounts;
   if (!familyId) {
-    const incomeAgg = await prisma.transaction.aggregate({
-      where: { user_id: userId, family_id: null, type: 'income' },
-      _sum: { amount: true }
+    accounts = await prisma.account.findMany({
+      where: { user_id: userId, family_id: null, is_active: true, is_liquid: true }
     });
-    const expenseAgg = await prisma.transaction.aggregate({
-      where: { user_id: userId, family_id: null, type: 'expense' },
-      _sum: { amount: true }
+  } else {
+    const memberIds = (await prisma.user.findMany({ where: { family_id: familyId }, select: { id: true } })).map(u => u.id);
+    accounts = await prisma.account.findMany({
+      where: { is_active: true, is_liquid: true, OR: [{ family_id: familyId }, { family_id: null, user_id: { in: memberIds } }] }
     });
-    const income = incomeAgg._sum?.amount || 0;
-    const expense = expenseAgg._sum?.amount || 0;
-    const balance = Number(income) - Number(expense);
-    
-    const goalsAgg = await prisma.goal.aggregate({
-      where: { user_id: userId, family_id: null },
-      _sum: { current_amount: true }
-    });
-    const wishesAgg = await prisma.wish.aggregate({
-      where: { user_id: userId },
-      _sum: { saved_amount: true }
-    });
-    const reserved = (goalsAgg._sum?.current_amount || 0) + (wishesAgg._sum?.saved_amount || 0);
-    return { balance, reserved, available: balance - reserved };
   }
-  const incomeAgg = await prisma.transaction.aggregate({
-    where: { family_id: familyId, type: 'income' },
-    _sum: { amount: true }
-  });
-  const expenseAgg = await prisma.transaction.aggregate({
-    where: { family_id: familyId, type: 'expense' },
-    _sum: { amount: true }
-  });
-  const income = incomeAgg._sum?.amount || 0;
-  const expense = expenseAgg._sum?.amount || 0;
-  const balance = Number(income) - Number(expense);
-  
-  const goalsAgg = await prisma.goal.aggregate({
-    where: { family_id: familyId },
-    _sum: { current_amount: true }
-  });
-  const wishesAgg = await prisma.wish.aggregate({
-    where: { family_id: familyId },
-    _sum: { saved_amount: true }
-  });
+  const balance = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
+
+  const where = !familyId
+    ? { user_id: userId, family_id: null }
+    : { OR: [{ family_id: familyId }, { user_id: userId, family_id: null }] };
+  const goalsAgg = await prisma.goal.aggregate({ where, _sum: { current_amount: true } });
+  const wishesAgg = await prisma.wish.aggregate({ where, _sum: { saved_amount: true } });
   const reserved = (goalsAgg._sum?.current_amount || 0) + (wishesAgg._sum?.saved_amount || 0);
   return { balance, reserved, available: balance - reserved };
 }
@@ -74,6 +49,18 @@ exports.fundWish = async (req, res, next) => {
       throw new ValidationError('Укажите корректную сумму для пополнения');
     }
 
+    const accountId = req.body.account_id ? Number(req.body.account_id) : null;
+    let account = null;
+    if (accountId) {
+      account = await prisma.account.findFirst({
+        where: familyId
+          ? { id: accountId, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+          : { id: accountId, family_id: null, user_id: user.id }
+      });
+      if (!account) throw new NotFoundError('Счёт не найден');
+      if (Number(account.balance) < amount) throw new ValidationError('Недостаточно средств на счёте');
+    }
+
     const fundsForWish = wish.family_id ? familyId : null;
     const { balance, available } = await calcAvailableFunds(user.id, fundsForWish);
     const afterContribution = available - amount;
@@ -100,14 +87,22 @@ exports.fundWish = async (req, res, next) => {
       data: {
         user_id: user.id,
         family_id: wish.family_id,
+        account_id: accountId,
         amount,
         type: 'expense',
         category_id: categoryId,
         date: now,
         comment: `Пополнение желания: ${wish.name}`,
-        is_private: false,
+        scope: wish.scope || 'personal',
       }
     });
+
+    if (account) {
+      await prisma.account.update({
+        where: { id: account.id },
+        data: { balance: Number(account.balance) - amount }
+      });
+    }
 
     await prisma.wishContribution.create({
       data: {
@@ -151,11 +146,11 @@ exports.getWishes = async (req, res, next) => {
     const where = familyId
       ? {
           OR: [
-            { family_id: null, user_id: user.id },
-            { family_id: familyId, is_private: false }
+            { family_id: null, user_id: user.id, scope: 'personal' },
+            { family_id: familyId, scope: { in: ['family', 'shared'] } }
           ]
         }
-      : { family_id: null, user_id: user.id };
+      : { family_id: null, user_id: user.id, scope: 'personal' };
 
     if (String(req.query.showArchived || '') !== 'true') {
       where.archived = false;
@@ -172,12 +167,12 @@ exports.getWishes = async (req, res, next) => {
 
     const result = wishes.map(wish => {
       const isOwner = wish.user_id === user.id;
-      if (!isOwner && wish.is_private) {
+      if (!isOwner && wish.scope === 'personal') {
         return {
           id: wish.id,
-          is_private: true,
+          scope: 'personal',
           is_hidden: true,
-          user_name: wish.User?.name,
+          user_name: wish.user?.name,
           priority: wish.priority,
           status: wish.status,
           cost: wish.cost,
@@ -219,6 +214,7 @@ exports.getWishById = async (req, res, next) => {
         : { id: Number(id), family_id: null, user_id: user.id },
       include: {
         user: { select: { id: true, name: true } },
+        family: { select: { id: true, name: true, owner_user_id: true } },
         wishContributions: { orderBy: { date: 'desc' } }
       }
     });
@@ -228,12 +224,13 @@ exports.getWishById = async (req, res, next) => {
     }
 
     const isOwner = wish.user_id === user.id;
-    if (!isOwner && wish.is_private) {
+    const isFamilyOwner = wish.family?.owner_user_id === user.id;
+    if (!isOwner && !isFamilyOwner && wish.scope === 'personal') {
       return res.json({
         id: wish.id,
-        is_private: true,
+        scope: 'personal',
         is_hidden: true,
-        user_name: wish.User?.name,
+        user_name: wish.user?.name,
         priority: wish.priority,
         status: wish.status,
         cost: wish.cost,
@@ -261,7 +258,7 @@ exports.createWish = async (req, res, next) => {
     const user = req.user;
     const familyId = user.family_id;
 
-    const { name, cost, priority, status, saved_amount, is_private, category_id } = req.body;
+    const { name, cost, priority, status, saved_amount, scope: reqScope, category_id } = req.body;
 
     if (!name || !cost) {
       throw new ValidationError('Название и стоимость обязательны');
@@ -280,16 +277,18 @@ exports.createWish = async (req, res, next) => {
       catId = defaultCat.id;
     }
 
+    const scope = reqScope || 'personal';
+
     const wish = await prisma.wish.create({
       data: {
         user_id: user.id,
-        family_id: familyId || null,
+        family_id: scope !== 'personal' && familyId ? familyId : null,
         name,
         cost,
         priority: priority || 3,
         status: status || 'active',
         saved_amount: saved_amount || 0,
-        is_private: is_private !== undefined ? is_private : true,
+        scope,
         category_id: catId
       }
     });
@@ -298,6 +297,7 @@ exports.createWish = async (req, res, next) => {
     w.progress = (() => {
       try { return Math.min(100, Math.max(0, (parseFloat(w.saved_amount) || 0) / (parseFloat(w.cost) || 1) * 100)); } catch { return null; }
     })();
+    w.scope = wish.scope || (wish.family_id ? 'family' : 'personal');
     logger.info(`User ${user.id} created wish ${wish.id}`);
     res.status(201).json(w);
   } catch (error) {
@@ -330,7 +330,14 @@ exports.updateWish = async (req, res, next) => {
       throw new ForbiddenError('Нет прав на редактирование');
     }
 
-    const { created_at, archived_at, ...safeData } = updateData;
+    const allowedFields = ['name', 'cost', 'priority', 'status', 'saved_amount', 'scope', 'category_id', 'archived', 'archived_at'];
+    const safeData = {};
+    for (const field of allowedFields) {
+      if (updateData[field] !== undefined) {
+        safeData[field] = updateData[field];
+      }
+    }
+    
     const updated = await prisma.wish.update({
       where: { id: wishId },
       data: safeData
@@ -375,7 +382,7 @@ exports.contributeToWish = async (req, res, next) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    const { amount, date, createTransaction, category_id, comment, is_private, skipWarning } = req.body;
+    const { amount, date, createTransaction, category_id, comment, skipWarning } = req.body;
 
     if (!amount || amount <= 0) {
       throw new ValidationError('Сумма должна быть положительным числом');
@@ -418,12 +425,13 @@ exports.contributeToWish = async (req, res, next) => {
           data: {
             user_id: user.id,
             family_id: wish.family_id,
+            account_id: accountId,
             amount,
             type: 'expense',
             category_id,
             date: date || new Date(),
             comment: comment || `Пополнение желания: ${wish.name}`,
-            is_private: !!is_private,
+            scope: wish.scope || 'personal',
           }
         });
         transactionId = newTx.id;
@@ -477,9 +485,9 @@ exports.exportWishes = async (req, res, next) => {
       where,
       include: { user: { select: { id: true, name: true } } }
     });
-    const header = ['id', 'name', 'cost', 'saved_amount', 'priority', 'status', 'is_private', 'user', 'family'];
+    const header = ['id', 'name', 'cost', 'saved_amount', 'priority', 'status', 'scope', 'user', 'family'];
     const rows = wishes.map(w => [
-      w.id, w.name, w.cost, w.saved_amount, w.priority, w.status, w.is_private,
+      w.id, w.name, w.cost, w.saved_amount, w.priority, w.status, w.scope || (w.family_id ? 'family' : 'personal'),
       w.user?.name || '', w.family_id ? 'семейное' : 'личное'
     ]);
     const csv = [header.join(','), ...rows.map(r => r.map(v => String(v ?? '')).join(','))].join('\n');
