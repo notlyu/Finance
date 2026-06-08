@@ -29,8 +29,8 @@ jobs:
         run: npx prisma generate
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
-      - name: Migrate
-        run: npx prisma migrate deploy
+      - name: Push schema
+        run: npx prisma db push --accept-data-loss
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
       - name: Seed
@@ -82,8 +82,8 @@ jobs:
         run: npx prisma generate
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
-      - name: Migrate
-        run: npx prisma migrate deploy
+      - name: Push schema
+        run: npx prisma db push --accept-data-loss
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
       - name: Start server
@@ -126,8 +126,8 @@ jobs:
         run: npx prisma generate
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
-      - name: Migrate
-        run: npx prisma migrate deploy
+      - name: Push schema
+        run: npx prisma db push --accept-data-loss
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
       - name: Install Playwright
