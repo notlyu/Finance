@@ -22,6 +22,8 @@ exports.getGoals = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const offset = Number(req.query.offset) || 0;
 
     const archiveFilter = req.query.archived;
     let where;
@@ -39,11 +41,16 @@ exports.getGoals = async (req, res, next) => {
         : { user_id: user.id, family_id: null };
     }
 
-    const goals = await prisma.goal.findMany({
-      where,
-      include: { user: { select: { id: true, name: true } }, family: { select: { id: true, name: true } } },
-      orderBy: { created_at: 'desc' }
-    });
+    const [goals, total] = await Promise.all([
+      prisma.goal.findMany({
+        where,
+        include: { user: { select: { id: true, name: true } }, family: { select: { id: true, name: true } } },
+        orderBy: { created_at: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      prisma.goal.count({ where }),
+    ]);
 
     const mapped = goals.map(g => {
       let auto_contribute_percent = null;
@@ -55,7 +62,7 @@ exports.getGoals = async (req, res, next) => {
       return { ...g, auto_contribute_percent, achieved, progress, scope: g.scope || (g.family_id ? 'family' : 'personal') };
     });
     logger.info(`User ${user.id} fetched ${goals.length} goals`);
-    res.json(mapped);
+    res.json({ items: mapped, total, limit, offset });
   } catch (error) {
     next(error);
   }
@@ -143,11 +150,7 @@ exports.createGoal = async (req, res, next) => {
       scope: reqScope,
       is_family_goal,
       category_id,
-    } = req.body;
-
-    if (!name || !target_amount) {
-      throw new ValidationError('Название и целевая сумма обязательны');
-    }
+    } = req.validated;
 
     const scope = reqScope || (is_family_goal ? 'family' : 'personal');
 
@@ -243,10 +246,9 @@ exports.updateGoal = async (req, res, next) => {
     }
 
     const scope = reqScope || (goal.family_id ? 'family' : 'personal');
+    const updateData = { ...restData, family_id: null };
     if (scope !== 'personal' && user.family_id) {
       updateData.family_id = user.family_id;
-    } else {
-      updateData.family_id = null;
     }
 
     const updated = await prisma.goal.update({
@@ -338,7 +340,7 @@ exports.deleteGoal = async (req, res, next) => {
     await prisma.recurringTransaction.deleteMany({ where: { goal_id: goal.id } });
     await prisma.goal.delete({ where: { id: Number(id) } });
     logger.info(`User ${user.id} deleted goal ${id}`);
-    res.json({ message: 'Цель удалена' });
+    res.status(204).send();
   } catch (error) {
     next(error);
   }
@@ -404,7 +406,8 @@ exports.contributeToGoal = async (req, res, next) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    const { amount, date, createTransaction, category_id, comment, scope: reqScope, skipWarning } = req.body;
+    const { amount, date, createTransaction, category_id, comment, scope: reqScope, skipWarning } = req.validated;
+    const account_id = req.body?.account_id;
 
     if (!amount || amount <= 0) {
       throw new ValidationError('Сумма должна быть положительным числом');
@@ -574,7 +577,14 @@ exports.exportGoals = async (req, res, next) => {
 
     const header = ['id','name','target_amount','current_amount','interest_rate','auto_contribute_enabled','auto_contribute_type','auto_contribute_value'];
     const rows = goals.map(g => [g.id, g.name, g.target_amount, g.current_amount, g.interest_rate, g.auto_contribute_enabled, g.auto_contribute_type, g.auto_contribute_value]);
-    const csv = [header.join(','), ...rows.map(r => r.map(v => String(v ?? '')).join(','))].join('\n');
+    const csv = [header.join(','), ...rows.map(r => r.map(v => {
+      let s = String(v ?? '');
+      if (/^[=+\-@]/.test(s)) s = "'" + s;
+      if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+        s = '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    }).join(','))].join('\n');
 
     logger.info(`User ${user.id} exported ${goals.length} goals`);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');

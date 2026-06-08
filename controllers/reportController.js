@@ -265,7 +265,10 @@ exports.exportReport = async (req, res, next) => {
     ]);
     const csv = '\ufeff' + [header.join(','), ...rows.map(r => r.map(v => {
       if (v == null) return '';
-      const s = String(v);
+      let s = String(v);
+      if (/^[=+\-@]/.test(s)) {
+        s = "'" + s;
+      }
       if (s.includes(',') || s.includes('\n') || s.includes('"')) {
         return '"' + s.replace(/"/g, '""') + '"';
       }
@@ -348,6 +351,314 @@ exports.exportExcel = async (req, res, next) => {
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename="transactions.xlsx"');
     res.send(buffer);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getComparison = async (req, res, next) => {
+  try {
+    const user = req.user;
+    const familyId = user.family_id;
+    const comparisonType = req.query.type || 'mom'; // 'mom' or 'yoy'
+
+    const today = new Date();
+    const currentEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    const currentEndStr = currentEnd.toISOString().slice(0, 10);
+    let currentStart, prevStart, prevEnd;
+
+    if (comparisonType === 'mom') {
+      currentStart = new Date(today.getFullYear(), today.getMonth(), 1);
+      const prevMonthEnd = new Date(today.getFullYear(), today.getMonth(), 1);
+      prevStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      prevEnd = prevMonthEnd;
+    } else {
+      currentStart = new Date(today.getFullYear(), today.getMonth(), 1);
+      prevStart = new Date(today.getFullYear() - 1, today.getMonth(), 1);
+      prevEnd = new Date(today.getFullYear(), today.getMonth(), 1);
+    }
+
+    const currentStartStr = currentStart.toISOString().slice(0, 10);
+    const prevStartStr = prevStart.toISOString().slice(0, 10);
+    const prevEndStr = prevEnd.toISOString().slice(0, 10);
+
+    const memberId = req.query.memberId ? Number(req.query.memberId) : null;
+
+    const buildWhere = (start, end) => {
+      const df = { date: { gte: new Date(start), lt: new Date(end) } };
+      if (memberId) {
+        return familyId
+          ? { ...df, OR: [{ family_id: familyId, user_id: memberId }, { family_id: null, user_id: memberId }] }
+          : { ...df, family_id: null, user_id: memberId };
+      }
+      return familyId
+        ? { ...df, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        : { ...df, family_id: null, user_id: user.id };
+    };
+
+    const [currentTx, prevTx] = await Promise.all([
+      prisma.transaction.findMany({ where: buildWhere(currentStartStr, currentEndStr), include: { category: true } }),
+      prisma.transaction.findMany({ where: buildWhere(prevStartStr, prevEndStr), include: { category: true } }),
+    ]);
+
+    const calcTotals = (txs) => {
+      let income = 0, expense = 0;
+      const byCategory = {};
+      txs.forEach(t => {
+        const val = parseFloat(t.amount || 0);
+        if (t.type === 'income') income += val;
+        else expense += val;
+        const catName = t.category?.name || 'Без категории';
+        byCategory[catName] = (byCategory[catName] || 0) + val;
+      });
+      return { income, expense, byCategory };
+    };
+
+    const current = calcTotals(currentTx);
+    const prev = calcTotals(prevTx);
+
+    const pctChange = (curr, prev) => prev > 0 ? Math.round(((curr - prev) / prev) * 100) : null;
+
+    res.json({
+      type: comparisonType,
+      current: {
+        startDate: currentStartStr,
+        endDate: currentEndStr,
+        income: current.income,
+        expense: current.expense,
+        categories: Object.entries(current.byCategory).map(([name, total]) => ({ name, total })),
+      },
+      previous: {
+        startDate: prevStartStr,
+        endDate: prevEndStr,
+        income: prev.income,
+        expense: prev.expense,
+        categories: Object.entries(prev.byCategory).map(([name, total]) => ({ name, total })),
+      },
+      changes: {
+        income: pctChange(current.income, prev.income),
+        expense: pctChange(current.expense, prev.expense),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getNetWorth = async (req, res, next) => {
+  try {
+    const user = req.user;
+    const familyId = user.family_id;
+    const monthsBack = Number(req.query.months) || 12;
+
+    const today = new Date();
+    const startDate = new Date(today.getFullYear(), today.getMonth() - (monthsBack - 1), 1);
+    const startStr = startDate.toISOString().slice(0, 10);
+    const endDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    const endStr = endDate.toISOString().slice(0, 10);
+
+    const accountWhere = familyId
+      ? { OR: [{ family_id: familyId, is_active: true }, { family_id: null, user_id: user.id, is_active: true }] }
+      : { user_id: user.id, family_id: null, is_active: true };
+    const debtWhere = familyId
+      ? { OR: [{ family_id: familyId, is_active: true }, { family_id: null, user_id: user.id, is_active: true }] }
+      : { user_id: user.id, family_id: null, is_active: true };
+
+    const [accounts, debts, transactions] = await Promise.all([
+      prisma.account.findMany({ where: accountWhere, select: { balance: true } }),
+      prisma.debt.findMany({ where: debtWhere, select: { remaining: true } }),
+      (() => {
+        const txWhere = familyId
+          ? { date: { gte: new Date(startStr), lt: new Date(endStr) }, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+          : { date: { gte: new Date(startStr), lt: new Date(endStr) }, family_id: null, user_id: user.id };
+        return prisma.transaction.findMany({ where: txWhere, orderBy: { date: 'asc' } });
+      })(),
+    ]);
+
+    const currentAssets = accounts.reduce((s, a) => s + Number(a.balance || 0), 0);
+    const currentLiabilities = debts.reduce((s, d) => s + Number(d.remaining || 0), 0);
+    const currentNetWorth = currentAssets - currentLiabilities;
+
+    const monthlyData = {};
+    const cursor = new Date(startDate);
+    while (cursor < endDate) {
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`;
+      monthlyData[key] = { income: 0, expense: 0 };
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+
+    transactions.forEach(t => {
+      const d = new Date(t.date);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (monthlyData[key]) {
+        const val = parseFloat(t.amount || 0);
+        if (t.type === 'income') monthlyData[key].income += val;
+        else monthlyData[key].expense += val;
+      }
+    });
+
+    let cumulativeCashFlow = 0;
+    const labels = Object.keys(monthlyData);
+    const savingsRates = [];
+    const cashFlowData = labels.map((key, i) => {
+      const d = monthlyData[key];
+      cumulativeCashFlow += d.income - d.expense;
+      const savings = d.income > 0 ? Math.round(((d.income - d.expense) / d.income) * 100) : 0;
+      savingsRates.push(savings);
+      return {
+        month: key,
+        label: `${key.split('-')[1]}.${key.split('-')[0]}`,
+        income: d.income,
+        expense: d.expense,
+        cashFlow: cumulativeCashFlow,
+        netWorth: currentAssets + cumulativeCashFlow - currentLiabilities,
+        savingsRate: savings,
+      };
+    });
+
+    res.json({
+      currentAssets,
+      currentLiabilities,
+      currentNetWorth,
+      currentSavingsRate: cashFlowData.length > 0 ? cashFlowData[cashFlowData.length - 1].savingsRate : 0,
+      monthly: cashFlowData,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getCategoryTransactions = async (req, res, next) => {
+  try {
+    const user = req.user;
+    const familyId = user.family_id;
+    const { categoryName, startDate, endDate, type } = req.query;
+
+    if (!categoryName) {
+      return res.json([]);
+    }
+
+    const memberId = req.query.memberId ? Number(req.query.memberId) : null;
+
+    const dateFilter = {};
+    if (startDate && endDate) {
+      dateFilter.date = { gte: new Date(startDate), lte: new Date(endDate + 'T23:59:59.999Z') };
+    }
+
+    let where;
+    if (memberId) {
+      where = familyId
+        ? { ...dateFilter, OR: [{ family_id: familyId, user_id: memberId }, { family_id: null, user_id: memberId }] }
+        : { ...dateFilter, family_id: null, user_id: memberId };
+    } else {
+      where = familyId
+        ? { ...dateFilter, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        : { ...dateFilter, family_id: null, user_id: user.id };
+    }
+
+    if (type) where.type = type;
+
+    const transactions = await prisma.transaction.findMany({
+      where,
+      include: { category: true, user: { select: { name: true } } },
+      orderBy: { date: 'desc' },
+      take: 200,
+    });
+
+    const filtered = transactions.filter(t =>
+      (t.category?.name || 'Без категории') === categoryName
+    );
+
+    res.json(filtered.map(t => ({
+      id: t.id,
+      date: t.date,
+      amount: t.amount,
+      type: t.type,
+      comment: t.comment,
+      categoryName: t.category?.name || 'Без категории',
+      userName: t.user?.name || '',
+    })));
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getForecast = async (req, res, next) => {
+  try {
+    const user = req.user;
+    const familyId = user.family_id;
+
+    const today = new Date();
+    const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const currentMonthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    const threeMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 3, 1);
+
+    const memberId = req.query.memberId ? Number(req.query.memberId) : null;
+
+    const buildWhere = (start, end, types) => {
+      const df = { date: { gte: start, lt: end } };
+      if (types) df.type = { in: types };
+      if (memberId) {
+        return familyId
+          ? { ...df, OR: [{ family_id: familyId, user_id: memberId }, { family_id: null, user_id: memberId }] }
+          : { ...df, family_id: null, user_id: memberId };
+      }
+      return familyId
+        ? { ...df, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+        : { ...df, family_id: null, user_id: user.id };
+    };
+
+    const [currentMonthTx, historicalTx] = await Promise.all([
+      prisma.transaction.findMany({
+        where: buildWhere(currentMonthStart, currentMonthEnd),
+      }),
+      prisma.transaction.findMany({
+        where: buildWhere(threeMonthsAgo, currentMonthStart),
+      }),
+    ]);
+
+    const calcTotal = (txs) => {
+      let income = 0, expense = 0;
+      txs.forEach(t => {
+        const val = parseFloat(t.amount || 0);
+        if (t.type === 'income') income += val;
+        else expense += val;
+      });
+      return { income, expense };
+    };
+
+    const current = calcTotal(currentMonthTx);
+    const historical = calcTotal(historicalTx);
+
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const daysPassed = today.getDate();
+    const daysRemaining = daysInMonth - daysPassed + 1;
+
+    const avgMonthlyExpense = historical.expense / 3;
+    const avgMonthlyIncome = historical.income / 3;
+    const dailyRate = current.expense / daysPassed;
+    const projectedExpense = current.expense + (dailyRate * daysRemaining);
+    const projectedIncome = current.income + ((avgMonthlyIncome / daysInMonth) * daysRemaining);
+
+    res.json({
+      currentMonth: {
+        income: current.income,
+        expense: current.expense,
+        daysPassed,
+        daysRemaining,
+        daysInMonth,
+      },
+      historicalAverage: {
+        monthlyIncome: Math.round(avgMonthlyIncome),
+        monthlyExpense: Math.round(avgMonthlyExpense),
+      },
+      forecast: {
+        projectedIncome: Math.round(projectedIncome),
+        projectedExpense: Math.round(projectedExpense),
+        projectedSurplus: Math.round(projectedIncome - projectedExpense),
+        confidence: daysPassed > 15 ? 'high' : daysPassed > 7 ? 'medium' : 'low',
+      },
+    });
   } catch (error) {
     next(error);
   }

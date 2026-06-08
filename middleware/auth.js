@@ -33,7 +33,10 @@ module.exports = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
-      include: { family: true },
+      select: {
+        id: true, email: true, name: true, family_id: true,
+        family: true,
+      },
     });
     if (!user) {
       throw new UnauthorizedError('Пользователь не найден');

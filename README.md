@@ -1,292 +1,593 @@
 # 💰 Finance — Family Finance Tracker
 
-Family finance management app with goals, wishes, budgets, recurring transactions, safety pillow, and analytics.
+Семейное приложение для управления финансами: учёт доходов/расходов, цели, желания, бюджеты, recurring-транзакции, подушка безопасности, долги, импорт/экспорт, аналитика и настраиваемая приборная панель.
 
 [![License](https://img.shields.io/badge/license-ISC-blue.svg)](LICENSE)
-[![Node](https://img.shields.io/badge/node-%3E%3D18-green.svg)](package.json)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-green.svg)](package.json)
 [![PostgreSQL](https://img.shields.io/badge/postgresql-15+-blue.svg)](https://www.postgresql.org)
-[![Tests](https://img.shields.io/badge/tests-16%2F16-brightgreen.svg)](#-testing)
+[![React](https://img.shields.io/badge/React-19-61dafb.svg)](client/package.json)
+[![Docker](https://img.shields.io/badge/docker-compose-2496ed.svg)](#-docker)
 
 ---
 
-## Table of Contents
+## Содержание
 
-- [Features](#-features)
-- [Tech Stack](#-tech-stack)
-- [Quick Start](#-quick-start)
-- [Environment](#-environment)
-- [Database](#-database)
-- [Development](#-development)
-- [Testing](#-testing)
-- [Project Structure](#-project-structure)
-- [API Reference](#-api-reference)
-- [Security](#-security)
-- [License](#-license)
-
----
-
-## ✨ Features
-
-- **Authentication** — JWT-based auth with password reset via email (SMTP)
-- **Family Management** — Create family, invite members, role-based access (Owner/Member)
-- **Transactions** — Income/expense tracking with categories, private transactions
-- **Dashboard** — Personal/family view with balance, recent transactions, goals progress
-- **Goals** — Savings goals with auto-contribution from income, deadline tracking
-- **Wishes** — Priority-based wishlist with funding progress
-- **Budgets** — Monthly category limits with overspend warnings
-- **Safety Pillow** — Emergency fund calculation (3/6/12 months coverage)
-- **Analytics** — Charts, CSV/Excel export
-- **Recurring** — Monthly automated transactions via cron
+- [Возможности](#-возможности)
+- [Технологии](#-технологии)
+- [Быстрый старт](#-быстрый-старт)
+- [Переменные окружения](#-переменные-окружения)
+- [База данных](#-база-данных)
+- [Разработка](#-разработка)
+- [Тестирование](#-тестирование)
+- [Docker](#-docker)
+- [CI/CD](#-cicd)
+- [Мониторинг](#-мониторинг)
+- [Структура проекта](#-структура-проекта)
+- [API](#-api)
+- [Галерея](#-галерея)
+- [Безопасность](#-безопасность)
+- [Лицензия](#-лицензия)
 
 ---
 
-## 🛠 Tech Stack
+## ✨ Возможности
 
-| Layer | Technology |
-|:------|:------------|
-| **Backend** | Node.js, Express |
-| **ORM** | Prisma |
-| **Database** | PostgreSQL 15+ |
-| **Validation** | Zod |
-| **Logging** | Pino |
-| **Auth** | JWT (HS256), bcrypt |
+### 🔐 Аутентификация и управление доступом
+- JWT-аутентификация (access + refresh token) с auto-refresh
+- Регистрация, вход, выход
+- Сброс пароля через email (SMTP/Nodemailer)
+- Ролевая модель: Owner / Member в рамках семьи
+
+### 👨‍👩‍👧‍👦 Семья
+- Создание семьи и приглашение участников по коду
+- Общие и личные финансы в рамках семьи
+- Ролевой доступ (Owner может управлять семьёй)
+
+### 💳 Транзакции
+- Доходы и расходы с привязкой к категориям и счетам
+- Приватные транзакции (видит только автор)
+- Фильтрация по дате, категории, типу, счету
+- Автоматическое обновление баланса счёта
+
+### 🏦 Счета
+- Несколько счетов (дебетовые, кредитные, наличные)
+- Автоматический пересчёт баланса при транзакциях
+- Отдельный баланс для каждого счёта
+
+### 🎯 Цели (Goals)
+- Накопительные цели с дедлайном и суммой
+- Автонакопление — % от каждого дохода
+- Ежемесячная капитализация процентов (interest)
+- Прогресс в процентах
+
+### 🎀 Желания (Wishes)
+- Список желаний с приоритетами (низкий / средний / высокий)
+- Частичное финансирование желаний
+- Автонакопление от доходов
+
+### 📊 Бюджеты
+- Месячные лимиты по категориям
+- Сравнение план/факт
+- Предупреждения при превышении
+- Перенос остатка (rollover) на следующий месяц
+
+### 🛡️ Подушка безопасности
+- Целевая сумма (X месяцев покрытия расходов)
+- Ежемесячные снимки баланса
+- Настраиваемый период покрытия (3/6/12 месяцев)
+
+### 💸 Долги
+- Учёт долгов (кредитор, сумма, проценты)
+- Частичное погашение с пересчётом остатка
+- Автосоздание recurring-транзакции при создании долга
+
+### 🔁 Recurring-транзакции
+- Ежемесячное автоматическое создание транзакций по шаблону
+- Cron-задача с защитой от двойного запуска
+- Ручной запуск через API
+
+### 📈 Аналитика и отчёты
+- Динамика доходов/расходов (графики Chart.js)
+- Распределение по категориям
+- Сравнение месяц к месяцу
+- Экспорт в CSV, Excel (exceljs), PDF (pdfkit + jspdf)
+- Импорт из CSV / Excel с валидацией
+
+### 🧩 Приборная панель (Dashboard)
+- 10 типов виджетов: баланс, последние транзакции, цели, бюджеты, аналитика и др.
+- Drag-and-drop (библиотека @dnd-kit)
+- Персональная конфигурация виджетов для каждого пользователя
+- Сохранение порядка в localStorage и на сервере
+
+### 🔔 Уведомления
+- In-app уведомления (превышение бюджета, достижение цели)
+- Real-time через Socket.IO
+- Настраиваемые типы уведомлений
+- Прочитано / непрочитано
+
+### 📋 Журнал аудита
+- Неизменяемый audit-log всех значимых действий
+- Привязка к пользователю и семье
+
+### 🎨 Тема
+- Светлая / тёмная тема
+- Сохраняется в localStorage
+
+---
+
+## 🛠 Технологии
+
+| Слой | Технология |
+|:-----|:-----------|
+| **Backend** | Node.js 20, Express 4 |
+| **ORM** | Prisma (PostgreSQL adapter) |
+| **База данных** | PostgreSQL 15+ |
+| **Frontend** | React 19, React Router 7, Tailwind CSS 3 |
+| **Валидация** | Zod (бекенд), react-hook-form (фронтенд) |
+| **Графики** | Chart.js 4 |
+| **Drag-and-drop** | @dnd-kit |
+| **Auth** | JWT (HS256) + Refresh Token, bcrypt |
+| **Real-time** | Socket.IO |
 | **Email** | Nodemailer (SMTP) |
-| **Export** | ExcelJS |
-| **Testing** | Jest, Supertest, Playwright |
-| **Security** | Helmet, express-rate-limit |
+| **Экспорт** | exceljs, pdfkit, jspdf, html2canvas |
+| **Кеширование** | In-memory (Map, TTL 5 мин, макс. 1000 записей) |
+| **Логирование** | Pino |
+| **Метрики** | Prometheus (prom-client) |
+| **Ошибки** | Sentry SDK |
+| **Тестирование** | Jest, Supertest, React Testing Library, Playwright |
+| **Безопасность** | Helmet, express-rate-limit, CORS |
+| **Контейнеризация** | Docker, Docker Compose |
+| **CI/CD** | GitHub Actions |
+| **Региistry** | GitHub Container Registry (ghcr.io) |
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Быстрый старт
 
-### Prerequisites
-- Node.js >= 18
+### Требования
+- Node.js >= 20
 - PostgreSQL >= 15
+- npm
 
-### Installation
+### Установка
+
 ```bash
 git clone <repo-url>
 cd Finance
-
 npm install
+cd client && npm install && cd ..
 ```
 
-### Environment
-Create `.env` in project root:
+### Настройка окружения
+
+Создайте `.env` в корне проекта:
+
 ```env
 PORT=5000
 NODE_ENV=development
 
-# Database
+# База данных
 DATABASE_URL=postgresql://user:password@localhost:5432/finance_db
 
-# Auth (generate: openssl rand -base64 32)
+# JWT (сгенерировать: openssl rand -base64 32)
 JWT_SECRET=your_secure_secret_key
+JWT_REFRESH_SECRET=your_refresh_secret_key
 
-# Email (optional, for password reset)
+# Email (опционально, для сброса пароля)
 SMTP_HOST=smtp.example.com
 SMTP_PORT=587
 SMTP_USER=your@email.com
 SMTP_PASS=your_password
 SMTP_FROM=Finance <noreply@example.com>
 
-# Frontend URL for CORS
+# Frontend URL для CORS
 FRONTEND_URL=http://localhost:5173
+
+# Sentry DSN (опционально)
+# SENTRY_DSN=
 ```
 
-### Database Setup
+### База данных
+
 ```bash
 npx prisma generate
 npx prisma db push
-```
 
-### Run
-```bash
-# Development
-npm run dev
-
-# Or production
-npm start
-```
-
-Server runs at `http://localhost:5000`
-
----
-
-## 📦 Environment Variables
-
-| Variable | Required | Description |
-|:---------|:---------|:------------|
-| `PORT` | No | Server port (default: 5000) |
-| `NODE_ENV` | No | `development` or `production` |
-| `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `JWT_SECRET` | Yes | Secret key for JWT (min 32 chars) |
-| `CORS_ORIGINS` | No | Allowed origins (comma-separated) |
-| `SMTP_*` | No | Email configuration |
-
----
-
-## 🗄 Database
-
-### Schema
-Located in `prisma/schema.prisma` — defines all models:
-- User, Family, Transaction, Category
-- Goal, GoalContribution, Wish, WishContribution
-- Budget, RecurringTransaction
-- SafetyPillow, Notification
-
-### Migrations
-```bash
-# Create migration
-npx prisma migrate dev --name init
-
-# Apply migrations
-npx prisma migrate deploy
-
-# Reset database
-npx prisma migrate reset
-```
-
-### Seed
-```bash
+# Сиды (тестовые данные)
+npx prisma db seed
+# или
 node scripts/prisma-seed.js
 ```
 
----
-
-## 🧪 Testing
+### Запуск
 
 ```bash
-# Unit tests (Jest)
-npm test
+# Бекенд + фронтенд одновременно
+npm run dev
 
-# API smoke tests
-npm run test:smoke
+# Только бекенд
+npm start
 
-# E2E tests (Playwright)
-npm run test:e2e
+# Только фронтенд (Vite)
+cd client && npm run dev
 ```
 
-**Test files:**
-- `tests/api.test.js` — Integration tests
-- `tests/dashboard.test.js` — Dashboard tests
-- `tests/categories.test.js` — Category tests
-- `tests/smoke.js` — API smoke tests
-- `tests/e2e/*.ts` — Playwright e2e tests
+Бекенд: `http://localhost:5000`
+Фронтенд: `http://localhost:5173`
 
 ---
 
-## 📁 Project Structure
+## 📦 Переменные окружения
+
+| Переменная | Обязательно | Описание |
+|:-----------|:------------|:---------|
+| `PORT` | Нет | Порт сервера (по умолч. 5000) |
+| `NODE_ENV` | Нет | `development` / `production` |
+| `DATABASE_URL` | **Да** | Строка подключения PostgreSQL |
+| `JWT_SECRET` | **Да** | Секрет JWT (мин. 32 символа) |
+| `JWT_REFRESH_SECRET` | **Да** | Секрет refresh-токена |
+| `JWT_EXPIRES_IN` | Нет | Время жизни access-токена (по умолч. `15m`) |
+| `JWT_REFRESH_EXPIRES_IN` | Нет | Время жизни refresh-токена (по умолч. `7d`) |
+| `CORS_ORIGINS` | Нет | Разрешённые origin (через запятую) |
+| `SMTP_HOST` | Нет | SMTP-сервер |
+| `SMTP_PORT` | Нет | Порт SMTP |
+| `SMTP_USER` | Нет | Пользователь SMTP |
+| `SMTP_PASS` | Нет | Пароль SMTP |
+| `SMTP_FROM` | Нет | Адрес отправителя |
+| `FRONTEND_URL` | Нет | URL фронтенда для CORS |
+| `SENTRY_DSN` | Нет | DSN для Sentry |
+| `RATE_LIMIT_WINDOW_MS` | Нет | Окно rate limiting (мс) |
+| `RATE_LIMIT_MAX` | Нет | Макс. запросов в окне |
+
+---
+
+## 🗄 База данных
+
+### Модели (10)
+
+| Модель | Назначение |
+|:-------|:-----------|
+| `User` | Пользователь (email, пароль, профиль, тема, валюта) |
+| `Family` | Семья (название, код приглашения) |
+| `FamilyMember` | Член семьи (роль: Owner/Member) |
+| `FamilyInvite` | Приглашения (код, срок действия) |
+| `Account` | Финансовый счёт (тип, баланс, валюта) |
+| `Transaction` | Транзакция (сумма, тип, категория, счёт, приватность) |
+| `Category` | Категория (иерархическая, тип: income/expense) |
+| `Budget` | Бюджет (месяц, категория, лимит, rollover) |
+| `Goal` | Цель (сумма, дедлайн, автопроцент, интерес) |
+| `GoalContribution` | Взнос в цель |
+| `Wish` | Желание (приоритет, стоимость, автопроцент) |
+| `WishContribution` | Взнос в желание |
+| `RecurringTransaction` | Шаблон recurring-транзакции |
+| `Debt` | Долг (кредитор, сумма, проценты) |
+| `DebtPayment` | Платеж по долгу |
+| `Notification` | Уведомление (тип, прочитано) |
+| `NotificationSetting` | Настройки уведомлений |
+| `SafetyPillowSetting` | Настройки подушки (месяцев покрытия) |
+| `SafetyPillowHistory` | История подушки |
+| `SafetyPillowSnapshot` | Снимки подушки |
+| `AuditLog` | Журнал аудита (иммутабельный) |
+| `RefreshToken` | Refresh-токены |
+| `PasswordResetCode` | Коды сброса пароля (15 мин) |
+| `UserWidgetConfig` | Конфигурация виджетов панели |
+
+### Миграции
+
+```bash
+# Создать миграцию
+npx prisma migrate dev --name init
+
+# Применить миграции
+npx prisma migrate deploy
+
+# Сброс БД
+npx prisma migrate reset
+```
+
+---
+
+## 🧪 Тестирование
+
+```bash
+# Все бекенд-тесты (Jest)
+npm test
+
+# API smoke-тесты
+npm run test:smoke
+
+# E2E-тесты (Playwright)
+npm run test:e2e
+
+# Фронтенд-тесты
+cd client && npm test
+```
+
+### Тестовые файлы
+
+- `tests/api.test.js` — интеграционные тесты API
+- `tests/auth.test.js` — тесты аутентификации
+- `tests/transactions.test.js` — тесты транзакций
+- `tests/goals.test.js` — тесты целей
+- `tests/wishes.test.js` — тесты желаний
+- `tests/budget.test.js` — тесты бюджетов
+- `tests/smoke.js` — smoke-тесты
+- `tests/e2e/auth.spec.js` — E2E аутентификация
+- `tests/e2e/transactions.spec.js` — E2E транзакции
+- `client/src/pages/Analytics.test.jsx` — тесты аналитики
+- `client/src/services/widgetStorage.test.js` — тесты виджетов
+
+---
+
+## 🐳 Docker
+
+### Полный стек (production)
+
+```bash
+docker compose up -d
+```
+
+Поднимает:
+- `postgres` — PostgreSQL 16 Alpine
+- `backend` — Express-приложение
+- `frontend` — Nginx + React SPA
+
+### Мониторинг
+
+```bash
+docker compose -f docker-compose.monitoring.yml up -d
+```
+
+Поднимает:
+- `prometheus` — сбор метрик
+- `grafana` — визуализация
+- `loki` — агрегация логов
+
+---
+
+## 🔄 CI/CD
+
+GitHub Actions (`.github/workflows/`):
+
+| Файл | Триггер | Что делает |
+|:-----|:--------|:-----------|
+| `ci.yml` | push / PR | Бекенд-тесты, фронтенд-тесты, smoke, E2E |
+| `test.yml` | push / PR | Упрощённый запуск тестов |
+| `deploy.yml` | push на `main` | Docker build → ghcr.io → SSH deploy |
+
+---
+
+## 📁 Структура проекта
 
 ```
 Finance/
-├── client/                    # React frontend (Vite)
-├── controllers/                # Express controllers
-├── routes/                     # API routes
-├── services/                   # Business logic
-├── middleware/                # Auth, error handling, health
-├── lib/                        # Core modules
-│   ├── prisma-client.js       # Prisma client
-│   ├── logger.js              # Pino logger
-│   ├── validation.js          # Zod schemas
-│   └── errors.js               # Error classes
-├── prisma/                    # Schema & migrations
-├── jobs/                       # Cron jobs
-├── tests/                      # Jest & Playwright tests
-├── scripts/                    # Seed scripts
-├── server.js                   # Entry point
-├── package.json
-├── SECURITY.md                 # Security audit
-└── README.md
+├── client/                    # React SPA (Vite)
+│   ├── src/
+│   │   ├── pages/             # 14 страниц (ленивая загрузка)
+│   │   ├── widgets/           # 10 виджетов + DnD система
+│   │   ├── contexts/          # AuthContext
+│   │   └── services/          # API-клиент (axios), Socket.IO
+│   ├── package.json
+│   ├── tailwind.config.js
+│   └── nginx.conf
+├── controllers/               # Express-контроллеры (14)
+├── routes/                    # Маршруты (14)
+├── services/                  # Бизнес-логика (8)
+│   ├── transactionService.js
+│   ├── goalService.js
+│   ├── budgetService.js
+│   ├── debtService.js
+│   └── ...
+├── middleware/                 # auth.js, scopeMiddleware.js, errorHandler.js
+├── lib/                        # Core-модули
+│   ├── validation.js          # 25+ Zod схем
+│   ├── errors.js              # Иерархия ошибок
+│   ├── logger.js              # Pino
+│   ├── cache.js               # In-memory кеш
+│   └── prisma-client.js       # Prisma Client
+├── prisma/                    # Schema + migrations
+├── jobs/                       # Cron-задачи
+│   ├── recurringJob.js        # Recurring-транзакции
+│   ├── interestJob.js         # Проценты по целям
+│   └── snapshotJob.js         # Снимки подушки
+├── tests/                      # Jest, Playwright
+├── scripts/                    # prisma-seed.js
+├── monitoring/                 # prometheus.yml
+├── docker-compose.yml          # Продакшен стек
+├── docker-compose.monitoring.yml
+├── Dockerfile                  # Multi-stage сборка
+├── server.js                   # Точка входа Express
+└── package.json
 ```
 
 ---
 
-## 🔌 API Reference
+## 🔌 API
 
-### Auth
-| Method | Path | Description |
-|:-------|:-----|:------------|
-| POST | `/api/auth/register` | Register new user |
-| POST | `/api/auth/login` | Login, returns JWT |
-| POST | `/api/auth/forgot-password` | Request password reset |
-| POST | `/api/auth/reset-password` | Reset password with code |
-| GET | `/api/auth/me` | Current user |
+### 🔐 Аутентификация
 
-### Family
-| Method | Path | Description |
-|:-------|:-----|:------------|
-| POST | `/api/auth/family/create` | Create family |
-| POST | `/api/auth/family/join` | Join by invite code |
-| POST | `/api/auth/family/leave` | Leave family |
+| Метод | Путь | Описание |
+|:------|:-----|:---------|
+| POST | `/api/auth/register` | Регистрация |
+| POST | `/api/auth/login` | Вход |
+| POST | `/api/auth/refresh` | Обновление токена |
+| POST | `/api/auth/logout` | Выход |
+| POST | `/api/auth/forgot-password` | Запрос сброса пароля |
+| POST | `/api/auth/reset-password` | Сброс пароля |
+| GET | `/api/auth/me` | Текущий пользователь |
 
-### Transactions
-| Method | Path | Description |
-|:-------|:-----|:------------|
-| GET | `/api/transactions` | List with filters |
-| POST | `/api/transactions` | Create |
-| PUT | `/api/transactions/:id` | Update |
-| DELETE | `/api/transactions/:id` | Delete |
+### 👨‍👩‍👧‍👦 Семья
 
-### Goals
-| Method | Path | Description |
-|:-------|:-----|:------------|
-| GET | `/api/goals` | List |
-| POST | `/api/goals` | Create |
-| PUT | `/api/goals/:id` | Update |
-| DELETE | `/api/goals/:id` | Delete |
-| POST | `/api/goals/:id/contribute` | Add contribution |
+| Метод | Путь | Описание |
+|:------|:-----|:---------|
+| POST | `/api/auth/family/create` | Создать семью |
+| POST | `/api/auth/family/join` | Присоединиться по коду |
+| POST | `/api/auth/family/leave` | Покинуть семью |
+| GET | `/api/auth/family/settings` | Настройки семьи |
+| PUT | `/api/auth/family/settings` | Обновить настройки |
 
-### Wishes
-| Method | Path | Description |
-|:-------|:-----|:------------|
-| GET | `/api/wishes` | List |
-| POST | `/api/wishes` | Create |
-| POST | `/api/wishes/:id/contribute` | Add contribution |
+### 💳 Транзакции
 
-### Budgets
-| Method | Path | Description |
-|:-------|:-----|:------------|
-| GET | `/api/budgets` | List with actuals |
-| POST | `/api/budgets` | Create |
-| PUT | `/api/budgets/:id` | Update |
-| DELETE | `/api/budgets/:id` | Delete |
+| Метод | Путь | Описание |
+|:------|:-----|:---------|
+| GET | `/api/transactions` | Список (с фильтрами) |
+| POST | `/api/transactions` | Создать |
+| PUT | `/api/transactions/:id` | Обновить |
+| DELETE | `/api/transactions/:id` | Удалить |
 
-### Other
-| Method | Path | Description |
-|:-------|:-----|:------------|
-| GET | `/api/dashboard` | Dashboard data |
-| GET | `/api/categories` | Categories |
-| GET | `/api/safety-pillow/settings` | Safety pillow |
-| GET | `/api/reports/*` | Analytics |
-| GET | `/api/recurring` | Recurring transactions |
+### 🏦 Счета
 
-All protected routes require `Authorization: Bearer <token>` header.
+| Метод | Путь | Описание |
+|:------|:-----|:---------|
+| GET | `/api/accounts` | Список счетов |
+| POST | `/api/accounts` | Создать счёт |
+| PUT | `/api/accounts/:id` | Обновить |
+| DELETE | `/api/accounts/:id` | Удалить |
+| GET | `/api/accounts/:id/balance` | Баланс счёта |
+
+### 🎯 Цели
+
+| Метод | Путь | Описание |
+|:------|:-----|:---------|
+| GET | `/api/goals` | Список целей |
+| POST | `/api/goals` | Создать |
+| PUT | `/api/goals/:id` | Обновить |
+| DELETE | `/api/goals/:id` | Удалить |
+| POST | `/api/goals/:id/contribute` | Внести средства |
+
+### 🎀 Желания
+
+| Метод | Путь | Описание |
+|:------|:-----|:---------|
+| GET | `/api/wishes` | Список желаний |
+| POST | `/api/wishes` | Создать |
+| PUT | `/api/wishes/:id` | Обновить |
+| DELETE | `/api/wishes/:id` | Удалить |
+| POST | `/api/wishes/:id/contribute` | Внести средства |
+
+### 📊 Бюджеты
+
+| Метод | Путь | Описание |
+|:------|:-----|:---------|
+| GET | `/api/budgets` | Список (с фактом) |
+| POST | `/api/budgets` | Создать |
+| PUT | `/api/budgets/:id` | Обновить |
+| DELETE | `/api/budgets/:id` | Удалить |
+| GET | `/api/budgets/check` | Проверка превышений |
+
+### 💸 Долги
+
+| Метод | Путь | Описание |
+|:------|:-----|:---------|
+| GET | `/api/debts` | Список долгов |
+| POST | `/api/debts` | Создать |
+| PUT | `/api/debts/:id` | Обновить |
+| DELETE | `/api/debts/:id` | Удалить |
+| POST | `/api/debts/:id/partial-close` | Частичное погашение |
+
+### 🔁 Recurring-транзакции
+
+| Метод | Путь | Описание |
+|:------|:-----|:---------|
+| GET | `/api/recurring` | Список шаблонов |
+| POST | `/api/recurring` | Создать |
+| PUT | `/api/recurring/:id` | Обновить |
+| DELETE | `/api/recurring/:id` | Удалить |
+| POST | `/api/recurring/execute` | Ручной запуск |
+
+### 🛡️ Подушка безопасности
+
+| Метод | Путь | Описание |
+|:------|:-----|:---------|
+| GET | `/api/safety-pillow/settings` | Настройки |
+| PUT | `/api/safety-pillow/settings` | Обновить настройки |
+| GET | `/api/safety-pillow/history` | История |
+| GET | `/api/safety-pillow/snapshots` | Снимки |
+
+### 📈 Аналитика
+
+| Метод | Путь | Описание |
+|:------|:-----|:---------|
+| GET | `/api/reports/dynamics` | Динамика доходов/расходов |
+| GET | `/api/reports/category` | По категориям |
+| GET | `/api/reports/monthly-comparison` | Сравнение по месяцам |
+
+### 📤 Импорт / Экспорт
+
+| Метод | Путь | Описание |
+|:------|:-----|:---------|
+| POST | `/api/import/csv` | Импорт CSV |
+| POST | `/api/import/excel` | Импорт Excel |
+| GET | `/api/export/csv` | Экспорт CSV |
+| GET | `/api/export/excel` | Экспорт Excel |
+| GET | `/api/export/pdf` | Экспорт PDF |
+
+### 🔔 Уведомления
+
+| Метод | Путь | Описание |
+|:------|:-----|:---------|
+| GET | `/api/notifications` | Список уведомлений |
+| PUT | `/api/notifications/:id/read` | Отметить прочитанным |
+| GET | `/api/notifications/settings` | Настройки |
+| PUT | `/api/notifications/settings` | Обновить настройки |
+
+### 🧩 Виджеты
+
+| Метод | Путь | Описание |
+|:------|:-----|:---------|
+| POST | `/api/widgets/save-order` | Сохранить порядок |
+
+### 🏠 Dashboard
+
+| Метод | Путь | Описание |
+|:------|:-----|:---------|
+| GET | `/api/dashboard` | Агрегированные данные |
+
+### 📂 Категории
+
+| Метод | Путь | Описание |
+|:------|:-----|:---------|
+| GET | `/api/categories` | Список категорий |
+| POST | `/api/categories` | Создать |
+| PUT | `/api/categories/:id` | Обновить |
+| DELETE | `/api/categories/:id` | Удалить |
+| POST | `/api/categories/batch` | Пакетное создание |
+
+### 🩺 Health / Метрики
+
+| Метод | Путь | Описание |
+|:------|:-----|:---------|
+| GET | `/api/health` | Health check |
+| GET | `/metrics` | Prometheus метрики |
+
+> 🔒 Все защищённые маршруты требуют заголовок `Authorization: Bearer <token>` или cookie.
 
 ---
 
-## 🔒 Security
+## 🛡 Безопасность
 
-See [SECURITY.md](SECURITY.md) for audit details.
+Подробный аудит — в [SECURITY.md](SECURITY.md).
 
-### Implemented
-- JWT with explicit HS256 algorithm
-- Password hashing (bcrypt, cost factor 10)
-- Zod input validation
-- Rate limiting on auth endpoints
+### Реализовано
+- JWT (HS256) + refresh token с ротацией
+- Хеширование паролей (bcrypt, cost 10)
+- Валидация всех входных данных (Zod)
+- Rate limiting на auth-эндпоинтах
 - Helmet security headers
-- CORS configuration
-- IDOR protection in all controllers
+- CORS (настраиваемые origin)
+- IDOR-защита во всех контроллерах
+- Санитизация ошибок (логи без чувствительных данных)
 
-### Recommendations for Production
-- Use secret manager (AWS Secrets Manager, HashiCorp Vault)
-- Generate strong secrets: `openssl rand -base64 32`
-- Set `CORS_ORIGINS` explicitly
-- Enable SSL/TLS
-- Configure logging aggregation
+### Наработки необходимые для продакшена
+- Использовать менеджер секретов (AWS Secrets Manager, HashiCorp Vault)
+- Генерировать надёжные секреты: `openssl rand -base64 32`
+- Явно указать `CORS_ORIGINS`
+- Включить SSL/TLS
+- Настроить агрегацию логов (Loki / ELK)
+- Установить Sentry DSN
 
 ---
 
-## 📝 License
+## 📝 Лицензия
 
-ISC License - see [LICENSE](LICENSE) file.
+ISC License — см. [LICENSE](LICENSE).

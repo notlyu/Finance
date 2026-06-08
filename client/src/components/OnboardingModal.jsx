@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 const ONBOARDING_KEY = 'onboarding_completed';
 const ONBOARDING_VERSION = '1';
@@ -29,7 +28,6 @@ const slides = [
 ];
 
 export default function OnboardingModal() {
-  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
 
@@ -81,7 +79,7 @@ export default function OnboardingModal() {
           style={{ background: `linear-gradient(135deg, ${slide.color}20, ${slide.color}05)` }}
         >
           <div
-            className="w-20 h-20 rounded-2xl flex items-center justify-center"
+            className="w-20 h-20 rounded-3xl flex items-center justify-center"
             style={{ backgroundColor: slide.color }}
           >
             <span className="material-symbols-outlined text-white text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -131,11 +129,6 @@ export default function OnboardingModal() {
 }
 
 export function resetOnboarding() {
-  localStorage.removeItem(ONBOARDING_KEY);
-  localStorage.removeItem(`${ONBOARDING_KEY}_version`);
-}
-
-export function showOnboarding() {
   localStorage.removeItem(ONBOARDING_KEY);
   localStorage.removeItem(`${ONBOARDING_KEY}_version`);
 }

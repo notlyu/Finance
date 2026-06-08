@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const { logger } = require('../lib/errors');
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -11,7 +12,7 @@ const transporter = nodemailer.createTransport({
 });
 
 transporter.verify().catch(() => {
-  console.warn('Email transport not configured. Reset emails will be logged to console.');
+  logger.warn('Email transport not configured. Reset emails will be logged to console.');
 });
 
 async function sendPasswordResetEmail(email, code) {
@@ -32,17 +33,15 @@ async function sendPasswordResetEmail(email, code) {
   };
 
   if (!process.env.SMTP_HOST) {
-    console.log('\n=== PASSWORD RESET CODE (DEV MODE) ===');
-    console.log(`To: ${email}`);
-    console.log(`Code: ${code}`);
-    console.log('========================================\n');
+    logger.info({ email, code }, 'Password reset code (dev mode)');
     return;
   }
 
   try {
     await transporter.sendMail(mailOptions);
   } catch (err) {
-    console.error('SMTP send failed:', err.message);
+    logger.error({ err }, 'SMTP send failed');
+    throw err;
   }
 }
 

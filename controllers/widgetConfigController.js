@@ -29,7 +29,7 @@ exports.getWidgetConfig = async (req, res, next) => {
 exports.updateWidgetConfig = async (req, res, next) => {
   try {
     const user = req.user;
-    const { personal_widgets, family_widgets } = req.body;
+    const { personal_widgets, family_widgets } = req.validated;
     
     const data = { updated_at: new Date() };
     if (personal_widgets !== undefined) data.personal_widgets = personal_widgets;

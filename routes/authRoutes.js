@@ -63,7 +63,7 @@ const router = express.Router();
 
 const authStrictLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 100,
   message: { message: 'Слишком много попыток, попробуйте через 15 минут' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -97,7 +97,7 @@ router.post('/change-password',
 
 router.post('/forgot-password', 
   authStrictLimiter,
-  validateMiddleware('auth', 'login'), 
+  validateMiddleware('auth', 'forgotPassword'), 
   authController.forgotPassword
 );
 
@@ -107,6 +107,7 @@ router.post('/reset-password',
 );
 
 router.get('/me', authMiddleware, authController.getMe);
+router.patch('/me', authMiddleware, authController.updateProfile);
 
 router.post('/family/create', 
   authMiddleware, 
@@ -130,12 +131,12 @@ router.delete('/family/invites/:id', authMiddleware, validateObjectId, authContr
 
 router.delete('/family/members/:memberId', authMiddleware, validateMemberId, authController.removeFamilyMember);
 
-router.post('/family/transfer-ownership', authMiddleware, authController.transferOwnership);
+router.post('/family/transfer-ownership', authMiddleware, validateMiddleware('auth', 'transferOwnership'), authController.transferOwnership);
 
-router.post('/refresh-token', authController.refreshToken);
+router.post('/refresh-token', authStrictLimiter, authController.refreshToken);
 
-router.post('/revoke-token', authController.revokeToken);
+router.post('/revoke-token', authStrictLimiter, authController.revokeToken);
 
-router.post('/logout', authMiddleware, authController.logout);
+router.post('/logout', authController.logout);
 
 module.exports = router;

@@ -7,7 +7,7 @@ const Skeleton = ({ className = '', variant = 'text' }) => {
     text: 'h-4 w-full',
     title: 'h-6 w-3/4',
     avatar: 'h-12 w-12 rounded-full',
-    card: 'h-32 w-full rounded-2xl',
+    card: 'h-32 w-full rounded-3xl',
     button: 'h-10 w-24 rounded-xl',
     row: 'h-16 w-full rounded-xl',
   };
@@ -16,6 +16,7 @@ const Skeleton = ({ className = '', variant = 'text' }) => {
     <div className={`${baseClasses} ${variants[variant]} ${className}`} />
   );
 };
+
 
 export const SkeletonText = ({ lines = 3, className = '' }) => (
   <div className={`space-y-2 ${className}`}>
@@ -26,7 +27,7 @@ export const SkeletonText = ({ lines = 3, className = '' }) => (
 );
 
 export const SkeletonCard = ({ className = '' }) => (
-  <div className={`bg-surface-container-lowest rounded-2xl p-4 space-y-3 ${className}`}>
+  <div className={`bg-surface-container-lowest rounded-3xl p-4 space-y-3 ${className}`}>
     <div className="flex items-center gap-3">
       <Skeleton variant="avatar" />
       <div className="flex-1 space-y-2">
@@ -52,7 +53,7 @@ export const SkeletonTable = ({ rows = 5, cols = 4, className = '' }) => (
 );
 
 export const SkeletonChart = ({ className = '' }) => (
-  <div className={`bg-surface-container-lowest rounded-2xl p-6 ${className}`}>
+  <div className={`bg-surface-container-lowest rounded-3xl p-6 ${className}`}>
     <Skeleton variant="title" className="mb-4" />
     <div className="h-64 flex items-end gap-2">
       {Array.from({ length: 12 }).map((_, i) => (

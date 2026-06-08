@@ -1,4 +1,6 @@
 import { io } from 'socket.io-client';
+import { getAccessToken } from './api';
+import logger from '../utils/logger';
 
 class SocketService {
   constructor() {
@@ -9,10 +11,10 @@ class SocketService {
   connect() {
     if (this.socket?.connected) return;
 
-    const token = localStorage.getItem('token');
+    const token = getAccessToken();
     if (!token) return;
 
-    const wsUrl = import.meta.env.VITE_WS_URL || 'http://localhost:5000';
+    const wsUrl = process.env.REACT_APP_WS_URL || `http://localhost:${window.location.port === '3000' ? '3001' : window.location.port}`;
 
     this.socket = io(wsUrl, {
       auth: { token },
@@ -23,15 +25,15 @@ class SocketService {
     });
 
     this.socket.on('connect', () => {
-      console.log('WebSocket connected');
+      logger.info('WebSocket connected');
     });
 
     this.socket.on('disconnect', (reason) => {
-      console.log('WebSocket disconnected:', reason);
+      logger.info('WebSocket disconnected:', reason);
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('WebSocket connection error:', error.message);
+      logger.error('WebSocket connection error:', error.message);
     });
 
     this.socket.on('notification', (notification) => {

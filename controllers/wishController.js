@@ -44,12 +44,12 @@ exports.fundWish = async (req, res, next) => {
       throw new NotFoundError('Желание не найдено');
     }
 
-    let amount = parseFloat(req.body.amount);
+    let amount = parseFloat(req.validated.amount);
     if (!amount || amount <= 0 || isNaN(amount)) {
       throw new ValidationError('Укажите корректную сумму для пополнения');
     }
 
-    const accountId = req.body.account_id ? Number(req.body.account_id) : null;
+    const accountId = req.validated.account_id ? Number(req.validated.account_id) : null;
     let account = null;
     if (accountId) {
       account = await prisma.account.findFirst({
@@ -65,7 +65,7 @@ exports.fundWish = async (req, res, next) => {
     const { balance, available } = await calcAvailableFunds(user.id, fundsForWish);
     const afterContribution = available - amount;
     const threshold = balance * 0.1;
-    const warning = afterContribution < threshold && !req.body.skipWarning
+    const warning = afterContribution < threshold && !req.validated.skipWarning
       ? { warning: true, available, afterContribution, threshold }
       : null;
     if (warning) {
@@ -142,6 +142,8 @@ exports.getWishes = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const offset = Number(req.query.offset) || 0;
 
     const where = familyId
       ? {
@@ -156,14 +158,19 @@ exports.getWishes = async (req, res, next) => {
       where.archived = false;
     }
 
-    const wishes = await prisma.wish.findMany({
-      where,
-      include: {
-        user: { select: { id: true, name: true } },
-        family: { select: { id: true, name: true } }
-      },
-      orderBy: [{ priority: 'asc' }, { created_at: 'desc' }]
-    });
+    const [wishes, total] = await Promise.all([
+      prisma.wish.findMany({
+        where,
+        include: {
+          user: { select: { id: true, name: true } },
+          family: { select: { id: true, name: true } }
+        },
+        orderBy: [{ priority: 'asc' }, { created_at: 'desc' }],
+        take: limit,
+        skip: offset,
+      }),
+      prisma.wish.count({ where }),
+    ]);
 
     const result = wishes.map(wish => {
       const isOwner = wish.user_id === user.id;
@@ -195,7 +202,7 @@ exports.getWishes = async (req, res, next) => {
     });
 
     logger.info(`User ${user.id} fetched ${wishes.length} wishes`);
-    res.json(result);
+    res.json({ items: result, total, limit, offset });
   } catch (error) {
     next(error);
   }
@@ -215,7 +222,7 @@ exports.getWishById = async (req, res, next) => {
       include: {
         user: { select: { id: true, name: true } },
         family: { select: { id: true, name: true, owner_user_id: true } },
-        wishContributions: { orderBy: { date: 'desc' } }
+        contributions: { orderBy: { created_at: 'desc' } }
       }
     });
 
@@ -258,7 +265,7 @@ exports.createWish = async (req, res, next) => {
     const user = req.user;
     const familyId = user.family_id;
 
-    const { name, cost, priority, status, saved_amount, scope: reqScope, category_id } = req.body;
+    const { name, cost, priority, status, saved_amount, scope: reqScope, category_id } = req.validated;
 
     if (!name || !cost) {
       throw new ValidationError('Название и стоимость обязательны');
@@ -312,7 +319,7 @@ exports.updateWish = async (req, res, next) => {
     if (!Number.isInteger(wishId) || wishId <= 0) {
       throw new ValidationError('Неверный ID');
     }
-    const updateData = req.body;
+    const updateData = req.validated;
 
     const familyId = user.family_id;
 
@@ -366,13 +373,14 @@ exports.deleteWish = async (req, res, next) => {
       throw new NotFoundError('Желание не найдено');
     }
 
-    if (wish.user_id !== user.id && user.Family?.owner_user_id !== user.id) {
+    if (wish.user_id !== user.id && user.family?.owner_user_id !== user.id) {
       throw new ForbiddenError('Нет прав на удаление');
     }
 
+    await prisma.wishContribution.deleteMany({ where: { wish_id: Number(id) } });
     await prisma.wish.delete({ where: { id: Number(id) } });
     logger.info(`User ${user.id} deleted wish ${id}`);
-    res.json({ message: 'Желание удалено' });
+    res.status(204).send();
   } catch (error) {
     next(error);
   }
@@ -382,7 +390,7 @@ exports.contributeToWish = async (req, res, next) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    const { amount, date, createTransaction, category_id, comment, skipWarning } = req.body;
+    const { amount, date, createTransaction, category_id, comment, skipWarning, account_id: accountId } = req.validated;
 
     if (!amount || amount <= 0) {
       throw new ValidationError('Сумма должна быть положительным числом');
@@ -440,8 +448,8 @@ exports.contributeToWish = async (req, res, next) => {
       const contribution = await tx.wishContribution.create({
         data: {
           wish_id: wish.id,
+          user_id: user.id,
           amount,
-          date: date || new Date(),
           transaction_id: transactionId,
         }
       });
@@ -490,7 +498,14 @@ exports.exportWishes = async (req, res, next) => {
       w.id, w.name, w.cost, w.saved_amount, w.priority, w.status, w.scope || (w.family_id ? 'family' : 'personal'),
       w.user?.name || '', w.family_id ? 'семейное' : 'личное'
     ]);
-    const csv = [header.join(','), ...rows.map(r => r.map(v => String(v ?? '')).join(','))].join('\n');
+    const csv = [header.join(','), ...rows.map(r => r.map(v => {
+      let s = String(v ?? '');
+      if (/^[=+\-@]/.test(s)) s = "'" + s;
+      if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+        s = '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    }).join(','))].join('\n');
     logger.info(`User ${user.id} exported ${wishes.length} wishes`);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="wishes.csv"');

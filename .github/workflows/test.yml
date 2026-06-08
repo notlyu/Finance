@@ -47,3 +47,19 @@ jobs:
           JWT_SECRET: test_secret_for_ci
           FRONTEND_URL: http://localhost:5173
         run: npm test
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install client dependencies
+        run: npm ci
+        working-directory: ./client
+      - name: Frontend tests
+        run: npx react-scripts test --watchAll=false --no-coverage
+        working-directory: ./client

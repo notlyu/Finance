@@ -68,7 +68,7 @@ export default function WidgetEditorModal({ isOpen, onClose, widgetConfig, onSav
                 const def = WIDGET_DEFINITIONS[w.type];
                 if (!def) return null;
                 return (
-                  <div key={w.id} className="flex items-center gap-3 p-3 bg-surface-container rounded-2xl">
+                  <div key={w.id} className="flex items-center gap-3 p-3 bg-surface-container rounded-3xl">
                     <span className="material-symbols-outlined text-primary">{def.icon}</span>
                     <span className="flex-1 text-sm font-medium">{def.name}</span>
                     <div className="flex gap-1">
@@ -102,7 +102,7 @@ export default function WidgetEditorModal({ isOpen, onClose, widgetConfig, onSav
                     key={def.id}
                     onClick={() => !isActive && addWidget(def.id)}
                     disabled={isActive}
-                    className={`w-full flex items-center gap-3 p-3 rounded-2xl text-left transition-all ${
+                    className={`w-full flex items-center gap-3 p-3 rounded-3xl text-left transition-all ${
                       isActive ? 'bg-surface-container-high opacity-50 cursor-not-allowed' : 'bg-surface-container hover:bg-surface-container-high'
                     }`}
                   >

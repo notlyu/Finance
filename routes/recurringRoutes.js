@@ -9,7 +9,7 @@ router.use(authMiddleware);
 
 router.get('/', recurringController.getRecurring);
 router.post('/', validateMiddleware('recurring', 'create'), recurringController.createRecurring);
-router.put('/:id', validateObjectId, validateMiddleware('recurring', 'update'), recurringController.updateRecurring);
+router.patch('/:id', validateObjectId, validateMiddleware('recurring', 'update'), recurringController.updateRecurring);
 router.delete('/:id', validateObjectId, recurringController.deleteRecurring);
 
 module.exports = router;

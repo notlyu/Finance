@@ -19,7 +19,7 @@ const createTransaction = async (req, res, next) => {
         throw new UnauthorizedError();
     }
     try {
-        const result = await transactionService.createTransaction(req.user.id, req.user.family_id, req.body);
+        const result = await transactionService.createTransaction(req.user.id, req.user.family_id, req.validated);
         
         logger.info({ 
             userId: req.user.id, 
@@ -63,7 +63,7 @@ const updateTransaction = async (req, res, next) => {
     }
     try {
         const oldTx = await transactionService.getTransactionById(req.params.id, req.user.family_id, req.user.id);
-        const transaction = await transactionService.updateTransaction(req.params.id, req.user.family_id, req.user.id, req.body);
+        const transaction = await transactionService.updateTransaction(req.params.id, req.user.family_id, req.user.id, req.validated);
         
         logger.info({ 
             userId: req.user.id, 
@@ -105,10 +105,34 @@ const deleteTransaction = async (req, res, next) => {
     }
 };
 
+const batchDeleteTransactions = async (req, res, next) => {
+    if (!req.user) {
+        throw new UnauthorizedError();
+    }
+    try {
+        const { ids } = req.body;
+        if (!Array.isArray(ids) || ids.length === 0) {
+            throw new ValidationError('ids must be a non-empty array');
+        }
+        const result = await transactionService.batchDeleteTransactions(ids, req.user.family_id, req.user.id);
+        
+        logger.info({
+            userId: req.user.id,
+            count: result.deleted,
+            action: 'batchDeleteTransactions'
+        });
+
+        res.json(result);
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getTransactions,
     createTransaction,
     getTransactionById,
     updateTransaction,
-    deleteTransaction
+    deleteTransaction,
+    batchDeleteTransactions
 };

@@ -167,7 +167,7 @@ export default function ForgotPassword() {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="w-full py-4 bg-gradient-to-r from-primary to-primary-container text-white font-bold text-lg rounded-2xl shadow-button hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50"
+                      className="w-full py-4 bg-gradient-to-r from-primary to-primary-container text-white font-bold text-lg rounded-3xl shadow-button hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50"
                     >
                       {loading ? 'Отправка...' : step === 'request' ? 'Отправить код' : 'Изменить пароль'}
                     </button>
@@ -176,7 +176,7 @@ export default function ForgotPassword() {
               )}
 
               <div className="mt-10 pt-8 border-t border-surface-container flex flex-col items-center gap-4">
-                <a href="/login" className="w-full py-3.5 border-2 border-outline-variant hover:border-primary/40 hover:bg-surface-container text-on-surface font-bold text-sm rounded-2xl transition-all flex items-center justify-center gap-2">
+                <a href="/login" className="w-full py-3.5 border-2 border-outline-variant hover:border-primary/40 hover:bg-surface-container text-on-surface font-bold text-sm rounded-3xl transition-all flex items-center justify-center gap-2">
                   <span className="material-symbols-outlined text-sm">arrow_back</span>
                   Вернуться ко входу
                 </a>

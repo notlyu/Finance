@@ -24,7 +24,7 @@ exports.getAccounts = async (req, res, next) => {
 exports.createAccount = async (req, res, next) => {
   try {
     const user = req.user;
-    const { name, type, balance, currency, scope: reqScope, is_liquid } = req.body;
+    const { name, type, balance, currency, scope: reqScope, is_liquid } = req.validated;
     if (!name || !type) {
       throw new ValidationError('Name and type are required');
     }
@@ -52,7 +52,7 @@ exports.updateAccount = async (req, res, next) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    const { name, type, balance, currency, scope: reqScope, is_active, is_liquid } = req.body;
+    const { name, type, balance, currency, scope: reqScope, is_active, is_liquid } = req.validated;
     const account = await prisma.account.findFirst({
       where: {
         id: Number(id),

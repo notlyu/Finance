@@ -2,50 +2,51 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
 const debtService = require('../services/debtService');
+const { validateMiddleware, validateObjectId } = require('../lib/validation');
 
 router.use(authMiddleware);
 
 router.get('/', async (req, res, next) => {
   try {
-    const debts = await debtService.getDebts(req.user.id, req.user.family_id);
-    res.json(debts);
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const offset = Number(req.query.offset) || 0;
+    const result = await debtService.getDebts(req.user.id, req.user.family_id, limit, offset);
+    res.json(result);
   } catch (error) {
     next(error);
   }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', validateMiddleware('debt', 'create'), async (req, res, next) => {
   try {
-    const debt = await debtService.createDebt(req.user.id, req.user.family_id, req.body);
+    const debt = await debtService.createDebt(req.user.id, req.user.family_id, req.validated);
     res.status(201).json(debt);
   } catch (error) {
     next(error);
   }
 });
 
-router.put('/:id', async (req, res, next) => {
+router.patch('/:id', validateObjectId, validateMiddleware('debt', 'update'), async (req, res, next) => {
   try {
-    const debt = await debtService.updateDebt(Number(req.params.id), req.user.id, req.user.family_id, req.body);
+    const debt = await debtService.updateDebt(req.params.id, req.user.id, req.user.family_id, req.validated);
     res.json(debt);
   } catch (error) {
     next(error);
   }
 });
 
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', validateObjectId, async (req, res, next) => {
   try {
-    await debtService.deleteDebt(Number(req.params.id), req.user.id, req.user.family_id);
+    await debtService.deleteDebt(req.params.id, req.user.id, req.user.family_id);
     res.status(204).send();
   } catch (error) {
     next(error);
   }
 });
 
-router.patch('/:id/close-partial', async (req, res, next) => {
+router.patch('/:id/close-partial', validateObjectId, validateMiddleware('debt', 'closePartial'), async (req, res, next) => {
   try {
-    const { amount } = req.body;
-    if (!amount || amount <= 0) throw new Error('Invalid amount');
-    const debt = await debtService.closePartial(Number(req.params.id), req.user.id, req.user.family_id, Number(amount));
+    const debt = await debtService.closePartial(req.params.id, req.user.id, req.user.family_id, req.validated.amount, req.body.account_id);
     res.json(debt);
   } catch (error) {
     next(error);

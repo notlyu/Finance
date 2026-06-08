@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom';
-import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../services/api';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
@@ -7,6 +7,7 @@ import FormattedInput from '../components/ui/FormattedInput';
 import { useForm } from 'react-hook-form';
 import { formatMoney } from '../utils/format';
 import { showError } from '../utils/toast';
+import logger from '../utils/logger';
 
 function formatMonth(date) {
   const y = date.getFullYear();
@@ -19,6 +20,7 @@ function formatYear(date) { return String(date.getFullYear()); }
 function currentYear() { return formatYear(new Date()); }
 
 export default function Budgets({ space = 'personal' }) {
+  const navigate = useNavigate();
   const [month, setMonth] = useState(currentMonth());
   const [year, setYear] = useState(currentYear());
   const [items, setItems] = useState([]);
@@ -28,10 +30,33 @@ export default function Budgets({ space = 'personal' }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [memberFilter, setMemberFilter] = useState(null);
   const [members, setMembers] = useState([]);
-  const [memberContributions, setMemberContributions] = useState({});
+
   const [confirmModal, setConfirmModal] = useState({ open: false, onConfirm: null, title: '', message: '' });
-  const [editLimitModal, setEditLimitModal] = useState({ open: false, budgetId: null, currentLimit: 0, onSave: null });
+  const [editModal, setEditModal] = useState({ open: false, budget: null });
   const [periodType, setPeriodType] = useState('month');
+  const [sortField, setSortField] = useState('limit_amount');
+  const [sortDir, setSortDir] = useState('desc');
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('desc');
+    }
+  };
+
+  const sortedItems = useMemo(() => {
+    return [...items].sort((a, b) => {
+      let cmp = 0;
+      if (sortField === 'limit_amount') cmp = Number(a.limit_amount) - Number(b.limit_amount);
+      else if (sortField === 'actual_amount') cmp = Number(a.actual_amount || 0) - Number(b.actual_amount || 0);
+      else if (sortField === 'progress') cmp = Number(a.progress || 0) - Number(b.progress || 0);
+      else if (sortField === 'category_name') cmp = (a.category_name || '').localeCompare(b.category_name || '', 'ru');
+      else if (sortField === 'category_type') cmp = (a.category_type || 'expense').localeCompare(b.category_type || 'expense');
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [items, sortField, sortDir]);
   const { register, handleSubmit, reset, watch, setValue } = useForm({
     defaultValues: {
       month: currentMonth(),
@@ -43,51 +68,59 @@ export default function Budgets({ space = 'personal' }) {
     }
   });
 
-  const fetchBudgets = async () => {
-    const params = periodType === 'year' ? { period: 'year', year } : { month };
+  const fetchBudgets = async (targetMonth) => {
+    const params = periodType === 'year' ? { period: 'year', year } : { month: targetMonth || month };
     if (memberFilter) params.memberId = memberFilter;
     try {
       const budgetsRes = await api.get('/budgets', { params });
       setItems(budgetsRes.data?.items || []);
-      setMemberContributions(budgetsRes.data?.memberContributions || {});
     } catch (err) {
-      console.error('Budget fetch error:', err);
+      logger.error('Budget fetch error:', err);
       showError('Ошибка загрузки бюджетов: ' + (err.response?.data?.message || err.message));
     }
   };
 
-  const fetchCategories = async () => {
-    try {
-      const catRes = await api.get('/categories');
-      setCategories(catRes.data || []);
-    } catch (err) {
-      console.error('Categories fetch error:', err);
-    }
-  };
-
-  const fetchMembers = async () => {
-    try {
-      const dashRes = await api.get('/dashboard');
-      if (dashRes.data?.family?.memberStats) {
-        setMembers(dashRes.data.family.memberStats);
-      }
-    } catch (err) {
-      console.error('Dashboard fetch error:', err);
-    }
-  };
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
-    // Независимые запросы — ошибка одного не блокирует другие
+    const params = periodType === 'year' ? { period: 'year', year } : { month };
+    if (memberFilter) params.memberId = memberFilter;
     await Promise.allSettled([
-      fetchBudgets(),
-      fetchCategories(),
-      fetchMembers(),
+      (async () => {
+        try {
+          const budgetsRes = await api.get('/budgets', { params });
+          setItems(budgetsRes.data?.items || []);
+        } catch (err) {
+          logger.error('Budget fetch error:', err);
+          showError('Ошибка загрузки бюджетов: ' + (err.response?.data?.message || err.message));
+        }
+      })(),
+      (async () => {
+        try {
+          const catRes = await api.get('/categories');
+          setCategories(catRes.data || []);
+        } catch (err) {
+          logger.error('Categories fetch error:', err);
+        }
+      })(),
+      (async () => {
+        try {
+          const dashRes = await api.get('/dashboard');
+          if (dashRes.data?.family?.memberStats) {
+            setMembers(dashRes.data.family.memberStats);
+          }
+        } catch (err) {
+          logger.error('Dashboard fetch error:', err);
+        }
+      })(),
     ]);
     setLoading(false);
-  };
+  }, [month, year, memberFilter, periodType]);
 
-  useEffect(() => { fetchData(); }, [month, year, memberFilter, periodType]);
+  useEffect(() => {
+    let c = false;
+    fetchData().then(() => c || undefined).catch(() => {});
+    return () => { c = true; };
+  }, [fetchData]);
 
   const onCreate = async (data) => {
     try {
@@ -124,17 +157,18 @@ export default function Budgets({ space = 'personal' }) {
       reset(); 
       if (budgetMonth !== month && periodType !== 'year') {
         setMonth(budgetMonth);
+      } else {
+        fetchBudgets();
       }
-      fetchBudgets();
     } catch (err) { 
-      console.error('Create budget error:', err); 
-      showError(err.response?.data?.message || 'Ошибка'); 
+      logger.error('Create budget error:', err);
+      showError(err.response?.data?.message || 'Ошибка при создании бюджета');
     }
   };
 
-  const onUpdate = async (id, nextLimit) => {
-    try { await api.put(`/budgets/${id}`, { limit_amount: Number(nextLimit) }); fetchBudgets(); }
-    catch (err) { console.error(err); showError(err.response?.data?.message || 'Ошибка'); }
+  const onUpdate = async (id, data) => {
+    try { await api.patch(`/budgets/${id}`, data); fetchBudgets(); }
+    catch (err) { logger.error(err); showError(err.response?.data?.message || 'Ошибка при обновлении бюджета'); }
   };
 
   const onDelete = async (id) => {
@@ -146,7 +180,7 @@ export default function Budgets({ space = 'personal' }) {
       confirmText: 'Удалить',
       onConfirm: async () => {
         try { await api.delete(`/budgets/${id}`); fetchBudgets(); }
-        catch (err) { console.error(err); showError(err.response?.data?.message || 'Ошибка'); }
+        catch (err) { logger.error(err); }
       }
     });
   };
@@ -170,10 +204,10 @@ export default function Budgets({ space = 'personal' }) {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <Link to="/" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors mb-2">
+          <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors mb-2">
             <span className="material-symbols-outlined text-sm">arrow_back</span>
             Назад
-          </Link>
+          </button>
           <h2 className="text-3xl font-extrabold tracking-tight text-on-surface font-headline">Бюджеты</h2>
           <p className="text-on-surface-variant text-sm mt-1">{items.length} бюджетов • {periodType === 'year' ? `Год ${year}` : month}</p>
         </div>
@@ -194,7 +228,7 @@ export default function Budgets({ space = 'personal' }) {
             <button 
               type="button" 
               onClick={() => { setPeriodType('month'); setMonth(currentMonth()); }} 
-              className={`flex px-4 py-2 rounded-lg text-sm font-bold transition-all ${periodType === 'month' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
+              className={`flex px-4 py-2 rounded-xl text-sm font-bold transition-all ${periodType === 'month' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
             >
               <span className="material-symbols-outlined text-sm mr-1 align-middle">calendar_month</span>
               Месяц
@@ -202,7 +236,7 @@ export default function Budgets({ space = 'personal' }) {
             <button 
               type="button" 
               onClick={() => { setPeriodType('year'); setYear(currentYear()); }} 
-              className={`flex px-4 py-2 rounded-lg text-sm font-bold transition-all ${periodType === 'year' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
+              className={`flex px-4 py-2 rounded-xl text-sm font-bold transition-all ${periodType === 'year' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:bg-surface-container-high'}`}
             >
               <span className="material-symbols-outlined text-sm mr-1 align-middle">event</span>
               Год
@@ -252,7 +286,7 @@ export default function Budgets({ space = 'personal' }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-surface-container-lowest p-5 rounded-3xl shadow-card">
           <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center text-secondary">
+            <div className="w-8 h-8 rounded-xl bg-secondary/10 flex items-center justify-center text-secondary">
               <span className="material-symbols-outlined text-sm">trending_up</span>
             </div>
             <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Доходы</p>
@@ -264,7 +298,7 @@ export default function Budgets({ space = 'personal' }) {
         </div>
         <div className="bg-surface-container-lowest p-5 rounded-3xl shadow-card">
           <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-error/10 flex items-center justify-center text-error">
+            <div className="w-8 h-8 rounded-xl bg-error/10 flex items-center justify-center text-error">
               <span className="material-symbols-outlined text-sm">trending_down</span>
             </div>
             <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Расходы</p>
@@ -276,7 +310,7 @@ export default function Budgets({ space = 'personal' }) {
         </div>
         <div className="bg-surface-container-lowest p-5 rounded-3xl shadow-card">
           <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
               <span className="material-symbols-outlined text-sm">savings</span>
             </div>
             <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Накопления</p>
@@ -287,7 +321,7 @@ export default function Budgets({ space = 'personal' }) {
         <div className="bg-gradient-to-br from-primary to-primary-container text-white p-5 rounded-3xl shadow-button relative overflow-hidden">
           <div className="absolute -top-6 -right-6 w-20 h-20 bg-white/10 rounded-full blur-xl"></div>
           <div className="flex items-center gap-2 mb-2 relative">
-            <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
               <span className="material-symbols-outlined text-sm">account_balance_wallet</span>
             </div>
             <p className="text-xs font-bold text-white/70 uppercase tracking-widest">Свободно</p>
@@ -303,16 +337,26 @@ export default function Budgets({ space = 'personal' }) {
             <thead className="bg-surface-container">
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Активно</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Тип</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Категория</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">План</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Факт</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Прогресс</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest cursor-pointer hover:text-on-surface select-none" onClick={() => handleSort('category_type')}>
+                  Тип{sortField === 'category_type' && <span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest cursor-pointer hover:text-on-surface select-none" onClick={() => handleSort('category_name')}>
+                  Категория{sortField === 'category_name' && <span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest cursor-pointer hover:text-on-surface select-none" onClick={() => handleSort('limit_amount')}>
+                  План{sortField === 'limit_amount' && <span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest cursor-pointer hover:text-on-surface select-none" onClick={() => handleSort('actual_amount')}>
+                  Факт{sortField === 'actual_amount' && <span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest cursor-pointer hover:text-on-surface select-none" onClick={() => handleSort('progress')}>
+                  Прогресс{sortField === 'progress' && <span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+                </th>
                 <th className="px-6 py-4 text-right text-xs font-bold text-on-surface-variant uppercase tracking-widest"></th>
               </tr>
             </thead>
             <tbody>
-              {items.map((b, i) => {
+              {sortedItems.map((b, i) => {
                 const progress = Math.min(100, Math.round(Number(b.progress || 0)));
                 const isOver = Number(b.actual_amount || 0) > Number(b.limit_amount || 0);
                 const hasMembers = b.spent_by_members && b.spent_by_members.length > 1 && b.spent_by_members.some(m => m.amount > 0);
@@ -367,10 +411,10 @@ export default function Budgets({ space = 'personal' }) {
               </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => setEditLimitModal({ open: true, budgetId: b.id, currentLimit: Number(b.limit_amount || 0), onSave: onUpdate })} className="w-9 h-9 flex items-center justify-center rounded-lg text-primary hover:bg-primary/10 transition-colors">
+                        <button onClick={() => setEditModal({ open: true, budget: b })} className="w-9 h-9 flex items-center justify-center rounded-xl text-primary hover:bg-primary/10 transition-colors">
                           <span className="material-symbols-outlined text-sm">edit</span>
                         </button>
-                        <button onClick={() => onDelete(b.id)} className="w-9 h-9 flex items-center justify-center rounded-lg text-error hover:bg-error-container transition-colors">
+                        <button onClick={() => onDelete(b.id)} className="w-9 h-9 flex items-center justify-center rounded-xl text-error hover:bg-error-container transition-colors">
                           <span className="material-symbols-outlined text-sm">delete</span>
                         </button>
                       </div>
@@ -378,7 +422,7 @@ export default function Budgets({ space = 'personal' }) {
                   </tr>
                 );
               })}
-              {items.length === 0 && (
+              {sortedItems.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-6 py-16 text-center">
                     <span className="material-symbols-outlined text-5xl text-outline mb-3">account_balance_wallet</span>
@@ -412,11 +456,11 @@ export default function Budgets({ space = 'personal' }) {
           <div>
             <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Тип бюджета</label>
             <div className="flex bg-surface-container rounded-xl p-1">
-              <button type="button" onClick={() => setValue('budgetType', 'expense')} className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${watch('budgetType') === 'expense' || !watch('budgetType') ? 'bg-error text-white shadow-sm' : 'text-on-surface-variant hover:bg-surface-container-high'}`}>
+              <button type="button" onClick={() => setValue('budgetType', 'expense')} className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${watch('budgetType') === 'expense' || !watch('budgetType') ? 'bg-error text-white shadow-sm' : 'text-on-surface-variant hover:bg-surface-container-high'}`}>
                 <span className="material-symbols-outlined text-sm mr-1 align-middle">trending_down</span>
                 Расход
               </button>
-              <button type="button" onClick={() => setValue('budgetType', 'income')} className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${watch('budgetType') === 'income' ? 'bg-secondary text-white shadow-sm' : 'text-on-surface-variant hover:bg-surface-container-high'}`}>
+              <button type="button" onClick={() => setValue('budgetType', 'income')} className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${watch('budgetType') === 'income' ? 'bg-secondary text-white shadow-sm' : 'text-on-surface-variant hover:bg-surface-container-high'}`}>
                 <span className="material-symbols-outlined text-sm mr-1 align-middle">trending_up</span>
                 Доход
               </button>
@@ -478,43 +522,52 @@ export default function Budgets({ space = 'personal' }) {
         confirmText={confirmModal.confirmText}
       />
 
-      {editLimitModal.open && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-black/50" onClick={() => setEditLimitModal({ open: false })}></div>
+      {editModal.open && (
+        <Modal isOpen={editModal.open} onClose={() => setEditModal({ open: false })} title="Редактировать бюджет">
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            const data = {};
+            const limit = fd.get('limit_amount');
+            if (limit) data.limit_amount = Number(limit);
+            const month = fd.get('month');
+            if (month && month !== editModal.budget.month) data.month = month;
+            const cat = fd.get('category_id');
+            if (cat && Number(cat) !== editModal.budget.category_id) data.category_id = Number(cat);
+            const type = fd.get('budgetType');
+            if (type && type !== editModal.budget.category_type) data.type = type;
+            if (Object.keys(data).length > 0) onUpdate(editModal.budget.id, data);
+            setEditModal({ open: false });
+          }} className="space-y-6">
+            <div>
+              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Месяц</label>
+              <input type="month" name="month" defaultValue={editModal.budget.month} className="select-ghost w-full" />
             </div>
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom bg-surface-container-lowest rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
-              <div className="bg-surface-container-lowest px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <h3 className="text-lg leading-6 font-bold font-headline text-on-surface">Изменить лимит</h3>
-                <div className="mt-4">
-                  <input
-                    type="number"
-                    defaultValue={editLimitModal.currentLimit}
-                    className="input-ghost w-full"
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        const val = e.target.value;
-                        if (val) editLimitModal.onSave(editLimitModal.budgetId, val);
-                        setEditLimitModal({ open: false });
-                      }
-                    }}
-                  />
-                </div>
-                <div className="mt-6 flex gap-3 justify-end">
-                  <button onClick={() => setEditLimitModal({ open: false })} className="btn-ghost px-4 py-2.5">Отмена</button>
-                  <button onClick={(e) => {
-                    const val = e.target.parentElement.parentElement.querySelector('input').value;
-                    if (val) editLimitModal.onSave(editLimitModal.budgetId, val);
-                    setEditLimitModal({ open: false });
-                  }} className="btn-primary px-4 py-2.5">Сохранить</button>
-                </div>
-              </div>
+            <div>
+              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Тип</label>
+              <select name="budgetType" defaultValue={editModal.budget.category_type || 'expense'} className="select-ghost w-full">
+                <option value="expense">Расход</option>
+                <option value="income">Доход</option>
+              </select>
             </div>
-          </div>
-        </div>
+            <div>
+              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Категория</label>
+              <select name="category_id" defaultValue={editModal.budget.category_id} className="select-ghost w-full">
+                {categories.filter(c => c.type === (editModal.budget.category_type || 'expense')).map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Лимит (₽)</label>
+              <input type="number" name="limit_amount" defaultValue={editModal.budget.limit_amount} className="input-ghost w-full" min={1} />
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button type="button" onClick={() => setEditModal({ open: false })} className="btn-ghost px-6 py-3">Отмена</button>
+              <button type="submit" className="btn-primary px-8 py-3">Сохранить</button>
+            </div>
+          </form>
+        </Modal>
       )}
     </div>
   );

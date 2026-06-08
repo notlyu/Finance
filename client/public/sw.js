@@ -35,6 +35,9 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
 
   if (url.pathname.startsWith('/api/')) {
+    if (url.origin !== self.location.origin) {
+      return;
+    }
     event.respondWith(handleApiRequest(request));
     return;
   }

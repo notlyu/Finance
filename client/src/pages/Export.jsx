@@ -2,12 +2,15 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { showError } from '../utils/toast';
+import logger from '../utils/logger';
+import { localDateStr } from '../utils/date';
 
 const EXPORT_TYPES = [
   { value: 'transactions', label: 'Операции', icon: 'receipt_long' },
   { value: 'goals', label: 'Цели', icon: 'track_changes' },
   { value: 'wishes', label: 'Желания', icon: 'favorite' },
   { value: 'budgets', label: 'Бюджеты', icon: 'account_balance_wallet' },
+  { value: 'analytics', label: 'Аналитика', icon: 'analytics' },
 ];
 
 const FORMATS = [
@@ -16,7 +19,7 @@ const FORMATS = [
 ];
 
 export default function Export({ space = 'personal' }) {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [type, setType] = useState(searchParams.get('type') || 'transactions');
   const [format, setFormat] = useState('xlsx');
   const [startDate, setStartDate] = useState('');
@@ -42,13 +45,13 @@ export default function Export({ space = 'personal' }) {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${type}_${new Date().toISOString().slice(0, 10)}.${format === 'xlsx' ? 'xlsx' : 'csv'}`;
+      link.download = `${type}_${localDateStr()}.${format === 'xlsx' ? 'xlsx' : 'csv'}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      console.error(err);
+      logger.error(err);
       showError(err.response?.data?.message || 'Ошибка при экспорте');
     } finally {
       setLoading(false);
@@ -71,7 +74,7 @@ export default function Export({ space = 'personal' }) {
                 <button
                   key={t.value}
                   onClick={() => setType(t.value)}
-                  className={`p-4 rounded-2xl border-2 transition-all text-center ${
+                  className={`p-4 rounded-3xl border-2 transition-all text-center ${
                     type === t.value
                       ? 'border-primary bg-primary/5 text-primary'
                       : 'border-outline-variant/20 text-on-surface-variant hover:bg-surface-container'

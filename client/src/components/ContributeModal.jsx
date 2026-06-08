@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Modal from './Modal';
 import api from '../services/api';
 import { formatMoney } from '../utils/format';
+import logger from '../utils/logger';
 
 export default function ContributeModal({ isOpen, onClose, title, subjectName, onContribute }) {
   const [amount, setAmount] = useState('');
@@ -25,7 +26,7 @@ export default function ContributeModal({ isOpen, onClose, title, subjectName, o
         const preferred = expenseCats.find(c => /накоп|сбереж/i.test(c.name)) || expenseCats[0];
         setCategoryId(preferred ? String(preferred.id) : '');
         setPillow(pillowRes.data || null);
-      } catch (e) { console.error(e); setCategories([]); setCategoryId(''); setPillow(null); }
+      } catch (e) { logger.error(e); setCategories([]); setCategoryId(''); setPillow(null); }
       finally { setLoading(false); }
     })();
   }, [isOpen]);

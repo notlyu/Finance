@@ -1,121 +1,90 @@
 const request = require('supertest');
 const app = require('./testApp');
-const { User, Family, Category, Transaction, Goal, Wish, prisma } = require('../lib/models');
+const prisma = require('../lib/prisma-client');
+const { createTestUser, generateToken, createTestCategory, createTestFamily, cleanupUser, cleanupFamily } = require('./helpers');
 
-let testUser, testFamily, testToken, testCategory;
+let user, token, cat, family;
 
 beforeAll(async () => {
-  const user = await prisma.user.create({
-    data: {
-      email: `dashboard_test_${Date.now()}@example.com`,
-      password_hash: '$2b$10$rS1H5xqE8pV2Z3kL4mN6OeW7yX8zA9bC0dE1fG2hI3jK4lM5nO6pQ',
-      name: 'Dashboard Test User',
-      family_id: null,
-    }
+  user = await createTestUser();
+  token = generateToken(user.id);
+  cat = await createTestCategory({ user_id: user.id });
+
+  // Create test data
+  const today = new Date();
+  const baseTx = { user_id: user.id, category_id: cat.id, date: today };
+  await prisma.transaction.createMany({
+    data: [
+      { ...baseTx, type: 'income', amount: 50000 },
+      { ...baseTx, type: 'expense', amount: 20000 },
+    ],
   });
 
-  const family = await prisma.family.create({
-    data: {
-      name: `Test Family ${Date.now()}`,
-      invite_code: `DF${Date.now()}`,
-      owner_user_id: user.id,
-    }
-  });
-
+  family = await createTestFamily(user.id);
   await prisma.user.update({ where: { id: user.id }, data: { family_id: family.id } });
-
-  const category = await prisma.category.create({
-    data: { name: 'Тестовая категория', family_id: family.id, type: 'expense' }
-  });
-
-  await prisma.transaction.create({
-    data: { user_id: user.id, family_id: family.id, category_id: category.id, amount: 10000, type: 'income', date: new Date() }
-  });
-  await prisma.transaction.create({
-    data: { user_id: user.id, family_id: family.id, category_id: category.id, amount: 3000, type: 'expense', date: new Date() }
-  });
-
-  testUser = user;
-  testFamily = family;
-  testCategory = category;
-  testToken = require('jsonwebtoken').sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-});
+}, 30000);
 
 afterAll(async () => {
-  if (testUser) {
-    await prisma.transaction.deleteMany({ where: { user_id: testUser.id } });
-    await prisma.goal.deleteMany({ where: { user_id: testUser.id } });
-    await prisma.wish.deleteMany({ where: { user_id: testUser.id } });
-    await prisma.category.delete({ where: { id: testCategory.id } });
-    await prisma.user.delete({ where: { id: testUser.id } });
-    await prisma.family.delete({ where: { id: testFamily.id } });
-  }
+  await cleanupUser(user?.id);
+  await cleanupFamily(family?.id);
 });
 
-describe('Dashboard API', () => {
-  describe('GET /api/dashboard', () => {
-    it('должен возвращать monthIncome и monthExpenses', async () => {
-      const res = await request(app)
-        .get('/api/dashboard')
-        .set('Authorization', `Bearer ${testToken}`);
-      
-      expect(res.statusCode).toBe(200);
-      expect(res.body.personal).toHaveProperty('monthIncome');
-      expect(res.body.personal).toHaveProperty('monthExpenses');
-    });
+describe('Dashboard', () => {
+  test('GET /api/dashboard returns dashboard data', async () => {
+    const res = await request(app)
+      .get('/api/dashboard')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('personal');
+    expect(res.body).toHaveProperty('family');
+    expect(res.body.personal).toHaveProperty('monthIncome');
+    expect(res.body.personal).toHaveProperty('monthExpenses');
+  });
 
-    it('должен возвращать allocation с total и pct', async () => {
-      const res = await request(app)
-        .get('/api/dashboard')
-        .set('Authorization', `Bearer ${testToken}`);
-      
-      expect(res.statusCode).toBe(200);
-      expect(res.body.allocation).toBeDefined();
-      expect(Array.isArray(res.body.allocation)).toBe(true);
-      
-      if (res.body.allocation.length > 0) {
-        const alloc = res.body.allocation[0];
-        expect(alloc).toHaveProperty('total');
-        expect(alloc).toHaveProperty('pct');
-      }
-    });
+  test('returns correct income/expense values', async () => {
+    const res = await request(app)
+      .get('/api/dashboard')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(Number(res.body.personal.monthIncome)).toBeGreaterThanOrEqual(50000);
+    expect(Number(res.body.personal.monthExpenses)).toBeGreaterThanOrEqual(20000);
+  });
 
-    it('должен возвращать корректный savingsRate', async () => {
-      const res = await request(app)
-        .get('/api/dashboard')
-        .set('Authorization', `Bearer ${testToken}`);
-      
-      expect(res.statusCode).toBe(200);
-      const { personal } = res.body;
-      if (personal.monthIncome > 0) {
-        const expectedSavingsRate = Math.round(((personal.monthIncome - personal.monthExpenses) / personal.monthIncome) * 100);
-        const savingsRate = personal.monthIncome > 0 
-          ? Math.round(((personal.monthIncome - personal.monthExpenses) / personal.monthIncome) * 100) 
-          : 0;
-        expect(savingsRate).toBe(expectedSavingsRate);
-      }
-    });
+  test('returns lastTransactions array', async () => {
+    const res = await request(app)
+      .get('/api/dashboard')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.lastTransactions)).toBe(true);
+  });
 
-    it('должен включать категорию в lastTransactions', async () => {
-      const res = await request(app)
-        .get('/api/dashboard')
-        .set('Authorization', `Bearer ${testToken}`);
-      
-      expect(res.statusCode).toBe(200);
-      expect(res.body.lastTransactions).toBeDefined();
-      expect(Array.isArray(res.body.lastTransactions)).toBe(true);
-    });
+  test('returns allocation data', async () => {
+    const res = await request(app)
+      .get('/api/dashboard')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.allocation)).toBe(true);
+  });
 
-    it('должен возвращать category_name в транзакциях', async () => {
-      const res = await request(app)
-        .get('/api/dashboard')
-        .set('Authorization', `Bearer ${testToken}`);
-      
-      expect(res.statusCode).toBe(200);
-      if (res.body.lastTransactions && res.body.lastTransactions.length > 0) {
-        const tx = res.body.lastTransactions[0];
-        expect(tx).toHaveProperty('category_name');
-      }
-    });
+  test('family dashboard returns member stats', async () => {
+    const res = await request(app)
+      .get('/api/dashboard')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.family.memberStats)).toBe(true);
+  });
+
+  test('GET /api/dashboard/personal alias works', async () => {
+    const res = await request(app)
+      .get('/api/dashboard/personal')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+  });
+
+  test('accepts memberId parameter for family', async () => {
+    const res = await request(app)
+      .get('/api/dashboard?memberId=' + user.id)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
   });
 });

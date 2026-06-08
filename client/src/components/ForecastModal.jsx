@@ -98,7 +98,7 @@ export default function ForecastModal({ goal, isOpen, onClose }) {
         <div className="flex bg-surface-container p-1 rounded-xl">
           <button
             onClick={() => { setMode('term'); setInputValue(Math.max(1000, Math.round(remaining / 12))); }}
-            className={`flex-1 py-2 text-sm font-medium rounded-lg transition ${
+            className={`flex-1 py-2 text-sm font-medium rounded-xl transition ${
               mode === 'term' ? 'bg-surface-container-lowest shadow text-primary' : 'text-on-surface-variant'
             }`}
           >
@@ -106,7 +106,7 @@ export default function ForecastModal({ goal, isOpen, onClose }) {
           </button>
           <button
             onClick={() => { setMode('contribution'); setInputValue(12); }}
-            className={`flex-1 py-2 text-sm font-medium rounded-lg transition ${
+            className={`flex-1 py-2 text-sm font-medium rounded-xl transition ${
               mode === 'contribution' ? 'bg-surface-container-lowest shadow text-primary' : 'text-on-surface-variant'
             }`}
           >
@@ -131,7 +131,7 @@ export default function ForecastModal({ goal, isOpen, onClose }) {
             step={mode === 'term' ? 100 : 1}
             value={inputValue}
             onChange={(e) => setInputValue(Number(e.target.value))}
-            className="w-full h-2 bg-surface-container-high rounded-lg appearance-none cursor-pointer accent-primary"
+            className="w-full h-2 bg-surface-container-high rounded-xl appearance-none cursor-pointer accent-primary"
           />
           <div className="flex justify-between text-xs text-on-surface-variant/60">
             <span>{mode === 'term' ? '100 ₽' : '1 мес.'}</span>

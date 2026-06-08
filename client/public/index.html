@@ -10,14 +10,7 @@
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
 
     <!-- Apply theme BEFORE any styles load -->
-    <script>
-      (function() {
-        var saved = localStorage.getItem('theme');
-        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        var theme = saved || (prefersDark ? 'dark' : 'light');
-        if (theme === 'dark') document.documentElement.classList.add('dark');
-      })();
-    </script>
+    <script src="%PUBLIC_URL%/theme.js"></script>
 
     <!-- Fonts: Manrope + Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -32,18 +25,6 @@
   <body>
     <noscript>Для работы приложения необходим JavaScript.</noscript>
     <div id="root"></div>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then((registration) => {
-              console.log('SW registered:', registration.scope);
-            })
-            .catch((error) => {
-              console.log('SW registration failed:', error);
-            });
-        });
-      }
-    </script>
+    <script src="%PUBLIC_URL%/sw-register.js"></script>
   </body>
 </html>

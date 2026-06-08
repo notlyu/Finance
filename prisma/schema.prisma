@@ -13,6 +13,7 @@ model User {
   name                 String
   family_id            Int?
   created_at           DateTime               @default(now())
+  deleted_at           DateTime?
   accounts             Account[]
   auditLogs            AuditLog[]
   budget               Budget[]
@@ -31,6 +32,8 @@ model User {
   widgetConfig         UserWidgetConfig?
   wishes               Wish[]
   wishContributions    WishContribution[]
+
+  @@index([family_id])
 }
 
 model Family {
@@ -80,6 +83,8 @@ model FamilyInvite {
   family     Family       @relation(fields: [family_id], references: [id])
   usedByUser User?        @relation("UsedInvites", fields: [used_by], references: [id])
 
+  @@index([family_id])
+  @@index([created_by])
   @@index([used_by])
 }
 
@@ -108,8 +113,9 @@ model Account {
   type         String                 @default("bank")
   balance      Decimal                @default(0) @db.Decimal(12, 2)
   currency     String                 @default("RUB")
-  is_active    Boolean       @default(true)
-  is_liquid    Boolean       @default(true)
+  is_active    Boolean                @default(true)
+  is_liquid    Boolean                @default(true)
+  scope        Scope                  @default(personal)
   created_at   DateTime               @default(now())
   updated_at   DateTime               @default(now())
   family       Family?                @relation(fields: [family_id], references: [id])
@@ -158,6 +164,8 @@ model Goal {
   deadline                DateTime?
   category_id             Int?
   is_archived             Boolean                @default(false)
+  archived_at             DateTime?
+  scope                   Scope                  @default(personal)
   created_at              DateTime               @default(now())
   updated_at              DateTime               @default(now())
   auto_contribute_enabled Boolean                @default(false)
@@ -184,6 +192,10 @@ model GoalContribution {
   goal           Goal         @relation(fields: [goal_id], references: [id])
   transaction    Transaction? @relation(fields: [transaction_id], references: [id])
   user           User         @relation(fields: [user_id], references: [id])
+
+  @@unique([goal_id, transaction_id])
+  @@index([goal_id])
+  @@index([user_id])
 }
 
 model WishContribution {
@@ -196,6 +208,9 @@ model WishContribution {
   transaction    Transaction? @relation(fields: [transaction_id], references: [id])
   user           User         @relation(fields: [user_id], references: [id])
   wish           Wish         @relation(fields: [wish_id], references: [id])
+
+  @@index([wish_id])
+  @@index([user_id])
 }
 
 model Wish {
@@ -251,6 +266,9 @@ model RecurringTransaction {
   start_month    String
   comment        String?
   active         Boolean  @default(true)
+  skip_next      Boolean  @default(false)
+  end_date       DateTime?
+  scope          Scope    @default(personal)
   last_run_month String?
   created_at     DateTime @default(now())
   updated_at     DateTime @default(now())
@@ -304,6 +322,9 @@ model SafetyPillowHistory {
   family_id      Int?
   family         Family?  @relation(fields: [family_id], references: [id])
   user           User?    @relation(fields: [user_id], references: [id])
+
+  @@index([user_id, calculated_at])
+  @@index([family_id, calculated_at])
 }
 
 model Notification {
@@ -317,6 +338,9 @@ model Notification {
   created_at   DateTime @default(now())
   related_id   Int?
   related_type String?
+
+  @@index([user_id, read])
+  @@index([user_id, created_at])
 }
 
 model NotificationSetting {
@@ -336,6 +360,9 @@ model PasswordResetToken {
   token      String
   expires_at DateTime
   created_at DateTime @default(now())
+
+  @@index([token])
+  @@index([user_id])
 }
 
 model RefreshToken {
@@ -380,6 +407,7 @@ model Debt {
   interest_rate      Decimal?               @db.Decimal(5, 2)
   monthly_payment    Decimal                @db.Decimal(12, 2)
   type               String                 @default("credit")
+  debt_type          String                 @default("loan")
   start_date         DateTime
   end_date           DateTime?
   notes              String?

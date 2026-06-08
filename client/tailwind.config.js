@@ -102,10 +102,18 @@ module.exports = {
       },
       borderRadius: {
         DEFAULT: '0.25rem',
-        lg: '0.5rem',
-        xl: '0.75rem',
+        sm: '6px',
+        md: '12px',
+        lg: '16px',
+        xl: '24px',
         '2xl': '1.25rem',
         '3xl': '1.5rem',
+      },
+      fontSize: {
+        'page':    ['28px', { fontWeight: '700', lineHeight: '1.2' }],
+        'section': ['20px', { fontWeight: '600', lineHeight: '1.3' }],
+        'body':    ['15px', { fontWeight: '400', lineHeight: '1.5' }],
+        'caption': ['12px', { fontWeight: '400', lineHeight: '1.4' }],
       },
       fontFamily: {
         headline: ['Manrope', 'sans-serif'],

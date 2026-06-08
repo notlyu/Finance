@@ -9,5 +9,6 @@ router.get('/transactions', exportController.exportTransactions);
 router.get('/goals', exportController.exportGoals);
 router.get('/wishes', exportController.exportWishes);
 router.get('/budgets', exportController.exportBudgets);
+router.get('/analytics', exportController.exportAnalytics);
 
 module.exports = router;

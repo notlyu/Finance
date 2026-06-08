@@ -126,7 +126,7 @@ function GoalsContent({ data }) {
           {data.goals.slice(0, 3).map(g => {
             const progress = Math.min(100, Math.round((Number(g.current_amount) / Number(g.target_amount)) * 100));
             return (
-              <div key={g.id} className="min-w-[200px] flex flex-col gap-2 p-4 bg-surface-container rounded-2xl">
+              <div key={g.id} className="min-w-[200px] flex flex-col gap-2 p-4 bg-surface-container rounded-3xl">
                 <div className="flex items-start justify-between">
                   <span className="font-bold text-sm line-clamp-1">{g.name}</span>
                   <span className="text-sm font-bold text-primary">{progress}%</span>
@@ -151,7 +151,7 @@ function MemberStatsContent({ data }) {
       {data.memberStats?.map(m => {
         const pct = data.displayIncome > 0 ? Math.round((m.income / data.displayIncome) * 100) : 0;
         return (
-          <div key={m.userId} className="min-w-[160px] p-3.5 bg-surface-container rounded-2xl">
+          <div key={m.userId} className="min-w-[160px] p-3.5 bg-surface-container rounded-3xl">
             <div className="flex items-center gap-2.5 mb-2">
               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">{m.name?.charAt(0)}</div>
               <div><p className="font-semibold text-sm truncate">{m.name}</p><p className="text-xs text-on-surface-variant">{pct}% дохода</p></div>

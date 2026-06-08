@@ -52,8 +52,8 @@ async function runSnapshotMonthly() {
 
 async function calculateForUser(userId, familyId) {
   const txFilter = familyId
-    ? { OR: [{ family_id: familyId, is_personal: false }, { family_id: null, user_id: userId, is_personal: true }] }
-    : { family_id: null, user_id: userId, is_personal: true };
+    ? { OR: [{ family_id: familyId, scope: { in: ['family', 'shared'] } }, { family_id: null, user_id: userId, scope: 'personal' }] }
+    : { family_id: null, user_id: userId, scope: 'personal' };
 
   const threeMonthsAgo = new Date();
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
@@ -86,7 +86,7 @@ async function calculateForUser(userId, familyId) {
 }
 
 async function calculateForFamily(familyId) {
-  const txFilter = { family_id: familyId, is_personal: false };
+  const txFilter = { family_id: familyId, scope: { in: ['family', 'shared'] } };
 
   const threeMonthsAgo = new Date();
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);

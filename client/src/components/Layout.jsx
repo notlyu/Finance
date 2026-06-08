@@ -1,6 +1,6 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
-import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import NotificationBell from './NotificationBell';
 
 export const FAMILY_CHANGED_EVENT = 'family:changed';
@@ -8,18 +8,15 @@ export const FAMILY_CHANGED_EVENT = 'family:changed';
 export default function Layout({ space = 'personal', currentSpace, onSpaceChange }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [user, setUser] = useState(null);
-  const [familyMembers, setFamilyMembers] = useState([]);
+  const { user, logout: authLogout } = useAuth();
   const [selectedMember, setSelectedMember] = useState(null);
-  const [memberMenuOpen, setMemberMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [currentDate, setCurrentDate] = useState('');
-  const memberMenuRef = useRef(null);
   const moreMenuRef = useRef(null);
 
   const basePath = `/${space}`;
-  
+
   const personalNav = [
     { name: 'Главная', path: `${basePath}/dashboard`, icon: 'dashboard' },
     { name: 'Операции', path: `${basePath}/transactions`, icon: 'receipt_long' },
@@ -50,22 +47,14 @@ export default function Layout({ space = 'personal', currentSpace, onSpaceChange
 
   const activeNavItems = space === 'personal' ? personalNav : familyNav;
 
+  // Синхронизируем selectedMember с user из AuthContext (убран дублирующий GET /auth/me)
   useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const res = await api.get('/auth/me');
-        setUser(res.data);
-        setSelectedMember(res.data);
-        if (res.data.family && res.data.family.members) {
-          setFamilyMembers(res.data.family.members);
-        } else {
-          setFamilyMembers([]);
-        }
-      } catch (err) { console.error(err); }
-    };
-    fetchUser();
+    if (user) setSelectedMember(user);
+  }, [user]);
 
-    const onFamilyChanged = () => fetchUser();
+  // При событии смены семьи selectedMember сбросится и обновится через AuthContext
+  useEffect(() => {
+    const onFamilyChanged = () => setSelectedMember(null);
     window.addEventListener(FAMILY_CHANGED_EVENT, onFamilyChanged);
     return () => window.removeEventListener(FAMILY_CHANGED_EVENT, onFamilyChanged);
   }, []);
@@ -78,7 +67,6 @@ export default function Layout({ space = 'personal', currentSpace, onSpaceChange
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (memberMenuRef.current && !memberMenuRef.current.contains(e.target)) setMemberMenuOpen(false);
       if (moreMenuRef.current && !moreMenuRef.current.contains(e.target)) setMoreMenuOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -86,72 +74,13 @@ export default function Layout({ space = 'personal', currentSpace, onSpaceChange
   }, []);
 
   const logout = async () => {
-    try {
-      const refreshToken = localStorage.getItem('refreshToken');
-      if (refreshToken) {
-        await api.post('/auth/logout', { refreshToken });
-      }
-    } catch (err) {
-      console.error('Logout API error:', err);
-    }
-    localStorage.removeItem('token');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('refreshTokenExpiresAt');
+    await authLogout();
     navigate('/login');
-  };
-
-  const selectMember = (member) => {
-    setSelectedMember(member);
-    setMemberMenuOpen(false);
-    window.dispatchEvent(new Event('memberContextChanged'));
   };
 
   const isActive = (path) => location.pathname === path;
 
   const pageTitle = activeNavItems.find(n => location.pathname.startsWith(n.path))?.name || '';
-
-  const MemberSwitcher = () => (
-    <div className="relative" ref={memberMenuRef}>
-      <button
-        onClick={() => setMemberMenuOpen(!memberMenuOpen)}
-        className="flex items-center gap-2 w-full px-3 py-2 rounded-xl hover:bg-surface-container transition-colors"
-      >
-        <div className="w-8 h-8 rounded-full overflow-hidden bg-surface-container">
-          <div className="w-full h-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
-            {selectedMember?.name?.charAt(0).toUpperCase() || '?'}
-          </div>
-        </div>
-        <div className="flex flex-col items-start min-w-0 flex-1">
-          <span className="text-xs font-bold text-on-surface leading-none truncate">{selectedMember?.name || '...'}</span>
-          <span className="text-[10px] text-on-surface-variant uppercase tracking-tighter">{user?.family?.owner_user_id === user?.id ? 'Владелец' : user?.family_id ? 'Участник' : 'Личный'}</span>
-        </div>
-        <span className="material-symbols-outlined text-sm text-on-surface-variant">expand_more</span>
-      </button>
-
-      {memberMenuOpen && familyMembers.length > 1 && (
-        <div className="absolute bottom-full left-0 mb-2 w-56 bg-surface-container-lowest rounded-2xl shadow-ambient overflow-hidden z-50">
-          <div className="p-3 border-b border-outline-variant/20">
-            <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Переключить вид</p>
-          </div>
-          {familyMembers.map(m => (
-            <button
-              key={m.id}
-              onClick={() => selectMember(m)}
-              className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors ${
-                selectedMember?.id === m.id ? 'bg-primary/5 text-primary' : 'text-on-surface hover:bg-surface-container'
-              }`}
-            >
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs shrink-0">
-                {m.name?.charAt(0).toUpperCase() || '?'}
-              </div>
-              <span className="text-sm font-medium truncate">{m.name}</span>
-              {selectedMember?.id === m.id && <span className="material-symbols-outlined text-primary text-sm ml-auto">check</span>}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 
   return (
     <div className="bg-surface text-on-surface min-h-screen font-body selection:bg-primary-container selection:text-white">
@@ -241,11 +170,11 @@ export default function Layout({ space = 'personal', currentSpace, onSpaceChange
             <span className="material-symbols-outlined text-sm">add</span>
             Добавить операцию
           </Link>
-          <Link to={`${basePath}/settings`} className="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors rounded-lg">
+          <Link to={`${basePath}/settings`} className="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors rounded-xl">
             <span className="material-symbols-outlined">account_circle</span>
             <span className="font-headline text-sm font-medium tracking-tight">Профиль</span>
           </Link>
-          <button onClick={logout} className="flex items-center gap-3 w-full px-3 py-2 text-on-surface-variant hover:text-error hover:bg-surface-container transition-colors rounded-lg">
+          <button onClick={logout} className="flex items-center gap-3 w-full px-3 py-2 text-on-surface-variant hover:text-error hover:bg-surface-container transition-colors rounded-xl">
             <span className="material-symbols-outlined">logout</span>
             <span className="font-headline text-sm font-medium tracking-tight">Выйти</span>
           </button>
@@ -255,6 +184,12 @@ export default function Layout({ space = 'personal', currentSpace, onSpaceChange
       {/* Top App Bar */}
       <header className="fixed top-0 right-0 left-0 md:left-64 z-30 flex justify-between items-center px-6 py-3 bg-surface/80 backdrop-blur-md shadow-sm">
         <div className="flex items-center gap-4">
+          <button
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="md:hidden p-2 -ml-2 text-on-surface-variant hover:opacity-70 transition-opacity"
+          >
+            <span className="material-symbols-outlined text-2xl">menu</span>
+          </button>
           <h2 className="font-headline text-lg font-semibold text-on-surface">{pageTitle}</h2>
           {/* Space Switcher */}
           {user?.family_id && (
@@ -302,13 +237,19 @@ export default function Layout({ space = 'personal', currentSpace, onSpaceChange
       {/* Mobile Menu */}
       {isMobileMenuOpen && (
         <div className="md:hidden fixed inset-0 z-50 bg-surface/95 backdrop-blur-sm pt-16 px-6">
+          <button
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="absolute top-4 right-4 p-2 text-on-surface-variant hover:opacity-70 transition-opacity"
+          >
+            <span className="material-symbols-outlined text-2xl">close</span>
+          </button>
           <nav className="space-y-2">
             {activeNavItems.map((item) => (
               <Link
                 key={item.path}
                 to={item.path}
                 onClick={() => setIsMobileMenuOpen(false)}
-                className={`flex items-center gap-4 px-4 py-4 rounded-2xl transition-colors ${
+                className={`flex items-center gap-4 px-4 py-4 rounded-3xl transition-colors ${
                   isActive(item.path) ? 'bg-surface-container-lowest text-primary font-bold' : 'text-on-surface-variant hover:bg-surface-container'
                 }`}
               >
@@ -316,7 +257,7 @@ export default function Layout({ space = 'personal', currentSpace, onSpaceChange
                 <span className="font-headline text-base font-medium">{item.name}</span>
               </Link>
             ))}
-            <button onClick={logout} className="flex items-center gap-4 w-full px-4 py-4 text-error rounded-2xl hover:bg-error-container transition-colors">
+            <button onClick={logout} className="flex items-center gap-4 w-full px-4 py-4 text-error rounded-3xl hover:bg-error-container transition-colors">
               <span className="material-symbols-outlined">logout</span>
               <span className="font-headline text-base font-medium">Выйти</span>
             </button>
@@ -338,7 +279,7 @@ export default function Layout({ space = 'personal', currentSpace, onSpaceChange
             key={item.path}
             to={item.path}
             className={`flex flex-col items-center justify-center ${
-              isActive(item.path) ? 'text-primary bg-primary/10 rounded-2xl px-3 py-1' : 'text-on-surface-variant/60'
+              isActive(item.path) ? 'text-primary bg-primary/10 rounded-3xl px-3 py-1' : 'text-on-surface-variant/60'
             }`}
           >
             <span className="material-symbols-outlined text-2xl mb-1" style={{ fontVariationSettings: isActive(item.path) ? "'FILL' 1" : "'FILL' 0" }}>
@@ -351,14 +292,14 @@ export default function Layout({ space = 'personal', currentSpace, onSpaceChange
           <button
             onClick={() => setMoreMenuOpen(!moreMenuOpen)}
             className={`flex flex-col items-center justify-center ${
-              moreMenuOpen ? 'text-primary bg-primary/10 rounded-2xl px-3 py-1' : 'text-on-surface-variant/60'
+              moreMenuOpen ? 'text-primary bg-primary/10 rounded-3xl px-3 py-1' : 'text-on-surface-variant/60'
             }`}
           >
             <span className="material-symbols-outlined text-2xl mb-1">menu</span>
             <span>Меню</span>
           </button>
           {moreMenuOpen && (
-            <div className="absolute bottom-full right-0 mb-2 w-52 bg-surface-container-lowest rounded-2xl shadow-ambient overflow-hidden z-50">
+            <div className="absolute bottom-full right-0 mb-2 w-52 bg-surface-container-lowest rounded-3xl shadow-ambient overflow-hidden z-50">
               {activeNavItems.slice(4).map((item) => (
                 <Link
                   key={item.path}

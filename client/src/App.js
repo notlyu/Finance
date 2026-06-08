@@ -1,25 +1,37 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { ToastContainer } from './utils/toast';
 import { socketService } from './services/socket';
+import { getAccessToken } from './services/api';
 import ErrorBoundary from './components/ErrorBoundary';
 import OnboardingModal from './components/OnboardingModal';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import Layout from './components/Layout';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
-import DashboardWithWidgets from './pages/DashboardWithWidgets';
-import Transactions from './pages/Transactions';
-import GoalsWishes from './pages/GoalsWishes';
-import SafetyPillow from './pages/SafetyPillow';
-import Layout from './components/Layout';
-import Analytics from './pages/Analytics';
-import Family from './pages/Family';
-import Settings from './pages/Settings';
-import Budgets from './pages/Budgets';
-import Recurring from './pages/Recurring';
-import Debts from './pages/Debts';
-import Import from './pages/Import';
-import Export from './pages/Export';
+
+const DashboardWithWidgets = lazy(() => import('./pages/DashboardWithWidgets'));
+const Transactions = lazy(() => import('./pages/Transactions'));
+const GoalsWishes = lazy(() => import('./pages/GoalsWishes'));
+const SafetyPillow = lazy(() => import('./pages/SafetyPillow'));
+const Analytics = lazy(() => import('./pages/Analytics'));
+const Family = lazy(() => import('./pages/Family'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Budgets = lazy(() => import('./pages/Budgets'));
+const Recurring = lazy(() => import('./pages/Recurring'));
+const Debts = lazy(() => import('./pages/Debts'));
+const Import = lazy(() => import('./pages/Import'));
+const Export = lazy(() => import('./pages/Export'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+    </div>
+  );
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,13 +48,29 @@ const queryClient = new QueryClient({
 });
 
 const PrivateRoute = ({ children }) => {
-  const token = localStorage.getItem('token');
-  return token ? children : <Navigate to="/login" />;
+  const { isAuthenticated, loading } = useAuth();
+  if (loading) return <PageLoader />;
+  return isAuthenticated ? children : <Navigate to="/login" />;
 };
 
-function App() {
-  const [currentSpace, setCurrentSpace] = useState('personal');
-  
+// AppRoutes живёт внутри BrowserRouter, поэтому может использовать useLocation
+function AppRoutes() {
+  const [currentSpace, setCurrentSpace] = useState(
+    () => localStorage.getItem('currentSpace') || 'personal'
+  );
+  const location = useLocation();
+
+  // Синхронизируем currentSpace с реальным URL (TZ_v3 §13)
+  useEffect(() => {
+    if (location.pathname.startsWith('/family')) {
+      setCurrentSpace('family');
+      localStorage.setItem('currentSpace', 'family');
+    } else if (location.pathname.startsWith('/personal')) {
+      setCurrentSpace('personal');
+      localStorage.setItem('currentSpace', 'personal');
+    }
+  }, [location.pathname]);
+
   useEffect(() => {
     const saved = localStorage.getItem('theme');
     if (saved === 'dark') {
@@ -57,25 +85,24 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
+    if (getAccessToken()) {
       socketService.connect();
     }
     return () => socketService.disconnect();
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <ErrorBoundary>
-          <ToastContainer />
-          <OnboardingModal />
+    <AuthProvider>
+      <ErrorBoundary>
+        <ToastContainer />
+        <OnboardingModal />
+        <Suspense fallback={<PageLoader />}>
           <Routes>
-            {/* Auth routes - no space */}
+            {/* Auth routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ForgotPassword />} />
-            
+
             {/* Personal Space */}
             <Route path="/personal" element={<PrivateRoute><Layout space="personal" currentSpace={currentSpace} onSpaceChange={setCurrentSpace} /></PrivateRoute>}>
               <Route index element={<Navigate to="/personal/dashboard" replace />} />
@@ -90,7 +117,7 @@ function App() {
               <Route path="import" element={<Import />} />
               <Route path="export" element={<Export space="personal" />} />
               <Route path="settings" element={<Settings />} />
-             </Route>
+            </Route>
 
             {/* Family Space */}
             <Route path="/family" element={<PrivateRoute><Layout space="family" currentSpace={currentSpace} onSpaceChange={setCurrentSpace} /></PrivateRoute>}>
@@ -107,13 +134,22 @@ function App() {
               <Route path="export" element={<Export space="family" />} />
               <Route path="manage" element={<Family />} />
               <Route path="settings" element={<Settings />} />
-             </Route>
+            </Route>
 
-            {/* Legacy routes redirect to personal */}
             <Route path="/" element={<Navigate to="/personal/dashboard" replace />} />
-            <Route path="*" element={<Navigate to="/personal/dashboard" replace />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
-        </ErrorBoundary>
+        </Suspense>
+      </ErrorBoundary>
+    </AuthProvider>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AppRoutes />
       </BrowserRouter>
     </QueryClientProvider>
   );

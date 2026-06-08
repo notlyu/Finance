@@ -1,4 +1,5 @@
 const prisma = require('../lib/prisma-client');
+const { logger } = require('../lib/errors');
 
 const PILLOW_LEVELS = {
   minimal: { months: 3, label: 'Минимальная', color: '#EF4444' },
@@ -144,7 +145,7 @@ async function recalculateAndSave(userId, familyId) {
     });
     return result;
   } catch (error) {
-    console.error('Safety pillow recalculation error:', error);
+    logger.error({ err: error }, 'Safety pillow recalculation error');
   }
 }
 

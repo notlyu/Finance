@@ -1,14 +1,30 @@
 import api from './api';
+import logger from '../utils/logger';
+
+function toWidgetArray(widgetData) {
+  if (Array.isArray(widgetData)) return widgetData;
+  if (widgetData && Array.isArray(widgetData.widgets)) {
+    return widgetData.widgets.map((w, i) => {
+      if (typeof w === 'string') return { id: w, type: w, order: i };
+      return w;
+    });
+  }
+  return null;
+}
+
+function toWidgetPayload(widgetArray) {
+  return { widgets: widgetArray.map(w => w.type || w.id) };
+}
 
 export async function getWidgetConfig(userId, familyId) {
   try {
     const res = await api.get('/widget-config');
-    return familyId
-      ? res.data.family_widgets || getDefaultConfig(familyId)
-      : res.data.personal_widgets || getDefaultConfig(null);
+    const raw = familyId
+      ? res.data.family_widgets
+      : res.data.personal_widgets;
+    return toWidgetArray(raw) || getDefaultConfig(familyId);
   } catch (e) {
-    console.error('Failed to load widget config from API', e);
-    // Fallback to localStorage
+    logger.warn('Failed to load widget config from API', e);
     const key = `dashboard_widgets_${userId}_${familyId || 'personal'}`;
     try {
       const saved = localStorage.getItem(key);
@@ -19,7 +35,7 @@ export async function getWidgetConfig(userId, familyId) {
         }
       }
     } catch (e2) {
-      console.error('Failed to load widget config from localStorage', e2);
+      logger.warn('Failed to load widget config from localStorage', e2);
     }
     return getDefaultConfig(familyId);
   }
@@ -27,34 +43,51 @@ export async function getWidgetConfig(userId, familyId) {
 
 export async function saveWidgetConfig(userId, familyId, config) {
   const key = `dashboard_widgets_${userId}_${familyId || 'personal'}`;
+  const previous = localStorage.getItem(key);
   // Optimistic update: save to localStorage first
   try {
     localStorage.setItem(key, JSON.stringify(config));
   } catch (e) {
-    console.error('Failed to save widget config to localStorage', e);
+    logger.warn('Failed to save widget config to localStorage', e);
   }
   // Then save to API
   try {
+    const payload = toWidgetPayload(config);
     const data = familyId
-      ? { family_widgets: config }
-      : { personal_widgets: config };
-    await api.put('/widget-config', data);
+      ? { family_widgets: payload }
+      : { personal_widgets: payload };
+    await api.patch('/widget-config', data);
   } catch (e) {
-    console.error('Failed to save widget config to API', e);
+    logger.error('Failed to save widget config to API', e);
+    // Rollback localStorage to previous value on API failure
+    if (previous !== null) {
+      localStorage.setItem(key, previous);
+    } else {
+      localStorage.removeItem(key);
+    }
   }
 }
 
 function getDefaultConfig(familyId) {
   if (familyId) {
     return [
-      { id: 'family-allocation', type: 'family-allocation', order: 0 },
-      { id: 'family-transactions', type: 'family-transactions', order: 1 },
-      { id: 'family-goals', type: 'family-goals', order: 2 },
+      { id: 'transactions', type: 'transactions', order: 0 },
+      { id: 'allocation', type: 'allocation', order: 1 },
+      { id: 'goals', type: 'goals', order: 2 },
+      { id: 'memberStats', type: 'memberStats', order: 3 },
+      { id: 'budgets', type: 'budgets', order: 4 },
+      { id: 'recurring', type: 'recurring', order: 5 },
+      { id: 'debts', type: 'debts', order: 6 },
+      { id: 'safetyPillow', type: 'safetyPillow', order: 7 },
     ];
   }
   return [
-    { id: 'allocation', type: 'allocation', order: 0 },
-    { id: 'transactions', type: 'transactions', order: 1 },
+    { id: 'transactions', type: 'transactions', order: 0 },
+    { id: 'allocation', type: 'allocation', order: 1 },
     { id: 'goals', type: 'goals', order: 2 },
+    { id: 'budgets', type: 'budgets', order: 3 },
+    { id: 'recurring', type: 'recurring', order: 4 },
+    { id: 'debts', type: 'debts', order: 5 },
+    { id: 'safetyPillow', type: 'safetyPillow', order: 6 },
   ];
 }

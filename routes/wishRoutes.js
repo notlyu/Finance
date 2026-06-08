@@ -11,9 +11,9 @@ router.get('/', wishController.getWishes);
 router.get('/:id', validateObjectId, wishController.getWishById);
 router.get('/export', wishController.exportWishes);
 router.post('/', validateMiddleware('wish', 'create'), wishController.createWish);
-router.put('/:id', validateObjectId, validateMiddleware('wish', 'update'), wishController.updateWish);
+router.patch('/:id', validateObjectId, validateMiddleware('wish', 'update'), wishController.updateWish);
 router.delete('/:id', validateObjectId, wishController.deleteWish);
-router.post('/:id/contribute', validateObjectId, wishController.contributeToWish);
-router.post('/:id/fund', validateObjectId, wishController.fundWish);
+router.post('/:id/contribute', validateObjectId, validateMiddleware('wish', 'contribute'), wishController.contributeToWish);
+router.post('/:id/fund', validateObjectId, validateMiddleware('wish', 'fund'), wishController.fundWish);
 
 module.exports = router;

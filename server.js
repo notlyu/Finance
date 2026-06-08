@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const prisma = require('./lib/prisma-client');
+const { logger } = require('./lib/errors');
 const errorHandler = require('./middleware/errorHandler');
 const requestLogger = require('./middleware/requestLogger');
 const helmet = require('helmet');
@@ -11,6 +12,7 @@ const rateLimit = require('express-rate-limit');
 const { initSocket } = require('./lib/socket');
 const swaggerUi = require('swagger-ui-express');
 const { swaggerSpec } = require('./lib/swagger');
+const scopeMiddleware = require('./middleware/scopeMiddleware');
 
 // Импорт маршрутов
 const authRoutes = require('./routes/authRoutes');
@@ -38,11 +40,32 @@ const { runSnapshotMonthly } = require('./jobs/snapshotJob');
 const { processScheduledJobs } = require('./services/failedJobService');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3001;
 
 // Middleware
+app.set('trust proxy', 1);
 app.disable('x-powered-by');
-app.use(helmet());
+app.use(helmet({
+  crossOriginEmbedderPolicy: false,
+  ...(process.env.NODE_ENV === 'production' ? {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+        imgSrc: ["'self'", 'data:', 'blob:'],
+        connectSrc: ["'self'"],
+        manifestSrc: ["'self'"],
+        workerSrc: ["'self'"],
+        frameAncestors: ["'none'"],
+        formAction: ["'self'"],
+        baseUri: ["'self'"],
+        objectSrc: ["'none'"],
+      },
+    },
+  } : {}),
+}));
 app.use(cookieParser());
 app.use(requestLogger);
 
@@ -52,26 +75,36 @@ const corsOrigins = (process.env.CORS_ORIGINS || '')
   .filter(Boolean);
 
 if (corsOrigins.length === 0 && process.env.NODE_ENV === 'production') {
-  console.error('CORS_ORIGINS must be set in production');
+  logger.error('CORS_ORIGINS must be set in production');
   process.exit(1);
 }
 
 app.use(cors({
-  origin: true,
+  origin: corsOrigins.length > 0 ? corsOrigins : true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
 
-// Rate limiting (especially auth endpoints)
+// Rate limiting
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: Number(process.env.AUTH_RATE_LIMIT_MAX || 100),
   standardHeaders: true,
   legacyHeaders: false,
+  message: { message: 'Слишком много запросов, попробуйте позже' },
 });
 app.use('/api/auth', authLimiter);
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.API_RATE_LIMIT_MAX || 300),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Слишком много запросов, попробуйте позже' },
+});
+app.use('/api/', apiLimiter);
 
 // API Documentation
 if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'true') {
@@ -85,14 +118,13 @@ if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'tru
   });
 }
 
-// Personal & Family routes (must be before /api/personal and /api/family)
-app.use('/api/personal/recurring', recurringRoutes);
-app.use('/api/family/recurring', recurringRoutes);
+// Scope middleware — устанавливает req.scope из URL до всех маршрутов
+app.use(scopeMiddleware);
 
 // Маршруты
+app.use('/api/auth', authRoutes);
 app.use('/api/wishes', wishRoutes);
 app.use('/api/safety-pillow', safetyPillowRoutes);
-app.use('/api/auth', authRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/goals', goalRoutes);
 app.use('/api/categories', categoryRoutes);
@@ -109,18 +141,42 @@ app.use('/api/import', importRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/accounts', accountRoutes);
 
-// Personal & Family routes use same controllers but filtered by user.family_id
-// Frontend switches spaces via URL: /personal/* or /family/*
-app.use('/api/personal', dashboardRoutes); // for /personal/dashboard
-app.use('/api/family', dashboardRoutes);   // for /family/dashboard
+// Scoped routes: /api/personal/* и /api/family/* (req.scope уже выставлен scopeMiddleware)
+// Dashboard
+app.use('/api/personal/dashboard', dashboardRoutes);
+app.use('/api/family/dashboard', dashboardRoutes);
+// Transactions
+app.use('/api/personal/transactions', transactionRoutes);
+app.use('/api/family/transactions', transactionRoutes);
+// Goals
+app.use('/api/personal/goals', goalRoutes);
+app.use('/api/family/goals', goalRoutes);
+// Budgets
+app.use('/api/personal/budgets', budgetRoutes);
+app.use('/api/family/budgets', budgetRoutes);
+// Recurring
+app.use('/api/personal/recurring', recurringRoutes);
+app.use('/api/family/recurring', recurringRoutes);
+// Debts
+app.use('/api/personal/debts', debtRoutes);
+app.use('/api/family/debts', debtRoutes);
+// Safety Pillow
+app.use('/api/personal/safety-pillow', safetyPillowRoutes);
+app.use('/api/family/safety-pillow', safetyPillowRoutes);
+// Analytics / Reports
+app.use('/api/personal/reports', reportRoutes);
+app.use('/api/family/reports', reportRoutes);
+// Wishes
+app.use('/api/personal/wishes', wishRoutes);
+app.use('/api/family/wishes', wishRoutes);
 
 // Global error handler (must be after routes)
 app.use(errorHandler);
 
 // Проверка подключения к БД
 prisma.$connect()
-  .then(() => console.log('✅ Подключение к PostgreSQL (Prisma) успешно!'))
-  .catch(err => console.error('❌ Ошибка подключения к PostgreSQL:', err));
+  .then(() => logger.info('Подключение к PostgreSQL (Prisma) успешно'))
+  .catch(err => logger.error({ err }, 'Ошибка подключения к PostgreSQL'));
 
 // Job status tracking
 const jobStatus = {
@@ -138,47 +194,47 @@ if (process.env.ENABLE_RECURRING_JOB !== 'false') {
       const result = await runRecurringOnce();
       jobStatus.recurring.lastSuccess = new Date().toISOString();
       jobStatus.recurring.status = 'success';
-      console.log(`✅ Recurring job completed: ${result.created} transactions created`);
+      logger.info({ created: result.created }, 'Recurring job completed');
     } catch (e) {
       jobStatus.recurring.lastError = e.message;
       jobStatus.recurring.status = 'error';
-      console.error('❌ Recurring job error:', e);
+      logger.error({ err: e }, 'Recurring job error');
     }
   });
 }
 
-// Monthly interest accrual for goals (runs on 00:00 on the 1st day of every month)
+// Monthly interest accrual for goals (01:05 on the 1st day of every month)
 if (process.env.ENABLE_INTEREST_JOB !== 'false') {
-  cron.schedule('0 0 1 * *', async () => {
+  cron.schedule('5 1 1 * *', async () => {
     jobStatus.interest.lastRun = new Date().toISOString();
     jobStatus.interest.status = 'running';
     try {
       const result = await runInterestMonthly();
       jobStatus.interest.lastSuccess = new Date().toISOString();
       jobStatus.interest.status = 'success';
-      console.log(`✅ Interest job completed: ${result.processed} goals updated for ${result.month}`);
+      logger.info({ processed: result.processed, month: result.month }, 'Interest job completed');
     } catch (e) {
       jobStatus.interest.lastError = e.message;
       jobStatus.interest.status = 'error';
-      console.error('❌ Interest job error:', e);
+      logger.error({ err: e }, 'Interest job error');
     }
   });
 }
 
-// Monthly SafetyPillowSnapshot (runs on 00:00 on the 1st day of every month)
+// Monthly SafetyPillowSnapshot (01:15 on the 1st day of every month — after interest job)
 if (process.env.ENABLE_SNAPSHOT_JOB !== 'false') {
-  cron.schedule('0 0 1 * *', async () => {
+  cron.schedule('15 1 1 * *', async () => {
     jobStatus.snapshot.lastRun = new Date().toISOString();
     jobStatus.snapshot.status = 'running';
     try {
       const result = await runSnapshotMonthly();
       jobStatus.snapshot.lastSuccess = new Date().toISOString();
       jobStatus.snapshot.status = 'success';
-      console.log(`✅ Snapshot job completed: ${result.personal} personal, ${result.family} family snapshots created`);
+      logger.info({ personal: result.personal, family: result.family }, 'Snapshot job completed');
     } catch (e) {
       jobStatus.snapshot.lastError = e.message;
       jobStatus.snapshot.status = 'error';
-      console.error('❌ Snapshot job error:', e);
+      logger.error({ err: e }, 'Snapshot job error');
     }
   });
 }
@@ -189,10 +245,10 @@ if (process.env.ENABLE_RETRY_JOB !== 'false') {
     try {
       const results = await processScheduledJobs();
       if (results.length > 0) {
-        console.log(`🔄 Retry job: ${results.length} jobs processed`);
+        logger.info({ count: results.length }, 'Retry job processed');
       }
     } catch (e) {
-      console.error('❌ Retry job error:', e);
+      logger.error({ err: e }, 'Retry job error');
     }
   });
 }
@@ -200,6 +256,12 @@ if (process.env.ENABLE_RETRY_JOB !== 'false') {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   await prisma.$disconnect();
+  const { pool } = require('./lib/prisma-client');
+  try {
+    await pool.end();
+  } catch (e) {
+    logger.error({ err: e }, 'Pool drain error');
+  }
   process.exit(0);
 });
 
@@ -291,6 +353,5 @@ const server = http.createServer(app);
 initSocket(server);
 
 server.listen(PORT, () => {
-  console.log(` Сервер запущен на http://localhost:${PORT}`);
-  console.log(` WebSocket сервер инициализирован`);
+  logger.info({ port: PORT }, 'Сервер запущен');
 });

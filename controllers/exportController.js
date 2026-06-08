@@ -1,6 +1,7 @@
 const ExcelJS = require('exceljs');
 const prisma = require('../lib/prisma-client');
 const { logger, ValidationError, UnauthorizedError } = require('../lib/errors');
+const reportController = require('./reportController');
 
 async function getUserTransactions(userId, familyId, query = {}) {
   let whereClause;
@@ -32,18 +33,22 @@ async function getUserTransactions(userId, familyId, query = {}) {
   return transactions;
 }
 
+function escapeCSV(value) {
+  if (value === null || value === undefined) return '';
+  let str = String(value);
+  if (/^[=+\-@]/.test(str)) {
+    str = "'" + str;
+  }
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
 function toCSV(data, columns) {
   const header = columns.map(c => c.header).join(',');
   const rows = data.map(row =>
-    columns.map(c => {
-      const value = row[c.key];
-      if (value === null || value === undefined) return '';
-      const str = String(value);
-      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-        return `"${str.replace(/"/g, '""')}"`;
-      }
-      return str;
-    }).join(',')
+    columns.map(c => escapeCSV(row[c.key])).join(',')
   );
   return [header, ...rows].join('\n');
 }
@@ -103,6 +108,17 @@ const wishColumns = [
   { key: 'progress', header: 'Прогресс %' },
   { key: 'link', header: 'Ссылка' },
   { key: 'created_at', header: 'Дата создания' }
+];
+
+const goalColumns = [
+  { key: 'name', header: 'Название' },
+  { key: 'target_amount', header: 'Целевая сумма', format: 'money' },
+  { key: 'current_amount', header: 'Текущая сумма', format: 'money' },
+  { key: 'progress', header: 'Прогресс %' },
+  { key: 'deadline', header: 'Дедлайн' },
+  { key: 'interest_rate', header: 'Ставка %' },
+  { key: 'scope', header: 'Тип' },
+  { key: 'is_archived', header: 'Архив' }
 ];
 
 const budgetColumns = [
@@ -266,6 +282,94 @@ exports.exportWishes = async (req, res, next) => {
     }
 
     logger.info({ userId: req.user.id, action: 'exportWishes', format, count: data.length });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.exportAnalytics = async (req, res, next) => {
+  try {
+    if (!req.user) throw new UnauthorizedError();
+    const { format = 'xlsx', startDate, endDate } = req.query;
+    const query = { ...req.query, startDate, endDate };
+
+    const user = req.user;
+    const familyId = user.family_id;
+
+    const today = new Date();
+    let start, end;
+    if (startDate && endDate) {
+      start = startDate;
+      end = endDate;
+    } else {
+      start = new Date(today.getFullYear(), today.getMonth() - 11, 1).toISOString().slice(0, 10);
+      end = new Date(today.getFullYear(), today.getMonth() + 1, 1).toISOString().slice(0, 10);
+    }
+
+    const df = { date: { gte: new Date(start), lt: new Date(end) } };
+    const where = familyId
+      ? { ...df, OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
+      : { ...df, family_id: null, user_id: user.id };
+
+    const transactions = await prisma.transaction.findMany({
+      where,
+      include: { category: true },
+      orderBy: { date: 'asc' },
+    });
+
+    let totalIncome = 0, totalExpense = 0;
+    const expenseByCat = {};
+    const incomeByCat = {};
+    transactions.forEach(t => {
+      const val = parseFloat(t.amount || 0);
+      if (t.type === 'income') {
+        totalIncome += val;
+        const catName = t.category?.name || 'Без категории';
+        incomeByCat[catName] = (incomeByCat[catName] || 0) + val;
+      } else {
+        totalExpense += val;
+        const catName = t.category?.name || 'Без категории';
+        expenseByCat[catName] = (expenseByCat[catName] || 0) + val;
+      }
+    });
+
+    const analyticsColumns = [
+      { key: 'metric', header: 'Показатель' },
+      { key: 'value', header: 'Значение' },
+    ];
+
+    const data = [
+      { metric: 'Период с', value: start },
+      { metric: 'Период по', value: end },
+      { metric: 'Всего доходов', value: totalIncome, format: 'money' },
+      { metric: 'Всего расходов', value: totalExpense, format: 'money' },
+      { metric: 'Баланс', value: totalIncome - totalExpense, format: 'money' },
+      { metric: '', value: '' },
+      { metric: '--- Расходы по категориям ---', value: '' },
+    ];
+
+    Object.entries(expenseByCat)
+      .sort(([, a], [, b]) => b - a)
+      .forEach(([name, total]) => {
+        data.push({ metric: name, value: total, format: 'money' });
+      });
+
+    data.push({ metric: '', value: '' });
+    data.push({ metric: '--- Доходы по категориям ---', value: '' });
+    Object.entries(incomeByCat)
+      .sort(([, a], [, b]) => b - a)
+      .forEach(([name, total]) => {
+        data.push({ metric: name, value: total, format: 'money' });
+      });
+
+    if (format === 'csv') {
+      const csv = toCSV(data, analyticsColumns);
+      sendFile(res, csv, `analytics-${new Date().toISOString().slice(0, 10)}.csv`, 'csv');
+    } else {
+      const workbook = await createExcelWorkbook(data, analyticsColumns, 'Аналитика');
+      const buffer = await workbook.xlsx.writeBuffer();
+      sendFile(res, buffer, `analytics-${new Date().toISOString().slice(0, 10)}.xlsx`, 'xlsx');
+    }
   } catch (error) {
     next(error);
   }

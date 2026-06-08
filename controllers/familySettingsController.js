@@ -1,11 +1,12 @@
 const prisma = require('../lib/prisma-client');
-const { logger } = require('../lib/errors');
+const { logger, ValidationError } = require('../lib/errors');
 
 exports.getFamilySettings = async (req, res, next) => {
   try {
     const user = req.user;
     if (!user.family_id) {
-      return res.status(400).json({ message: 'Вы не состоите в семье' });
+      // Пользователь без семьи — отдаём дефолты, а не ошибку
+      return res.json({ show_personal_in_stats: false, safety_pillow_months: 3, family_id: null });
     }
     
     let settings = await prisma.familySettings.findUnique({
@@ -29,10 +30,10 @@ exports.updateFamilySettings = async (req, res, next) => {
   try {
     const user = req.user;
     if (!user.family_id) {
-      return res.status(400).json({ message: 'Вы не состоите в семье' });
+      throw new ValidationError('Вы не состоите в семье');
     }
     
-    const { show_personal_in_stats, safety_pillow_months } = req.body;
+    const { show_personal_in_stats, safety_pillow_months } = req.validated;
     
     const data = { updated_at: new Date() };
     if (show_personal_in_stats !== undefined) data.show_personal_in_stats = show_personal_in_stats;

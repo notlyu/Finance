@@ -146,7 +146,7 @@ async function seed() {
           category_id: incomeCat.id,
           date: now,
           comment: 'Зарплата',
-          is_private: false
+          scope: 'family'
         },
         {
           user_id: user.id,
@@ -156,7 +156,7 @@ async function seed() {
           category_id: expenseFood.id,
           date: yesterday,
           comment: 'Продукты на неделю',
-          is_private: false
+          scope: 'family'
         },
         {
           user_id: user.id,
@@ -166,7 +166,7 @@ async function seed() {
           category_id: expenseTransport.id,
           date: twoDaysAgo,
           comment: 'Проездной',
-          is_private: false
+          scope: 'family'
         },
         {
           user_id: user.id,
@@ -176,7 +176,7 @@ async function seed() {
           category_id: expenseOther.id,
           date: threeDaysAgo,
           comment: 'Подарок другу',
-          is_private: true // скрытая операция
+          scope: 'personal'
         },
         {
           user_id: user.id,
@@ -186,7 +186,7 @@ async function seed() {
           category_id: expenseFood.id,
           date: weekAgo,
           comment: 'Кафе',
-          is_private: false
+          scope: 'family'
         }
       ]
     });
@@ -232,7 +232,7 @@ async function seed() {
           priority: 1,
           status: 'active',
           saved_amount: 3000,
-          is_private: false
+          scope: 'family'
         },
         {
           user_id: user.id,
@@ -242,7 +242,7 @@ async function seed() {
           priority: 2,
           status: 'active',
           saved_amount: 0,
-          is_private: true
+          scope: 'personal'
         },
         {
           user_id: user.id,
@@ -252,7 +252,7 @@ async function seed() {
           priority: 5,
           status: 'active',
           saved_amount: 1500,
-          is_private: false
+          scope: 'family'
         }
       ]
     });

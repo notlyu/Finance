@@ -1,14 +1,21 @@
 const prisma = require('../lib/prisma-client');
 
-const getDebts = async (userId, familyId) => {
+const getDebts = async (userId, familyId, limit = 50, offset = 0) => {
   const where = familyId
     ? { OR: [{ user_id: userId }, { family_id: familyId }], is_active: true }
     : { user_id: userId, family_id: null, is_active: true };
 
-  return prisma.debt.findMany({
-    where,
-    orderBy: { created_at: 'desc' },
-  });
+  const [items, total] = await Promise.all([
+    prisma.debt.findMany({
+      where,
+      orderBy: { created_at: 'desc' },
+      take: limit,
+      skip: offset,
+    }),
+    prisma.debt.count({ where }),
+  ]);
+
+  return { items, total, limit, offset };
 };
 
 const createDebt = async (userId, familyId, data) => {
@@ -85,6 +92,9 @@ const deleteDebt = async (id, userId, familyId) => {
     ? { id, OR: [{ user_id: userId }, { family_id: familyId }] }
     : { id, user_id: userId };
 
+  const existing = await prisma.debt.findFirst({ where });
+  if (!existing) throw new Error('Debt not found');
+
   return prisma.debt.update({
     where: { id },
     data: { is_active: false },
@@ -92,27 +102,31 @@ const deleteDebt = async (id, userId, familyId) => {
 };
 
 const closePartial = async (id, userId, familyId, amount, accountId = null) => {
-  const where = familyId
+  const whereFilter = familyId
     ? { id, OR: [{ user_id: userId }, { family_id: familyId }] }
     : { id, user_id: userId };
 
-  const existing = await prisma.debt.findFirst({ where, include: { recurring_payments: true } });
-  if (!existing) throw new Error('Debt not found');
-
-  const closeAmount = Math.min(amount, existing.remaining);
-  const newRemaining = Math.max(0, existing.remaining - closeAmount);
-
   return await prisma.$transaction(async (tx) => {
-    // Update debt remaining
+    const existing = await tx.debt.findFirst({
+      where: whereFilter,
+      include: { recurring_payments: true },
+    });
+    if (!existing) throw new Error('Debt not found');
+
+    const currentRemaining = Number(existing.remaining);
+    const closeAmount = Math.min(amount, currentRemaining);
+    const newRemaining = Math.max(0, currentRemaining - closeAmount);
+    const isNowClosed = newRemaining <= 0;
+
     const updated = await tx.debt.update({
       where: { id },
       data: {
-        remaining: newRemaining,
+        remaining: String(newRemaining),
         updated_at: new Date(),
+        ...(isNowClosed ? { is_active: false } : {}),
       },
     });
 
-    // Create expense transaction for the payment
     let catId = null;
     if (existing.recurring_payments && existing.recurring_payments.length > 0) {
       catId = existing.recurring_payments[0].category_id;
@@ -139,7 +153,6 @@ const closePartial = async (id, userId, familyId, amount, accountId = null) => {
       },
     });
 
-    // Decrement account balance if account provided
     if (accountId) {
       await tx.account.update({
         where: { id: Number(accountId) },

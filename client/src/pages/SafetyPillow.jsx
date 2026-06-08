@@ -1,7 +1,9 @@
-import { Link } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import { formatMoney } from '../utils/format';
+import logger from '../utils/logger';
+import { SkeletonCard } from '../components/ui/Skeleton';
+import EmptyState from '../components/ui/EmptyState';
 
 const LEVEL_CONFIG = {
   minimal: { label: 'Минимальный', months: 3, icon: 'shield', color: 'text-error', bg: 'bg-error-container dark:bg-error/10', bar: 'bg-error', ring: 'ring-error/20', border: 'border-l-4 border-error' },
@@ -32,7 +34,7 @@ function LevelCard({ keyName, level }) {
   const isCurrent = !isReached && level.progress > 0;
   
   return (
-    <div className={`p-5 rounded-2xl flex items-center gap-4 bg-surface-container-lowest dark:bg-surface-container-low ${c.border} hover:shadow-[var(--md-shadow-premium)] transition-all`}>
+    <div className={`p-5 rounded-3xl flex items-center gap-4 bg-surface-container-lowest dark:bg-surface-container-low ${c.border} hover:shadow-[var(--md-shadow-premium)] transition-all`}>
       <div className={`w-12 h-12 ${c.bg} ${c.color} rounded-xl flex items-center justify-center`}>
         <span className="material-symbols-outlined text-2xl">{c.icon}</span>
       </div>
@@ -54,7 +56,7 @@ function LevelCard({ keyName, level }) {
 function CategoryExpense({ category, amount, pct, color }) {
   return (
     <div className="flex items-center gap-4">
-      <div className={`w-10 h-10 ${color.bg} ${color.text} rounded-lg flex items-center justify-center`}>
+      <div className={`w-10 h-10 ${color.bg} ${color.text} rounded-xl flex items-center justify-center`}>
         <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>{color.icon}</span>
       </div>
       <div className="flex-1">
@@ -70,36 +72,74 @@ function CategoryExpense({ category, amount, pct, color }) {
   );
 }
 
-function HistoryTable({ history }) {
+const FILTER_OPTIONS = [
+  { value: 3, label: '3 мес' },
+  { value: 6, label: '6 мес' },
+  { value: 12, label: '12 мес' },
+  { value: 0, label: 'Всё' },
+];
+
+function HistoryTable({ history, filter, onFilterChange }) {
+  const filtered = filter > 0
+    ? history.filter(r => {
+        const d = new Date(r.calculated_at);
+        const cutoff = new Date();
+        cutoff.setMonth(cutoff.getMonth() - filter);
+        return d >= cutoff;
+      })
+    : history;
+  const visible = filtered.slice(-8).reverse();
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left">
-        <thead>
-          <tr className="border-b border-outline-variant/20">
-            <th className="pb-4 text-xs font-semibold text-on-surface-variant uppercase tracking-widest">Дата</th>
-            <th className="pb-4 text-xs font-semibold text-on-surface-variant uppercase tracking-widest">Подушка</th>
-            <th className="pb-4 text-xs font-semibold text-on-surface-variant uppercase tracking-widest">Цель</th>
-            <th className="pb-4 text-xs font-semibold text-on-surface-variant uppercase tracking-widest">Прогресс</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-outline-variant/10">
-          {history.slice(0, 8).map((record, i) => (
-            <tr key={record.id} className="hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors">
-              <td className="py-4 text-sm font-medium text-on-surface">{new Date(record.calculated_at).toLocaleDateString('ru-RU')}</td>
-              <td className="py-4 text-sm font-bold text-secondary">+ {formatMoney(record.value)} ₽</td>
-              <td className="py-4 text-sm text-on-surface-variant">{formatMoney(record.target_value)} ₽</td>
-              <td className="py-4">
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1.5 bg-surface-container dark:bg-surface-container-high rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-primary to-primary-container rounded-full" style={{ width: `${Math.min(record.target_value > 0 ? (record.value / record.target_value) * 100 : 0, 100)}%` }}></div>
-                  </div>
-                  <span className="text-xs font-bold text-on-surface-variant w-10">{record.target_value > 0 ? Math.round((record.value / record.target_value) * 100) : 0}%</span>
-                </div>
-              </td>
+    <div>
+      <div className="flex gap-1.5 mb-6">
+        {FILTER_OPTIONS.map(opt => (
+          <button
+            key={opt.value}
+            onClick={() => onFilterChange(opt.value)}
+            className={`px-3 py-1.5 text-xs font-bold rounded-full transition-all ${
+              filter === opt.value
+                ? 'bg-primary text-white shadow-sm'
+                : 'bg-surface-container dark:bg-surface-container-high text-on-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-dim'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="border-b border-outline-variant/20">
+              <th className="pb-4 text-xs font-semibold text-on-surface-variant uppercase tracking-widest">Дата</th>
+              <th className="pb-4 text-xs font-semibold text-on-surface-variant uppercase tracking-widest">Подушка</th>
+              <th className="pb-4 text-xs font-semibold text-on-surface-variant uppercase tracking-widest">Цель</th>
+              <th className="pb-4 text-xs font-semibold text-on-surface-variant uppercase tracking-widest">Прогресс</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-outline-variant/10">
+            {visible.length > 0 ? visible.map((record, i) => (
+              <tr key={record.id} className="hover:bg-surface-container dark:hover:bg-surface-container-high transition-colors">
+                <td className="py-4 text-sm font-medium text-on-surface">{new Date(record.calculated_at).toLocaleDateString('ru-RU')}</td>
+                <td className="py-4 text-sm font-bold text-secondary">+ {formatMoney(record.value)} ₽</td>
+                <td className="py-4 text-sm text-on-surface-variant">{formatMoney(record.target_value)} ₽</td>
+                <td className="py-4">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1.5 bg-surface-container dark:bg-surface-container-high rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-primary to-primary-container rounded-full" style={{ width: `${Math.min(record.target_value > 0 ? (record.value / record.target_value) * 100 : 0, 100)}%` }}></div>
+                    </div>
+                    <span className="text-xs font-bold text-on-surface-variant w-10">{record.target_value > 0 ? Math.round((record.value / record.target_value) * 100) : 0}%</span>
+                  </div>
+                </td>
+              </tr>
+            )) : (
+              <tr>
+                <td colSpan={4} className="py-8 text-center text-sm text-on-surface-variant">Нет данных за выбранный период</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -112,12 +152,13 @@ export default function SafetyPillow({ space = 'personal' }) {
   const [monthsInput, setMonthsInput] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState(12);
 
   const fetchPillow = async () => {
     try {
       const res = await api.get('/safety-pillow/current');
       setData(res.data);
-    } catch (err) { console.error('Safety pillow fetch error:', err); }
+    } catch (err) { logger.error('Safety pillow fetch error:', err); }
   };
 
   const fetchSettings = async () => {
@@ -125,10 +166,10 @@ export default function SafetyPillow({ space = 'personal' }) {
       const res = await api.get('/safety-pillow/settings');
       setSettings(res.data);
       setMonthsInput(String(res.data.months || 3));
-    } catch (err) { console.error('Settings fetch error:', err); }
+    } catch (err) { logger.error('Settings fetch error:', err); }
   };
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     await Promise.allSettled([
@@ -136,9 +177,13 @@ export default function SafetyPillow({ space = 'personal' }) {
       fetchSettings(),
     ]);
     setLoading(false);
-  };
+  }, []);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    let c = false;
+    fetchData().then(() => c || undefined).catch(() => {});
+    return () => { c = true; };
+  }, [fetchData]);
 
   const saveMonths = async (months) => {
     const m = parseInt(months);
@@ -151,12 +196,15 @@ export default function SafetyPillow({ space = 'personal' }) {
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 2000);
       fetchSettings();
-    } catch (err) { console.error(err); }
+    } catch (err) { logger.error(err); }
   };
 
   if (loading) return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+    <div className="min-h-[60vh] flex items-center justify-center p-6">
+      <div className="w-full max-w-lg space-y-4">
+        <SkeletonCard />
+        <SkeletonCard />
+      </div>
     </div>
   );
 
@@ -167,7 +215,7 @@ export default function SafetyPillow({ space = 'personal' }) {
     </div>
   );
 
-  const { liquidFunds, reservedTotal, monthlyAverage, target, months, progress, levels, recommendation, topCategories, history } = data;
+  const { liquidFunds, monthlyAverage, months, progress, levels, recommendation, topCategories, history } = data;
 
   const categoryColors = [
     { icon: 'home', bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-600 dark:text-blue-400', fill: 'bg-blue-500' },
@@ -190,7 +238,7 @@ export default function SafetyPillow({ space = 'personal' }) {
       {/* Bento Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Hero Card - Main Stats */}
-        <section className="lg:col-span-8 bg-surface-container-lowest dark:bg-surface-container-low rounded-[2rem] p-8 relative overflow-hidden">
+        <section className="lg:col-span-8 bg-surface-container-lowest dark:bg-surface-container-low rounded-3xl p-8 relative overflow-hidden">
           <div className="absolute -right-20 -top-20 w-64 h-64 bg-primary/5 dark:bg-primary/10 rounded-full blur-3xl"></div>
           <div className="relative z-10">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
@@ -227,7 +275,7 @@ export default function SafetyPillow({ space = 'personal' }) {
 
             {/* Recommendation Block */}
             {recommendation.shortfall > 0 ? (
-              <div className="bg-primary/5 dark:bg-primary/10 border border-primary/10 dark:border-primary/20 rounded-2xl p-6 flex flex-col md:flex-row items-center gap-4">
+              <div className="bg-primary/5 dark:bg-primary/10 border border-primary/10 dark:border-primary/20 rounded-3xl p-6 flex flex-col md:flex-row items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-primary-container flex items-center justify-center text-white shrink-0">
                   <span className="material-symbols-outlined">lightbulb</span>
                 </div>
@@ -238,7 +286,7 @@ export default function SafetyPillow({ space = 'personal' }) {
                 <button className="text-primary font-bold text-sm hover:underline px-4">Подробнее</button>
               </div>
             ) : (
-              <div className="bg-secondary-container dark:bg-secondary/10 border border-secondary/20 rounded-2xl p-6 flex items-center gap-4">
+              <div className="bg-secondary-container dark:bg-secondary/10 border border-secondary/20 rounded-3xl p-6 flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-secondary/20 flex items-center justify-center text-secondary shrink-0">
                   <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>celebration</span>
                 </div>
@@ -257,12 +305,9 @@ export default function SafetyPillow({ space = 'personal' }) {
         </section>
 
         {/* Expenses Breakdown */}
-        <section className="lg:col-span-5 bg-surface-container-lowest dark:bg-surface-container-low rounded-[2rem] p-8">
+        <section className="lg:col-span-5 bg-surface-container-lowest dark:bg-surface-container-low rounded-3xl p-8">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-xl font-bold font-headline">Базовые расходы</h3>
-            <button className="text-on-surface-variant hover:text-primary transition-colors">
-              <span className="material-symbols-outlined">settings_suggest</span>
-            </button>
           </div>
           <div className="space-y-5">
             {topCategories && topCategories.length > 0 ? topCategories.slice(0, 5).map((cat, i) => (
@@ -274,30 +319,26 @@ export default function SafetyPillow({ space = 'personal' }) {
                 color={categoryColors[i] || categoryColors[4]} 
               />
             )) : (
-              <p className="text-on-surface-variant text-sm text-center py-4">Нет данных о расходах</p>
+              <EmptyState title="Нет данных о расходах" className="py-4" />
             )}
           </div>
         </section>
 
         {/* History Table */}
-        <section className="lg:col-span-7 bg-surface-container-lowest dark:bg-surface-container-low rounded-[2rem] p-8">
+        <section className="lg:col-span-7 bg-surface-container-lowest dark:bg-surface-container-low rounded-3xl p-8">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-xl font-bold font-headline">История пополнений</h3>
-            <div className="flex gap-2">
-              <span className="bg-surface-container dark:bg-surface-container-high text-on-surface-variant text-xs font-bold px-3 py-1 rounded-full">За год</span>
-              <span className="material-symbols-outlined text-on-surface-variant cursor-pointer">filter_list</span>
-            </div>
           </div>
           {history && history.length > 0 ? (
-            <HistoryTable history={history} />
+            <HistoryTable history={history} filter={historyFilter} onFilterChange={setHistoryFilter} />
           ) : (
-            <p className="text-on-surface-variant text-sm text-center py-8">Нет истории</p>
+            <EmptyState title="Нет истории" className="py-8" />
           )}
         </section>
       </div>
 
       {/* Settings Section */}
-      <div className="bg-surface-container-lowest dark:bg-surface-container-low p-8 rounded-[2rem]">
+      <div className="bg-surface-container-lowest dark:bg-surface-container-low p-8 rounded-3xl">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h3 className="text-xl font-bold font-headline">Настройки подушки</h3>
@@ -319,7 +360,7 @@ export default function SafetyPillow({ space = 'personal' }) {
             <button
               key={preset.value}
               onClick={() => saveMonths(preset.value)}
-              className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${
+              className={`flex flex-col items-center gap-2 p-4 rounded-3xl border-2 transition-all ${
                 settings.months === preset.value
                   ? 'border-primary bg-primary/10 text-primary'
                   : 'border-outline-variant/30 text-on-surface-variant hover:border-outline-variant hover:bg-surface-container'

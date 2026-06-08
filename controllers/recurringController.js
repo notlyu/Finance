@@ -9,15 +9,22 @@ exports.getRecurring = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const offset = Number(req.query.offset) || 0;
 
     const where = familyId
       ? { OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }
       : { user_id: user.id, family_id: null };
 
-    const items = await prisma.recurringTransaction.findMany({
-      where,
-      orderBy: [{ active: 'desc' }, { type: 'asc' }, { id: 'desc' }],
-    });
+    const [items, total] = await Promise.all([
+      prisma.recurringTransaction.findMany({
+        where,
+        orderBy: [{ active: 'desc' }, { type: 'asc' }, { id: 'desc' }],
+        take: limit,
+        skip: offset,
+      }),
+      prisma.recurringTransaction.count({ where }),
+    ]);
 
     const categoryIds = [...new Set(items.map(i => i.category_id))];
     let categoryMap = {};
@@ -33,21 +40,26 @@ exports.getRecurring = async (req, res, next) => {
     }
 
     logger.info(`User ${user.id} fetched ${items.length} recurring transactions`);
-    res.json(items.map(i => ({
-      id: i.id,
-      type: i.type,
-      amount: i.amount,
-      category_id: i.category_id,
-      account_id: i.account_id,
-      category_name: categoryMap[i.category_id] || '',
-      day_of_month: i.day_of_month,
-      start_month: i.start_month,
-      comment: i.comment,
-      scope: i.scope || (i.family_id ? 'family' : 'personal'),
-      active: !!i.active,
-      last_run_month: i.last_run_month,
-      debt_id: i.debt_id,
-    })));
+    res.json({
+      items: items.map(i => ({
+        id: i.id,
+        type: i.type,
+        amount: i.amount,
+        category_id: i.category_id,
+        account_id: i.account_id,
+        category_name: categoryMap[i.category_id] || '',
+        day_of_month: i.day_of_month,
+        start_month: i.start_month,
+        comment: i.comment,
+        scope: i.scope || (i.family_id ? 'family' : 'personal'),
+        active: !!i.active,
+        last_run_month: i.last_run_month,
+        debt_id: i.debt_id,
+      })),
+      total,
+      limit,
+      offset,
+    });
   } catch (error) {
     next(error);
   }
@@ -66,11 +78,10 @@ exports.createRecurring = async (req, res, next) => {
       start_month = currentMonth(),
       comment,
       scope: reqScope,
-      account_id,
-    } = req.body;
+    } = req.validated;
+    const { account_id } = req.body;
     const scope = reqScope || 'personal';
 
-    if (!['income', 'expense'].includes(type)) throw new ValidationError('Некорректный type');
     const a = Number(amount);
     if (!Number.isFinite(a) || a <= 0) throw new ValidationError('amount должен быть > 0');
     const day = Number(day_of_month);
@@ -130,22 +141,22 @@ exports.updateRecurring = async (req, res, next) => {
      if (item.user_id !== user.id) throw new ForbiddenError('Нет прав');
 
       const patch = {};
-      if (req.body.amount != null) {
-        const a = Number(req.body.amount);
+      if (req.validated.amount != null) {
+        const a = Number(req.validated.amount);
         if (!Number.isFinite(a) || a <= 0) throw new ValidationError('amount должен быть > 0');
         patch.amount = a;
       }
- if (req.body.day_of_month != null) {
-         const day = Number(req.body.day_of_month);
-         if (!Number.isFinite(day) || day < 1 || day > 31) throw new ValidationError('day_of_month должен быть 1..31');
-         const now = new Date();
-         const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-         patch.day_of_month = Math.min(day, lastDay);
-       }
-      if (req.body.category_id != null) patch.category_id = req.body.category_id;
-      if (req.body.comment != null) patch.comment = req.body.comment || null;
-      if (req.body.scope != null) patch.scope = req.body.scope;
-      if (req.body.active != null) patch.active = !!req.body.active;
+      if (req.validated.day_of_month != null) {
+        const day = Number(req.validated.day_of_month);
+        if (!Number.isFinite(day) || day < 1 || day > 31) throw new ValidationError('day_of_month должен быть 1..31');
+        const now = new Date();
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        patch.day_of_month = Math.min(day, lastDay);
+      }
+      if (req.validated.category_id != null) patch.category_id = req.validated.category_id;
+      if (req.validated.comment != null) patch.comment = req.validated.comment || null;
+      if (req.validated.scope != null) patch.scope = req.validated.scope;
+      if (req.validated.active != null) patch.active = !!req.validated.active;
       if (req.body.account_id !== undefined) {
         if (req.body.account_id === null || req.body.account_id === '') {
           patch.account_id = null;
@@ -159,6 +170,7 @@ exports.updateRecurring = async (req, res, next) => {
           patch.account_id = acc.id;
         }
       }
+      if (req.validated.type != null) patch.type = req.validated.type;
       patch.updated_at = new Date();
 
      const updated = await prisma.recurringTransaction.update({
@@ -188,7 +200,7 @@ exports.deleteRecurring = async (req, res, next) => {
 
     await prisma.recurringTransaction.delete({ where: { id: item.id } });
     logger.info(`User ${user.id} deleted recurring transaction ${id}`);
-    res.json({ message: 'Удалено' });
+    res.status(204).send();
   } catch (error) {
     next(error);
   }

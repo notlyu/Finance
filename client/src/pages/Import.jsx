@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
+import logger from '../utils/logger';
 
 const FIELDS = [
   { key: 'date', label: 'Дата' },
@@ -29,7 +30,7 @@ export default function Import() {
     try {
       const res = await api.get('/import/template');
       setTemplate(res.data);
-    } catch (err) { console.error(err); }
+    } catch (err) { logger.error(err); }
   };
 
   const parseCSV = (text) => {
@@ -62,7 +63,7 @@ export default function Import() {
     return map;
   };
 
-  const handleFile = (file) => {
+  const handleFile = useCallback((file) => {
     if (!file || !file.name.endsWith('.csv')) return;
 
     const reader = new FileReader();
@@ -76,7 +77,7 @@ export default function Import() {
       setStep('preview');
     };
     reader.readAsText(file);
-  };
+  }, []);
 
   const handleDrag = useCallback((e) => {
     e.preventDefault();
@@ -90,7 +91,7 @@ export default function Import() {
     e.stopPropagation();
     setDragActive(false);
     if (e.dataTransfer.files?.[0]) handleFile(e.dataTransfer.files[0]);
-  }, []);
+  }, [handleFile]);
 
   const handleTextareaSubmit = async () => {
     if (!csv.trim()) return;
@@ -127,7 +128,7 @@ export default function Import() {
       </div>
 
       {step === 'input' && (
-        <div className="bg-surface-container-lowest rounded-2xl p-6 space-y-4">
+        <div className="bg-surface-container-lowest rounded-3xl p-6 space-y-4">
           <div
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
@@ -167,7 +168,7 @@ export default function Import() {
 
       {step === 'preview' && (
         <div className="space-y-4">
-          <div className="bg-surface-container-lowest rounded-2xl p-6 space-y-4">
+          <div className="bg-surface-container-lowest rounded-3xl p-6 space-y-4">
             <h3 className="font-medium">Сопоставление колонок</h3>
             <div className="grid grid-cols-2 gap-4">
               {FIELDS.map(({ key, label }) => (
@@ -188,7 +189,7 @@ export default function Import() {
             </div>
           </div>
 
-          <div className="bg-surface-container-lowest rounded-2xl p-6 space-y-4">
+          <div className="bg-surface-container-lowest rounded-3xl p-6 space-y-4">
             <h3 className="font-medium">Предпросмотр (первые 5 строк)</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -229,7 +230,7 @@ export default function Import() {
       )}
 
       {template?.example && step === 'input' && (
-        <div className="bg-surface-container-lowest rounded-2xl p-4">
+        <div className="bg-surface-container-lowest rounded-3xl p-4">
           <p className="text-xs font-medium text-on-surface-variant mb-2">Пример формата:</p>
           <div className="font-mono text-xs space-y-1 text-on-surface-variant">
             <p>{template.columns.join(',')}</p>
@@ -241,7 +242,7 @@ export default function Import() {
       )}
 
       {result && (
-        <div className={`rounded-2xl p-4 ${result.error ? 'bg-error-container' : 'bg-secondary-container'}`}>
+        <div className={`rounded-3xl p-4 ${result.error ? 'bg-error-container' : 'bg-secondary-container'}`}>
           {result.error ? (
             <p className="text-error">{result.error}</p>
           ) : (

@@ -10,8 +10,9 @@ router.use(authMiddleware);
 router.get('/', transactionController.getTransactions);
 router.get('/:id', validateObjectId, transactionController.getTransactionById);
 router.post('/', validateMiddleware('transaction', 'create'), transactionController.createTransaction);
-router.put('/:id', validateObjectId, validateMiddleware('transaction', 'update'), transactionController.updateTransaction);
+router.patch('/:id', validateObjectId, validateMiddleware('transaction', 'update'), transactionController.updateTransaction);
 router.delete('/:id', validateObjectId, transactionController.deleteTransaction);
+router.post('/batch-delete', transactionController.batchDeleteTransactions);
 
 // Personal space (alias - same controller)
 router.get('/personal', transactionController.getTransactions);

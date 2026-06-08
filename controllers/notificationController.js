@@ -24,7 +24,7 @@ exports.updateSettings = async (req, res, next) => {
       settings = await prisma.notificationSetting.create({ data: { user_id: user.id } });
     }
 
-    const { remind_upcoming, notify_goal_reached, notify_budget_exceeded, notify_wish_completed } = req.body;
+    const { remind_upcoming, notify_goal_reached, notify_budget_exceeded, notify_wish_completed } = req.validated;
     const updateData = {};
 
     if (remind_upcoming !== undefined) updateData.remind_upcoming = !!remind_upcoming;
@@ -87,7 +87,7 @@ exports.deleteNotification = async (req, res, next) => {
     const { id } = req.params;
     const success = await notifService.deleteNotification(Number(id), user.id);
     logger.info(`User ${user.id} deleted notification ${id}`);
-    res.json({ success });
+    res.status(204).send();
   } catch (error) {
     next(error);
   }

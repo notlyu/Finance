@@ -1,6 +1,18 @@
+import { useEffect } from 'react';
 import PropTypes from 'prop-types';
 
-function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmText, cancelText, variant, loading }) {
+function ConfirmModal({ isOpen, open, onClose, onConfirm, title, message, confirmText, cancelText, variant, loading }) {
+  isOpen = isOpen ?? open;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKey = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const variantStyles = {

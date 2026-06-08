@@ -17,7 +17,7 @@ exports.getBudgets = async (req, res, next) => {
     const familyId = user.family_id;
     const period = req.query.period || 'month';
     const year = req.query.year;
-    console.log('[BUDGETS GET] user.id:', user.id, 'familyId:', familyId, 'period:', period, 'year:', year, 'month:', req.query.month);
+    logger.info({ userId: user.id, familyId, period, year, month: req.query.month }, 'BUDGETS GET');
 
     const month = String(req.query.month || new Date().toISOString().slice(0, 7));
     if (period === 'month') {
@@ -145,7 +145,7 @@ exports.getBudgets = async (req, res, next) => {
     }
 
     const { start, end } = monthStartEnd(month);
-    console.log('[BUDGETS GET] start:', start, 'end:', end);
+    logger.info({ start, end }, 'BUDGETS GET month range');
 
     const startDate = new Date(start);
     const endDate = new Date(end);
@@ -170,7 +170,7 @@ exports.getBudgets = async (req, res, next) => {
         }
       : { family_id: null, user_id: user.id, month, scope: 'personal' };
 
-    console.log('[BUDGETS GET] budgetWhere:', JSON.stringify(budgetWhere));
+    logger.info({ budgetWhere }, 'BUDGETS GET where');
 
     const budgets = await prisma.budget.findMany({
       where: budgetWhere,
@@ -243,15 +243,8 @@ exports.createBudget = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
-    console.log('[CREATE BUDGET] user.id:', user.id, 'familyId:', familyId, 'month:', req.body.month, 'category_id:', req.body.category_id);
+    const { month, category_id, limit_amount, scope = 'personal' } = req.validated;
 
-    const { month, category_id, limit_amount, scope = 'personal', type } = req.body;
-    if (!/^\d{4}-\d{2}$/.test(String(month || ''))) {
-      throw new ValidationError('Некорректный month (YYYY-MM)');
-    }
-    if (!category_id) {
-      throw new ValidationError('category_id обязателен');
-    }
     const limit = Number(limit_amount);
     if (!Number.isFinite(limit) || limit <= 0) {
       throw new ValidationError('limit_amount должен быть > 0');
@@ -264,7 +257,6 @@ exports.createBudget = async (req, res, next) => {
     if (!category) {
       throw new ValidationError('Категория не найдена');
     }
-    const categoryType = type || category.type;
 
     // scope: 'personal' -> family_id = null, 'family'/'shared' -> family_id = familyId
     const budgetScope = ['family', 'shared'].includes(scope) && familyId ? scope : 'personal';
@@ -277,13 +269,13 @@ exports.createBudget = async (req, res, next) => {
         category_id: Number(category_id),
         month,
         limit_amount: limit,
-        type: categoryType,
+        type: category.type,
         scope: budgetScope,
       },
     });
 
     logger.info({ userId: user.id, budgetId: budget.id, action: 'createBudget' });
-    res.status(201).json({ ...budget, type: categoryType, category_type: categoryType });
+    res.status(201).json({ ...budget, type: category.type, category_type: category.type });
   } catch (error) {
     next(error);
   }
@@ -304,14 +296,29 @@ exports.updateBudget = async (req, res, next) => {
       throw new NotFoundError('Бюджет не найден');
     }
 
-    const limit = Number(req.body.limit_amount);
-    if (!Number.isFinite(limit) || limit <= 0) {
-      throw new ValidationError('limit_amount должен быть > 0');
+    const data = {};
+    if (req.validated.limit_amount !== undefined) {
+      data.limit_amount = req.validated.limit_amount;
     }
+    if (req.body.month !== undefined) {
+      if (!/^\d{4}-\d{2}$/.test(String(req.body.month))) {
+        throw new ValidationError('Некорректный month (YYYY-MM)');
+      }
+      data.month = req.body.month;
+    }
+    if (req.body.category_id !== undefined) {
+      const cat = await prisma.category.findFirst({ where: { id: Number(req.body.category_id) } });
+      if (!cat) throw new NotFoundError('Категория не найдена');
+      data.category_id = Number(req.body.category_id);
+    }
+    if (req.body.type !== undefined) {
+      data.type = req.body.type;
+    }
+    data.updated_at = new Date();
 
     const updated = await prisma.budget.update({
       where: { id: Number(id) },
-      data: { limit_amount: limit, updated_at: new Date() },
+      data,
     });
 
     logger.info({ userId: user.id, budgetId: budget.id, action: 'updateBudget' });
@@ -339,7 +346,7 @@ exports.deleteBudget = async (req, res, next) => {
     await prisma.budget.delete({ where: { id: Number(id) } });
 
     logger.info({ userId: user.id, budgetId: budget.id, action: 'deleteBudget' });
-    res.json({ message: 'Бюджет удалён' });
+    res.status(204).send();
   } catch (error) {
     next(error);
   }

@@ -1,4 +1,5 @@
 const prisma = require('../lib/prisma-client');
+const { logger } = require('../lib/errors');
 
 const SENSITIVE_FIELDS = ['password', 'password_hash', 'token', 'secret', 'key'];
 
@@ -31,7 +32,7 @@ async function logAction(userId, action, entityType, entityId, changes = null, m
       },
     });
   } catch (err) {
-    console.error('Audit log error:', err);
+    logger.error({ err }, 'Audit log error');
   }
 }
 

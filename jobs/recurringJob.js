@@ -38,7 +38,8 @@ async function runRecurringOnce() {
         const [ly, lm] = lastRun.split('-').map(Number);
         const targetDate = new Date(ly, lm - 1 + i, 1);
         const targetMonth = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
-        const day = Math.min(r.day_of_month, 28);
+        const lastDayOfMonth = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0).getDate();
+        const day = Math.min(r.day_of_month, lastDayOfMonth);
         const txDate = new Date(`${targetMonth}-${String(day).padStart(2, '0')}T00:00:00.000Z`);
 
         // Проверяем, не создана ли уже транзакция за этот месяц
