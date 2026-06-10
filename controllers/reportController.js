@@ -500,7 +500,7 @@ exports.getNetWorth = async (req, res, next) => {
     let cumulativeCashFlow = 0;
     const labels = Object.keys(monthlyData);
     const savingsRates = [];
-    const cashFlowData = labels.map((key, i) => {
+    const cashFlowData = labels.map((key) => {
       const d = monthlyData[key];
       cumulativeCashFlow += d.income - d.expense;
       const savings = d.income > 0 ? Math.round(((d.income - d.expense) / d.income) * 100) : 0;

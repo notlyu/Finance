@@ -1,7 +1,6 @@
 const ExcelJS = require('exceljs');
 const prisma = require('../lib/prisma-client');
-const { logger, ValidationError, UnauthorizedError } = require('../lib/errors');
-const reportController = require('./reportController');
+const { logger, UnauthorizedError } = require('../lib/errors');
 
 async function getUserTransactions(userId, familyId, query = {}) {
   let whereClause;
@@ -291,8 +290,6 @@ exports.exportAnalytics = async (req, res, next) => {
   try {
     if (!req.user) throw new UnauthorizedError();
     const { format = 'xlsx', startDate, endDate } = req.query;
-    const query = { ...req.query, startDate, endDate };
-
     const user = req.user;
     const familyId = user.family_id;
 

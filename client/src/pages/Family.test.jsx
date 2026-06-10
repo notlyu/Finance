@@ -142,7 +142,7 @@ describe('Family', () => {
     const copyBtns = screen.getAllByText('Копировать');
     fireEvent.click(copyBtns[0]);
     await waitFor(() => {
-      expect(navigator.clipboard.writeText).toHaveBeenCalledWith('ABC123');
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith('INV123');
     });
   });
 });

@@ -24,7 +24,25 @@ describe('Safety Pillow', () => {
     });
   });
 
-  describe('PUT /api/safety-pillow/settings', () => {
+  describe('PATCH /api/safety-pillow/settings', () => {
+    test('updates months setting', async () => {
+      const res = await request(app)
+        .patch('/api/safety-pillow/settings')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ months: 6 });
+      expect(res.status === 200 || res.status === 204).toBe(true);
+    });
+
+    test('returns 400 for months < 1', async () => {
+      const res = await request(app)
+        .patch('/api/safety-pillow/settings')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ months: 0 });
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('PUT /api/safety-pillow/settings (deprecated alias)', () => {
     test('updates months setting', async () => {
       const res = await request(app)
         .put('/api/safety-pillow/settings')

@@ -1,5 +1,5 @@
 const prisma = require('../lib/prisma-client');
-const { logger, ValidationError } = require('../lib/errors');
+const { logger, ValidationError, NotFoundError } = require('../lib/errors');
 
 exports.getAccounts = async (req, res, next) => {
   try {
@@ -63,7 +63,7 @@ exports.updateAccount = async (req, res, next) => {
       }
     });
     if (!account) {
-      throw new Error('Account not found');
+      throw new NotFoundError('Счёт не найден');
     }
     const scope = reqScope || account.scope || 'personal';
     const updated = await prisma.account.update({
@@ -100,7 +100,7 @@ exports.deleteAccount = async (req, res, next) => {
       }
     });
     if (!account) {
-      throw new Error('Account not found');
+      throw new NotFoundError('Счёт не найден');
     }
     // Soft delete
     await prisma.account.update({

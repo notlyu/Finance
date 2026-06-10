@@ -9,8 +9,9 @@ exports.getRecurring = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
-    const limit = Math.min(Number(req.query.limit) || 50, 200);
-    const offset = Number(req.query.offset) || 0;
+    const q = req.validatedQuery || req.query;
+    const limit = Math.min(Number(q.limit) || 50, 200);
+    const offset = Number(q.offset) || 0;
 
     const where = familyId
       ? { OR: [{ family_id: familyId }, { family_id: null, user_id: user.id }] }

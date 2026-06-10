@@ -1,5 +1,5 @@
 const prisma = require('../lib/prisma-client');
-const { logger, NotFoundError } = require('../lib/errors');
+const { NotFoundError } = require('../lib/errors');
 
 exports.list = async (req, res, next) => {
   try {

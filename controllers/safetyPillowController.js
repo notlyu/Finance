@@ -1,6 +1,6 @@
 const prisma = require('../lib/prisma-client');
 const pillowService = require('../services/safetyPillowService');
-const { logger, ValidationError } = require('../lib/errors');
+const { logger } = require('../lib/errors');
 
 exports.getSettings = async (req, res, next) => {
   try {

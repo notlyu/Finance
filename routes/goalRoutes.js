@@ -1,13 +1,13 @@
 const express = require('express');
 const goalController = require('../controllers/goalController');
 const authMiddleware = require('../middleware/auth');
-const { validateMiddleware, validateObjectId } = require('../lib/validation');
+const { validateMiddleware, validateObjectId, validateQuery } = require('../lib/validation');
 
 const router = express.Router();
 
 router.use(authMiddleware);
 
-router.get('/', goalController.getGoals);
+router.get('/', validateQuery('goals'), goalController.getGoals);
 router.get('/:id', validateObjectId, goalController.getGoalById);
 router.get('/:id/forecast', validateObjectId, goalController.getForecast);
 router.get('/export', goalController.exportGoals);

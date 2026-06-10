@@ -7,7 +7,7 @@ const getTransactions = async (req, res, next) => {
         throw new UnauthorizedError();
     }
     try {
-        const transactions = await transactionService.getTransactions(req.user.id, req.user.family_id, req.query);
+        const transactions = await transactionService.getTransactions(req.user.id, req.user.family_id, req.validatedQuery || req.query);
         res.json(transactions);
     } catch (error) {
         next(error);

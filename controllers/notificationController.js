@@ -85,7 +85,7 @@ exports.deleteNotification = async (req, res, next) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    const success = await notifService.deleteNotification(Number(id), user.id);
+    await notifService.deleteNotification(Number(id), user.id);
     logger.info(`User ${user.id} deleted notification ${id}`);
     res.status(204).send();
   } catch (error) {

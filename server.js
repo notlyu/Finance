@@ -254,15 +254,36 @@ if (process.env.ENABLE_RETRY_JOB !== 'false') {
 }
 
 // Graceful shutdown
-process.on('SIGTERM', async () => {
-  await prisma.$disconnect();
-  const { pool } = require('./lib/prisma-client');
+let isShuttingDown = false;
+async function shutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  logger.info({ signal }, 'Graceful shutdown initiated');
   try {
+    await prisma.$disconnect();
+  } catch (e) {
+    logger.error({ err: e }, 'Prisma disconnect error');
+  }
+  try {
+    const { pool } = require('./lib/prisma-client');
     await pool.end();
   } catch (e) {
     logger.error({ err: e }, 'Pool drain error');
   }
   process.exit(0);
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+// Process-level error handlers — без них процесс падает молча
+process.on('unhandledRejection', (reason) => {
+  logger.error({ err: reason }, 'Unhandled promise rejection');
+});
+
+process.on('uncaughtException', (err) => {
+  logger.error({ err }, 'Uncaught exception — shutting down');
+  shutdown('uncaughtException');
 });
 
 // Тестовый маршрут
@@ -275,13 +296,24 @@ app.get('/health', async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
     res.json({ status: 'ok', database: 'connected', time: new Date().toISOString() });
-  } catch (error) {
+  } catch {
     res.status(503).json({ status: 'error', database: 'disconnected', time: new Date().toISOString() });
   }
 });
 
-// Prometheus метрики
+// Prometheus метрики (защищено METRICS_TOKEN — для scraper'ов)
 app.get('/metrics', async (req, res) => {
+  const expected = process.env.METRICS_TOKEN;
+  if (expected) {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (token !== expected) {
+      return res.status(401).send('# Unauthorized');
+    }
+  } else if (process.env.NODE_ENV === 'production') {
+    // В проде без токена метрики недоступны — чтобы не утекали счётчики
+    return res.status(404).send('# Not found');
+  }
   try {
     const userCount = await prisma.user.count();
     const transactionCount = await prisma.transaction.count();
@@ -309,7 +341,7 @@ finance_families_total ${familyCount}
 # TYPE finance_uptime_seconds gauge
 finance_uptime_seconds ${process.uptime()}
 `.trim());
-  } catch (error) {
+  } catch {
     res.status(500).send('# Error collecting metrics');
   }
 });
@@ -324,7 +356,7 @@ app.get('/health/detailed', async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
     checks.database.status = 'ok';
-  } catch (e) {
+  } catch {
     checks.database.status = 'error';
   }
 

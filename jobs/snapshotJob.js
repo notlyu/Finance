@@ -1,9 +1,6 @@
 const prisma = require('../lib/prisma-client');
 
 async function runSnapshotMonthly() {
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
   const users = await prisma.user.findMany({
     include: { family: true }
   });

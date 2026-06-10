@@ -189,7 +189,7 @@ export default function SafetyPillow({ space = 'personal' }) {
     const m = parseInt(months);
     if (isNaN(m) || m < 1 || m > 24) return;
     try {
-      await api.put('/safety-pillow/settings', { months: m });
+      await api.patch('/safety-pillow/settings', { months: m });
       setSettings({ months: m });
       setMonthsInput(String(m));
       setShowCustomInput(false);

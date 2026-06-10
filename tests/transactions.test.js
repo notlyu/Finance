@@ -66,7 +66,7 @@ describe('Transactions', () => {
         .post('/api/transactions')
         .set('Authorization', `Bearer ${token}`)
         .send({ type: 'expense', amount: 1000, category_id: 99999, date: '2026-05-01' });
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(400);
     });
 
     test('returns 401 without token', async () => {
@@ -110,6 +110,27 @@ describe('Transactions', () => {
     test('searches by query', async () => {
       const res = await request(app)
         .get('/api/transactions?q=test')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+    });
+
+    test('returns 400 for invalid type in query (validateQuery)', async () => {
+      const res = await request(app)
+        .get('/api/transactions?type=bogus')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(400);
+    });
+
+    test('returns 400 for non-numeric limit (validateQuery)', async () => {
+      const res = await request(app)
+        .get('/api/transactions?limit=abc')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(400);
+    });
+
+    test('accepts limit up to 200 (validateQuery)', async () => {
+      const res = await request(app)
+        .get('/api/transactions?limit=200')
         .set('Authorization', `Bearer ${token}`);
       expect(res.status).toBe(200);
     });

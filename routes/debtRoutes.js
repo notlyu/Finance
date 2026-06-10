@@ -2,14 +2,15 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
 const debtService = require('../services/debtService');
-const { validateMiddleware, validateObjectId } = require('../lib/validation');
+const { validateMiddleware, validateObjectId, validateQuery } = require('../lib/validation');
 
 router.use(authMiddleware);
 
-router.get('/', async (req, res, next) => {
+router.get('/', validateQuery('debts'), async (req, res, next) => {
   try {
-    const limit = Math.min(Number(req.query.limit) || 50, 200);
-    const offset = Number(req.query.offset) || 0;
+    const q = req.validatedQuery || req.query;
+    const limit = Math.min(Number(q.limit) || 50, 200);
+    const offset = Number(q.offset) || 0;
     const result = await debtService.getDebts(req.user.id, req.user.family_id, limit, offset);
     res.json(result);
   } catch (error) {

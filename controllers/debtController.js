@@ -1,5 +1,6 @@
 const prisma = require('../lib/prisma-client');
 const debtService = require('../services/debtService');
+const { ValidationError } = require('../lib/errors');
 
 exports.getDebts = async (req, res, next) => {
   try {
@@ -45,7 +46,7 @@ exports.closePartial = async (req, res, next) => {
   try {
     const { amount, account_id } = req.body;
     if (!amount || amount <= 0) {
-      throw new Error('Amount must be positive');
+      throw new ValidationError('Сумма должна быть положительной');
     }
     const debt = await debtService.closePartial(
       Number(req.params.id), req.user.id, req.user.family_id, Number(amount), account_id

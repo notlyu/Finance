@@ -32,7 +32,7 @@ const detectColumns = (headers) => {
 
 const normalizeAmount = (value) => {
   if (!value) return null;
-  const cleaned = String(value).replace(/[^\d.,\-]/g, '').replace(',', '.');
+  const cleaned = String(value).replace(/[^\d.,-]/g, '').replace(',', '.');
   const num = parseFloat(cleaned);
   return isNaN(num) ? null : num;
 };

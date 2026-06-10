@@ -4,6 +4,7 @@ const prisma = require('../lib/prisma-client');
 describe('Recurring Job', () => {
   let testUser;
   let testRecurring;
+  let testCategory;
 
   beforeAll(async () => {
     testUser = await prisma.user.create({
@@ -14,12 +15,19 @@ describe('Recurring Job', () => {
       }
     });
 
+    testCategory = await prisma.category.create({
+      data: {
+        name: 'Test Recurring Category',
+        type: 'expense',
+      }
+    });
+
     testRecurring = await prisma.recurringTransaction.create({
       data: {
         user_id: testUser.id,
         type: 'expense',
         amount: 1000,
-        category_id: 1,
+        category_id: testCategory.id,
         day_of_month: 1,
         start_month: '2026-01',
         active: true,

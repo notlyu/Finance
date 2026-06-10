@@ -138,7 +138,7 @@
 | **Безопасность** | Helmet, express-rate-limit, CORS |
 | **Контейнеризация** | Docker, Docker Compose |
 | **CI/CD** | GitHub Actions |
-| **Региistry** | GitHub Container Registry (ghcr.io) |
+| **Регgistry** | GitHub Container Registry (ghcr.io) |
 
 ---
 

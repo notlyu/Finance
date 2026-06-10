@@ -15,11 +15,12 @@ exports.getBudgets = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
-    const period = req.query.period || 'month';
-    const year = req.query.year;
-    logger.info({ userId: user.id, familyId, period, year, month: req.query.month }, 'BUDGETS GET');
+    const q = req.validatedQuery || req.query;
+    const period = q.period || 'month';
+    const year = q.year;
+    logger.info({ userId: user.id, familyId, period, year, month: q.month }, 'BUDGETS GET');
 
-    const month = String(req.query.month || new Date().toISOString().slice(0, 7));
+    const month = String(q.month || new Date().toISOString().slice(0, 7));
     if (period === 'month') {
       if (!/^\d{4}-\d{2}$/.test(month)) {
         throw new ValidationError('Некорректный month (ожидается YYYY-MM)');
@@ -30,7 +31,7 @@ exports.getBudgets = async (req, res, next) => {
       }
     }
 
-    const memberId = req.query.memberId ? Number(req.query.memberId) : null;
+    const memberId = q.memberId ? Number(q.memberId) : null;
 
     let items, memberContributions;
     
@@ -80,7 +81,7 @@ exports.getBudgets = async (req, res, next) => {
       const txDateStart = new Date(`${year}-01-01`);
       const txDateEnd = new Date(`${Number(year) + 1}-01-01`);
       
-      let txWhere = familyId
+      const txWhere = familyId
         ? { 
             OR: [
               { family_id: familyId, scope: { in: ['family', 'shared'] }, date: { gte: txDateStart, lt: txDateEnd } },
@@ -297,22 +298,20 @@ exports.updateBudget = async (req, res, next) => {
     }
 
     const data = {};
-    if (req.validated.limit_amount !== undefined) {
-      data.limit_amount = req.validated.limit_amount;
+    const v = req.validated || {};
+    if (v.limit_amount !== undefined) {
+      data.limit_amount = v.limit_amount;
     }
-    if (req.body.month !== undefined) {
-      if (!/^\d{4}-\d{2}$/.test(String(req.body.month))) {
-        throw new ValidationError('Некорректный month (YYYY-MM)');
-      }
-      data.month = req.body.month;
+    if (v.month !== undefined) {
+      data.month = v.month;
     }
-    if (req.body.category_id !== undefined) {
-      const cat = await prisma.category.findFirst({ where: { id: Number(req.body.category_id) } });
+    if (v.category_id !== undefined) {
+      const cat = await prisma.category.findFirst({ where: { id: Number(v.category_id) } });
       if (!cat) throw new NotFoundError('Категория не найдена');
-      data.category_id = Number(req.body.category_id);
+      data.category_id = Number(v.category_id);
     }
-    if (req.body.type !== undefined) {
-      data.type = req.body.type;
+    if (v.type !== undefined) {
+      data.type = v.type;
     }
     data.updated_at = new Date();
 

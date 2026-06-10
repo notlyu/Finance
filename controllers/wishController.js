@@ -1,5 +1,5 @@
 const prisma = require('../lib/prisma-client');
-const { logger, ValidationError, NotFoundError, AppError, ForbiddenError } = require('../lib/errors');
+const { logger, ValidationError, NotFoundError, ForbiddenError } = require('../lib/errors');
 
 async function calcAvailableFunds(userId, familyId) {
   // Баланс = сумма ликвидных счетов
@@ -44,7 +44,7 @@ exports.fundWish = async (req, res, next) => {
       throw new NotFoundError('Желание не найдено');
     }
 
-    let amount = parseFloat(req.validated.amount);
+    const amount = parseFloat(req.validated.amount);
     if (!amount || amount <= 0 || isNaN(amount)) {
       throw new ValidationError('Укажите корректную сумму для пополнения');
     }
@@ -72,65 +72,65 @@ exports.fundWish = async (req, res, next) => {
       return res.status(200).json(warning);
     }
 
-    const category = await prisma.category.findFirst({ where: { name: 'Выделение средств на желания', family_id: wish.family_id } });
-    let categoryId = category?.id;
-    if (!categoryId) {
-      const newCat = await prisma.category.create({
-        data: { name: 'Выделение средств на желания', family_id: wish.family_id, type: 'expense', is_system: false }
-      });
-      categoryId = newCat.id;
-    }
-
     const now = new Date();
 
-    const tx = await prisma.transaction.create({
-      data: {
-        user_id: user.id,
-        family_id: wish.family_id,
-        account_id: accountId,
-        amount,
-        type: 'expense',
-        category_id: categoryId,
-        date: now,
-        comment: `Пополнение желания: ${wish.name}`,
-        scope: wish.scope || 'personal',
+    const result = await prisma.$transaction(async (txc) => {
+      const category = await txc.category.findFirst({ where: { name: 'Выделение средств на желания', family_id: wish.family_id } });
+      let categoryId = category?.id;
+      if (!categoryId) {
+        const newCat = await txc.category.create({
+          data: { name: 'Выделение средств на желания', family_id: wish.family_id, type: 'expense', is_system: false }
+        });
+        categoryId = newCat.id;
       }
-    });
 
-    if (account) {
-      await prisma.account.update({
-        where: { id: account.id },
-        data: { balance: Number(account.balance) - amount }
+      const tx = await txc.transaction.create({
+        data: {
+          user_id: user.id,
+          family_id: wish.family_id,
+          account_id: accountId,
+          amount,
+          type: 'expense',
+          category_id: categoryId,
+          date: now,
+          comment: `Пополнение желания: ${wish.name}`,
+          scope: wish.scope || 'personal',
+        }
       });
-    }
 
-    await prisma.wishContribution.create({
-      data: {
-        wish_id: wish.id,
-        user_id: user.id,
-        amount,
-        transaction_id: tx.id
+      if (account) {
+        await txc.account.update({
+          where: { id: account.id },
+          data: { balance: Number(account.balance) - amount }
+        });
       }
-    });
 
-    const newSaved = parseFloat(wish.saved_amount || 0) + amount;
-    await prisma.wish.update({
-      where: { id: wish.id },
-      data: { saved_amount: newSaved }
-    });
+      await txc.wishContribution.create({
+        data: {
+          wish_id: wish.id,
+          user_id: user.id,
+          amount,
+          transaction_id: tx.id
+        }
+      });
 
-    if (newSaved >= parseFloat(wish.cost)) {
-      await prisma.wish.update({
+      const newSaved = parseFloat(wish.saved_amount || 0) + amount;
+      const completed = newSaved >= parseFloat(wish.cost);
+      await txc.wish.update({
         where: { id: wish.id },
-        data: { status: 'completed', archived: true, archived_at: now }
+        data: completed
+          ? { saved_amount: newSaved, status: 'completed', archived: true, archived_at: now }
+          : { saved_amount: newSaved }
       });
-    }
+
+      return { transactionId: tx.id, newSaved };
+    });
 
     logger.info(`User ${user.id} funded wish ${wish.id}, amount: ${amount}`);
     res.status(201).json({
       message: 'Желание пополнено',
-      saved_amount: newSaved,
-      transaction_id: tx.id,
+      saved_amount: result.newSaved,
+      transaction_id: result.transactionId,
       availableFunds: available
     });
   } catch (error) {
@@ -142,8 +142,9 @@ exports.getWishes = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
-    const limit = Math.min(Number(req.query.limit) || 50, 200);
-    const offset = Number(req.query.offset) || 0;
+    const q = req.validatedQuery || req.query;
+    const limit = Math.min(Number(q.limit) || 50, 200);
+    const offset = Number(q.offset) || 0;
 
     const where = familyId
       ? {
@@ -154,7 +155,7 @@ exports.getWishes = async (req, res, next) => {
         }
       : { family_id: null, user_id: user.id, scope: 'personal' };
 
-    if (String(req.query.showArchived || '') !== 'true') {
+    if (String(q.showArchived || '') !== 'true') {
       where.archived = false;
     }
 

@@ -1,13 +1,13 @@
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
-const { validateMiddleware, validateObjectId } = require('../lib/validation');
+const { validateMiddleware, validateObjectId, validateQuery } = require('../lib/validation');
 const categoryController = require('../controllers/categoryController');
 
 const router = express.Router();
 
 router.use(authMiddleware);
 
-router.get('/', categoryController.list);
+router.get('/', validateQuery('categories'), categoryController.list);
 
 router.post('/', validateMiddleware('category', 'create'), categoryController.create);
 

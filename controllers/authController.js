@@ -371,10 +371,12 @@ exports.leaveFamily = async (req, res, next) => {
     const memberCount = await prisma.user.count({ where: { family_id: user.family_id } });
     
     if (family.owner_user_id === user.id && memberCount === 1) {
-      await prisma.transaction.updateMany({ where: { user_id: user.id }, data: { family_id: null } });
-      await prisma.budget.updateMany({ where: { user_id: user.id }, data: { family_id: null } });
-      await prisma.family.delete({ where: { id: family.id } });
-      await prisma.user.update({ where: { id: user.id }, data: { family_id: null } });
+      await prisma.$transaction(async (tx) => {
+        await tx.transaction.updateMany({ where: { user_id: user.id }, data: { family_id: null } });
+        await tx.budget.updateMany({ where: { user_id: user.id }, data: { family_id: null } });
+        await tx.family.delete({ where: { id: family.id } });
+        await tx.user.update({ where: { id: user.id }, data: { family_id: null } });
+      });
       return res.json({ message: 'Семья удалена, вы вышли из неё' });
     }
 
@@ -387,23 +389,23 @@ exports.leaveFamily = async (req, res, next) => {
     // - Семейные транзакции (scope='family'/'shared'): НЕ меняем family_id (они остаются в семье)
     // - Личные Goals/Wishes (scope='personal'): остаются личными
     // - Семейные Goals/Wishes: остаются семейными
+    await prisma.$transaction(async (tx) => {
+      // Для личных транзакций (scope='personal') - убеждаемся что family_id=null
+      await tx.transaction.updateMany({
+        where: { user_id: user.id, scope: 'personal' },
+        data: { family_id: null }
+      });
 
-    // Для личных транзакций (scope='personal') - убеждаемся что family_id=null
-    await prisma.transaction.updateMany({
-      where: { user_id: user.id, scope: 'personal' },
-      data: { family_id: null }
+      // Для личных бюджетов - убеждаемся что family_id=null
+      await tx.budget.updateMany({
+        where: { user_id: user.id, family_id: family.id },
+        data: { family_id: null }
+      });
+
+      // Goals и Wishes остаются как есть - личные остаются личными, семейные остаются семейными
+      // Пользователь сохраняет доступ к своим личным Goals/Wishes
+      await tx.user.update({ where: { id: user.id }, data: { family_id: null } });
     });
-    
-    // Для личных бюджетов - убеждаемся что family_id=null  
-    await prisma.budget.updateMany({ 
-      where: { user_id: user.id, family_id: family.id }, 
-      data: { family_id: null } 
-    });
-    
-    // Goals и Wishes остаются как есть - личные остаются личными, семейные остаются семейными
-    // Пользователь сохраняет доступ к своим личным Goals/Wishes
-    
-    await prisma.user.update({ where: { id: user.id }, data: { family_id: null } });
     res.json({ message: 'Вы покинули семью' });
   } catch (error) {
     next(error);
@@ -591,7 +593,7 @@ exports.resetPassword = async (req, res, next) => {
 
 exports.refreshToken = async (req, res, next) => {
   try {
-    let refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
+    const refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
     if (!refreshToken) {
       return res.status(400).json({ message: 'Refresh token required' });
     }
@@ -648,7 +650,7 @@ exports.refreshToken = async (req, res, next) => {
 
 exports.revokeToken = async (req, res, next) => {
   try {
-    let refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
+    const refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
     if (!refreshToken) {
       return res.status(400).json({ message: 'Refresh token required' });
     }
@@ -682,7 +684,7 @@ exports.logout = async (req, res, next) => {
 exports.updateProfile = async (req, res, next) => {
   try {
     const user = req.user;
-    const { name, email } = req.body;
+    const { name, email } = req.validated || {};
     const updates = {};
 
     if (name && name.trim()) updates.name = name.trim();

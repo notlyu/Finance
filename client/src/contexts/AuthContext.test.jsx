@@ -2,9 +2,21 @@ jest.mock('react-router-dom', () => ({
   MemoryRouter: ({ children }) => children,
 }));
 
-import { render, renderHook, act } from '@testing-library/react';
+jest.mock('axios', () => ({
+  get: jest.fn(),
+  post: jest.fn(),
+  create: jest.fn(() => ({
+    interceptors: {
+      request: { use: jest.fn() },
+      response: { use: jest.fn() },
+    },
+  })),
+}));
+
+import { render, renderHook, act, waitFor } from '@testing-library/react';
 import { AuthProvider, useAuth } from './AuthContext';
 import api from '../services/api';
+import axios from 'axios';
 
 const createTestToken = (payload, expOffset = 3600) => {
   const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
@@ -31,10 +43,14 @@ function mockStorage() {
 
 beforeEach(() => {
   mockStorage();
+  jest.clearAllMocks();
 });
 
 describe('decodeToken', () => {
   it('sets user from token payload', () => {
+    axios.get.mockRejectedValue(new Error('no session'));
+    axios.post.mockRejectedValue(new Error('no refresh'));
+
     const payload = { id: 1, email: 'test@example.com', name: 'Test User', family_id: 5, exp: Math.floor(Date.now() / 1000) + 3600 };
     const token = createTestToken(payload);
 
@@ -53,6 +69,9 @@ describe('decodeToken', () => {
   });
 
   it('returns null for invalid token', () => {
+    axios.get.mockRejectedValue(new Error('no session'));
+    axios.post.mockRejectedValue(new Error('no refresh'));
+
     const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
     act(() => {
       result.current.login('invalid-token');
@@ -63,7 +82,10 @@ describe('decodeToken', () => {
 });
 
 describe('AuthProvider', () => {
-  it('shows loading state initially, then resolves', () => {
+  it('shows loading state initially, then resolves', async () => {
+    axios.get.mockRejectedValue(new Error('no session'));
+    axios.post.mockRejectedValue(new Error('no refresh'));
+
     const states = [];
     function TestComponent() {
       const { loading } = useAuth();
@@ -73,18 +95,29 @@ describe('AuthProvider', () => {
 
     render(<TestComponent />, { wrapper: AuthProvider });
 
-    expect(states.length).toBeGreaterThanOrEqual(1);
-    const last = states[states.length - 1];
-    expect(last).toBe(false);
+    expect(states[0]).toBe(true);
+    await waitFor(() => expect(states[states.length - 1]).toBe(false));
   });
 
-  it('loads user from localStorage token on mount', () => {
-    const token = createTestToken({ id: 1, email: 'test@example.com', name: 'Test', family_id: 5 });
-    window.localStorage.setItem('token', token);
-    window.localStorage.setItem('refreshToken', 'rt');
+  it('loads user from /api/auth/me on mount', async () => {
+    const userData = { id: 1, email: 'test@example.com', name: 'Test' };
+    axios.get.mockResolvedValue({ data: userData });
 
     const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
 
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.user).toEqual(userData);
+    expect(result.current.isAuthenticated).toBe(true);
+  });
+
+  it('refreshes token when /api/auth/me fails', async () => {
+    const token = createTestToken({ id: 1, email: 'test@example.com', name: 'Test', family_id: 5 });
+    axios.get.mockRejectedValue(new Error('no session'));
+    axios.post.mockResolvedValue({ data: { token } });
+
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.user).toEqual({
       id: 1,
       email: 'test@example.com',
@@ -93,52 +126,25 @@ describe('AuthProvider', () => {
       exp: expect.any(Number),
     });
     expect(result.current.isAuthenticated).toBe(true);
-    expect(result.current.loading).toBe(false);
   });
 
-  it('does not load user when no token', () => {
-    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
-
-    expect(result.current.user).toBeNull();
-    expect(result.current.isAuthenticated).toBe(false);
-  });
-
-  it('does not load user when token expired', () => {
-    const expiredToken = createTestToken(
-      { id: 1, email: 'test@example.com', name: 'Test' },
-      -3600,
-    );
-    window.localStorage.setItem('token', expiredToken);
-    window.localStorage.setItem('refreshToken', 'rt');
-    window.localStorage.setItem('refreshTokenExpiresAt', '9999999999999');
+  it('does not load user when not authenticated', async () => {
+    axios.get.mockRejectedValue(new Error('no session'));
+    axios.post.mockRejectedValue(new Error('no refresh'));
 
     const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
 
+    await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.user).toBeNull();
     expect(result.current.isAuthenticated).toBe(false);
-    expect(window.localStorage.getItem('token')).toBeNull();
-    expect(window.localStorage.getItem('refreshToken')).toBeNull();
-    expect(window.localStorage.getItem('refreshTokenExpiresAt')).toBeNull();
   });
 });
 
 describe('login', () => {
-  it('saves token/refreshToken to localStorage', () => {
-    const token = createTestToken({ id: 1, email: 'test@example.com' });
-    const refreshToken = 'refresh-token-123';
-    const refreshTokenExpiresAt = '9999999999999';
-
-    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
-    act(() => {
-      result.current.login(token, refreshToken, refreshTokenExpiresAt);
-    });
-
-    expect(window.localStorage.getItem('token')).toBe(token);
-    expect(window.localStorage.getItem('refreshToken')).toBe(refreshToken);
-    expect(window.localStorage.getItem('refreshTokenExpiresAt')).toBe(refreshTokenExpiresAt);
-  });
-
   it('sets user state from decoded token', () => {
+    axios.get.mockRejectedValue(new Error('no session'));
+    axios.post.mockRejectedValue(new Error('no refresh'));
+
     const token = createTestToken({
       id: 1,
       email: 'test@example.com',
@@ -161,6 +167,9 @@ describe('login', () => {
   });
 
   it('updates isAuthenticated', () => {
+    axios.get.mockRejectedValue(new Error('no session'));
+    axios.post.mockRejectedValue(new Error('no refresh'));
+
     const token = createTestToken({ id: 1, email: 'test@example.com' });
 
     const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
@@ -170,45 +179,46 @@ describe('login', () => {
 
     expect(result.current.isAuthenticated).toBe(true);
   });
+
+  it('saves token via setAccessToken', () => {
+    axios.get.mockRejectedValue(new Error('no session'));
+    axios.post.mockRejectedValue(new Error('no refresh'));
+
+    const token = createTestToken({ id: 1, email: 'test@example.com' });
+
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    act(() => {
+      result.current.login(token);
+    });
+
+    const { getAccessToken } = require('../services/api');
+    expect(getAccessToken()).toBe(token);
+  });
 });
 
 describe('logout', () => {
   beforeEach(() => {
-    api.post.mockClear();
+    axios.get.mockRejectedValue(new Error('no session'));
+    axios.post.mockRejectedValue(new Error('no refresh'));
+    api.post = jest.fn().mockResolvedValue({ data: {} });
+  });
+
+  it('calls api.post /auth/logout', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    await act(async () => {
+      await result.current.logout();
+    });
+
+    expect(api.post).toHaveBeenCalledWith('/auth/logout');
+  });
+
+  it('sets user to null and clears isAuthenticated', async () => {
     const token = createTestToken({ id: 1, email: 'test@example.com' });
-    window.localStorage.setItem('token', token);
-    window.localStorage.setItem('refreshToken', 'rt');
-    window.localStorage.setItem('refreshTokenExpiresAt', '9999999999999');
-  });
-
-  it('calls api.post with refreshToken', async () => {
-    api.post.mockResolvedValue({ data: {} });
-
     const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
-    await act(async () => {
-      await result.current.logout();
+    act(() => {
+      result.current.login(token);
     });
 
-    expect(api.post).toHaveBeenCalledWith('/auth/logout', { refreshToken: 'rt' });
-  });
-
-  it('clears localStorage', async () => {
-    api.post.mockResolvedValue({ data: {} });
-
-    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
-    await act(async () => {
-      await result.current.logout();
-    });
-
-    expect(window.localStorage.getItem('token')).toBeNull();
-    expect(window.localStorage.getItem('refreshToken')).toBeNull();
-    expect(window.localStorage.getItem('refreshTokenExpiresAt')).toBeNull();
-  });
-
-  it('sets user to null', async () => {
-    api.post.mockResolvedValue({ data: {} });
-
-    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
     await act(async () => {
       await result.current.logout();
     });
@@ -225,20 +235,32 @@ describe('logout', () => {
       await result.current.logout();
     });
 
-    expect(window.localStorage.getItem('token')).toBeNull();
-    expect(window.localStorage.getItem('refreshToken')).toBeNull();
-    expect(window.localStorage.getItem('refreshTokenExpiresAt')).toBeNull();
     expect(result.current.user).toBeNull();
     expect(result.current.isAuthenticated).toBe(false);
+  });
+
+  it('clears in-memory access token', async () => {
+    const { getAccessToken, setAccessToken } = require('../services/api');
+    setAccessToken('old-token');
+
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    await act(async () => {
+      await result.current.logout();
+    });
+
+    expect(getAccessToken()).toBeNull();
   });
 });
 
 describe('useAuth', () => {
-  it('returns context value when used within AuthProvider', () => {
+  it('returns context value when used within AuthProvider', async () => {
+    axios.get.mockRejectedValue(new Error('no session'));
+    axios.post.mockRejectedValue(new Error('no refresh'));
+
     const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current).toHaveProperty('user');
-    expect(result.current).toHaveProperty('token');
     expect(result.current).toHaveProperty('loading');
     expect(result.current).toHaveProperty('isAuthenticated');
     expect(result.current).toHaveProperty('login');

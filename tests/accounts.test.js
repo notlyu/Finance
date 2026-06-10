@@ -78,7 +78,7 @@ describe('Accounts', () => {
         .patch('/api/accounts/999999')
         .set('Authorization', `Bearer ${token}`)
         .send({ name: 'Nope' });
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(404);
     });
   });
 

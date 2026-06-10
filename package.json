@@ -11,6 +11,10 @@
     "test:watch": "jest --watch --forceExit --detectOpenHandles",
     "test:smoke": "node tests/smoke.js",
     "test:e2e": "npx playwright test",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{js,json,md}\"",
+    "format:check": "prettier --check \"**/*.{js,json,md}\"",
     "db:indexes": "node scripts/add-indexes.sql",
     "load:test": "node scripts/load-test.js"
   },
@@ -47,9 +51,14 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-n": "^18.1.0",
+    "globals": "^17.6.0",
     "jest": "^30.3.0",
     "nodemon": "^3.1.14",
     "playwright": "^1.40.0",
+    "prettier": "^3.8.4",
     "supertest": "^7.2.2"
   }
 }

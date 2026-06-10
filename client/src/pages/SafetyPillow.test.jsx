@@ -4,7 +4,7 @@ import SafetyPillow from './SafetyPillow';
 
 jest.mock('../services/api', () => ({
   __esModule: true,
-  default: { get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
+  default: { get: jest.fn(), post: jest.fn(), put: jest.fn(), patch: jest.fn(), delete: jest.fn() },
 }));
 
 import api from '../services/api';
@@ -110,19 +110,23 @@ describe('SafetyPillow', () => {
     render(<SafetyPillow />);
     expect(await screen.findByText('Настройки подушки')).toBeInTheDocument();
     const all3mes = screen.getAllByText('3 мес');
+    const all6mes = screen.getAllByText('6 мес');
+    const all12mes = screen.getAllByText('12 мес');
     expect(all3mes.length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('6 мес')).toBeInTheDocument();
-    expect(screen.getByText('12 мес')).toBeInTheDocument();
+    expect(all6mes.length).toBeGreaterThanOrEqual(1);
+    expect(all12mes.length).toBeGreaterThanOrEqual(1);
   });
 
   it('updates settings when preset button is clicked', async () => {
-    api.put.mockResolvedValue({ data: {} });
+    api.patch.mockResolvedValue({ data: {} });
     render(<SafetyPillow />);
     await screen.findByText('Настройки подушки');
 
-    fireEvent.click(screen.getByText('12 мес'));
+    const buttons = screen.getAllByRole('button').filter(b => b.textContent.includes('12 мес'));
+    const settingsButton = buttons[buttons.length - 1];
+    fireEvent.click(settingsButton);
     await waitFor(() => {
-      expect(api.put).toHaveBeenCalledWith('/safety-pillow/settings', { months: 12 });
+      expect(api.patch).toHaveBeenCalledWith('/safety-pillow/settings', { months: 12 });
     });
   });
 

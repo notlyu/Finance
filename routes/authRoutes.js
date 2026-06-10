@@ -107,7 +107,7 @@ router.post('/reset-password',
 );
 
 router.get('/me', authMiddleware, authController.getMe);
-router.patch('/me', authMiddleware, authController.updateProfile);
+router.patch('/me', authMiddleware, validateMiddleware('auth', 'updateProfile'), authController.updateProfile);
 
 router.post('/family/create', 
   authMiddleware, 

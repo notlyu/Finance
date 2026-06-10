@@ -1,24 +1,26 @@
 import { render, screen } from '@testing-library/react';
 import Layout from './Layout';
 
+const mockUser = { id: 1, name: 'Test', email: 'test@test.com' };
+
 jest.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({
-    user: { id: 1, name: 'Test', email: 'test@test.com' },
+    user: mockUser,
     isAuthenticated: true,
     loading: false,
     login: jest.fn(),
     logout: jest.fn(),
-    token: 'test-token',
   }),
 }));
 
-const api = require('../services/api').default;
+jest.mock('react-router-dom', () => ({
+  Link: ({ children, to }) => <a href={to}>{children}</a>,
+  Outlet: () => <div data-testid="outlet" />,
+  useNavigate: () => jest.fn(),
+  useLocation: () => ({ pathname: '/personal/dashboard' }),
+}));
 
 describe('Layout', () => {
-  beforeEach(() => {
-    api.get.mockResolvedValue({ data: { id: 1, name: 'Test User', email: 'test@test.com' } });
-  });
-
   it('renders sidebar with navigation links for personal space', async () => {
     render(<Layout space="personal" />);
     await screen.findByText('Выйти');

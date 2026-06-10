@@ -1,5 +1,5 @@
 const prisma = require('../lib/prisma-client');
-const { logger, ValidationError, NotFoundError, AppError, ForbiddenError } = require('../lib/errors');
+const { logger, ValidationError, NotFoundError, ForbiddenError } = require('../lib/errors');
 
 function currentMonth() {
   return new Date().toISOString().slice(0, 7);
@@ -22,10 +22,11 @@ exports.getGoals = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
-    const limit = Math.min(Number(req.query.limit) || 50, 200);
-    const offset = Number(req.query.offset) || 0;
+    const q = req.validatedQuery || req.query;
+    const limit = Math.min(Number(q.limit) || 50, 200);
+    const offset = Number(q.offset) || 0;
 
-    const archiveFilter = req.query.archived;
+    const archiveFilter = q.archived;
     let where;
     if (familyId) {
       where = archiveFilter === 'true'
@@ -224,7 +225,9 @@ exports.updateGoal = async (req, res, next) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    const { scope: reqScope, ...restData } = req.body;
+    // scope не входит в Zod-схему update — читаем отдельно; данные берём только из validated
+    const reqScope = req.body?.scope;
+    const restData = req.validated || {};
 
     const goal = await prisma.goal.findFirst({
       where: {
@@ -406,7 +409,7 @@ exports.contributeToGoal = async (req, res, next) => {
   try {
     const user = req.user;
     const { id } = req.params;
-    const { amount, date, createTransaction, category_id, comment, scope: reqScope, skipWarning } = req.validated;
+    const { amount, date, createTransaction, category_id, comment, scope: _reqScope, skipWarning } = req.validated;
     const account_id = req.body?.account_id;
 
     if (!amount || amount <= 0) {
@@ -496,7 +499,9 @@ exports.contributeToGoal = async (req, res, next) => {
     if (result.reached) {
       const { notifyGoalReached } = require('../services/notificationService');
       const updatedGoal = await prisma.goal.findUnique({ where: { id: goal.id } });
-      notifyGoalReached(updatedGoal).catch(err => next(err));
+      notifyGoalReached(updatedGoal).catch(err =>
+        logger.error({ err, goalId: goal.id }, 'notifyGoalReached failed')
+      );
     }
 
     logger.info(`User ${user.id} contributed to goal ${id}, amount: ${amount}`);
@@ -509,7 +514,7 @@ exports.contributeToGoal = async (req, res, next) => {
     });
   } catch (error) {
     if (String(error.message || '').includes('category_id обязателен')) {
-      throw new ValidationError(error.message);
+      return next(new ValidationError(error.message));
     }
     next(error);
   }

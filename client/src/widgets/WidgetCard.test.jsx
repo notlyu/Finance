@@ -33,23 +33,23 @@ describe('WidgetCard', () => {
 
   it('calls onRemove when close button clicked', () => {
     const onRemove = jest.fn();
-    const { container } = render(
+    render(
       <WidgetCard widget={widget} def={def} onRemove={onRemove} space="personal" />
     );
-    const closeBtn = container.querySelector('[title="Удалить виджет"]');
+    const closeBtn = screen.getByLabelText('Удалить Распределение');
     fireEvent.click(closeBtn);
     expect(onRemove).toHaveBeenCalledTimes(1);
   });
 
   it('renders navigate link when navigateTo is provided', () => {
     render(<WidgetCard widget={widget} def={def} navigateTo="goals" space="family" />);
-    const link = screen.getByText('Подробнее');
+    const link = screen.getByText('Все');
     expect(link).toBeInTheDocument();
     expect(link.closest('a')).toHaveAttribute('href', '/family/goals');
   });
 
   it('renders personal path for space=personal', () => {
     render(<WidgetCard widget={widget} def={def} navigateTo="goals" space="personal" />);
-    expect(screen.getByText('Подробнее').closest('a')).toHaveAttribute('href', '/personal/goals');
+    expect(screen.getByText('Все').closest('a')).toHaveAttribute('href', '/personal/goals');
   });
 });
