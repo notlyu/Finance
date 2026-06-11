@@ -12,7 +12,6 @@ const rateLimit = require('express-rate-limit');
 const { initSocket } = require('./lib/socket');
 const swaggerUi = require('swagger-ui-express');
 const { swaggerSpec } = require('./lib/swagger');
-const scopeMiddleware = require('./middleware/scopeMiddleware');
 
 // Импорт маршрутов
 const authRoutes = require('./routes/authRoutes');
@@ -118,9 +117,6 @@ if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'tru
   });
 }
 
-// Scope middleware — устанавливает req.scope из URL до всех маршрутов
-app.use(scopeMiddleware);
-
 // Маршруты
 app.use('/api/auth', authRoutes);
 app.use('/api/wishes', wishRoutes);
@@ -140,35 +136,6 @@ app.use('/api/debts', debtRoutes);
 app.use('/api/import', importRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/accounts', accountRoutes);
-
-// Scoped routes: /api/personal/* и /api/family/* (req.scope уже выставлен scopeMiddleware)
-// Dashboard
-app.use('/api/personal/dashboard', dashboardRoutes);
-app.use('/api/family/dashboard', dashboardRoutes);
-// Transactions
-app.use('/api/personal/transactions', transactionRoutes);
-app.use('/api/family/transactions', transactionRoutes);
-// Goals
-app.use('/api/personal/goals', goalRoutes);
-app.use('/api/family/goals', goalRoutes);
-// Budgets
-app.use('/api/personal/budgets', budgetRoutes);
-app.use('/api/family/budgets', budgetRoutes);
-// Recurring
-app.use('/api/personal/recurring', recurringRoutes);
-app.use('/api/family/recurring', recurringRoutes);
-// Debts
-app.use('/api/personal/debts', debtRoutes);
-app.use('/api/family/debts', debtRoutes);
-// Safety Pillow
-app.use('/api/personal/safety-pillow', safetyPillowRoutes);
-app.use('/api/family/safety-pillow', safetyPillowRoutes);
-// Analytics / Reports
-app.use('/api/personal/reports', reportRoutes);
-app.use('/api/family/reports', reportRoutes);
-// Wishes
-app.use('/api/personal/wishes', wishRoutes);
-app.use('/api/family/wishes', wishRoutes);
 
 // Global error handler (must be after routes)
 app.use(errorHandler);
