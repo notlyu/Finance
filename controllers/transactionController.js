@@ -1,6 +1,18 @@
 const transactionService = require('../services/transactionService');
 const auditService = require('../services/auditService');
+const { emitFamilyUpdate } = require('../lib/socket');
 const { logger, NotFoundError, ValidationError, UnauthorizedError } = require('../lib/errors');
+
+// Realtime для семьи (#9): уведомляем остальных участников об изменении общих данных.
+// Личные операции НЕ шлём — приватность (партнёр не получает realtime-сигнал о личном).
+function notifyFamily(req, resource) {
+    if (!req.user?.family_id) return;
+    try {
+        emitFamilyUpdate(req.user.family_id, 'family_update', { resource, by: req.user.id }, req.user.id);
+    } catch (e) {
+        logger.warn({ err: e }, 'family_update emit failed');
+    }
+}
 
 const getTransactions = async (req, res, next) => {
     if (!req.user) {
@@ -30,6 +42,7 @@ const createTransaction = async (req, res, next) => {
 
         if (result.tx) {
             auditService.logTransaction(req.user.id, 'create', result.tx.id, null, result.tx, req);
+            if (result.tx.scope !== 'personal') notifyFamily(req, 'transactions');
         }
 
         const response = { transaction: result.tx };
@@ -73,8 +86,10 @@ const updateTransaction = async (req, res, next) => {
 
         if (transaction) {
             auditService.logTransaction(req.user.id, 'update', transaction.id, oldTx, transaction, req);
+            // Шлём, если операция семейная сейчас ИЛИ была семейной до правки.
+            if (transaction.scope !== 'personal' || oldTx?.scope !== 'personal') notifyFamily(req, 'transactions');
         }
-        
+
         res.json(transaction);
     } catch (error) {
         next(error);
@@ -97,8 +112,9 @@ const deleteTransaction = async (req, res, next) => {
 
         if (oldTx) {
             auditService.logTransaction(req.user.id, 'delete', Number(req.params.id), oldTx, null, req);
+            if (oldTx.scope !== 'personal') notifyFamily(req, 'transactions');
         }
-        
+
         res.status(204).send();
     } catch (error) {
         next(error);
@@ -121,6 +137,9 @@ const batchDeleteTransactions = async (req, res, next) => {
             count: result.deleted,
             action: 'batchDeleteTransactions'
         });
+
+        // Пакет мог содержать семейные операции — уведомляем семью (без разбора по scope).
+        if (result.deleted > 0) notifyFamily(req, 'transactions');
 
         res.json(result);
     } catch (error) {

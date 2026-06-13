@@ -91,6 +91,14 @@ function AppRoutes() {
     return () => socketService.disconnect();
   }, []);
 
+  // Realtime (#9): когда участник семьи меняет общие данные — перезапрашиваем кэш,
+  // чтобы партнёр видел изменения без перезагрузки.
+  useEffect(() => {
+    const handleFamilyUpdate = () => queryClient.invalidateQueries();
+    socketService.on('family_update', handleFamilyUpdate);
+    return () => socketService.off('family_update', handleFamilyUpdate);
+  }, []);
+
   return (
     <AuthProvider>
       <ErrorBoundary>
