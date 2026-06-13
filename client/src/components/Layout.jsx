@@ -1,6 +1,7 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
 import NotificationBell from './NotificationBell';
 
 export const FAMILY_CHANGED_EVENT = 'family:changed';
@@ -14,8 +15,34 @@ export default function Layout({ space = 'personal', currentSpace, onSpaceChange
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [currentDate, setCurrentDate] = useState('');
   const moreMenuRef = useRef(null);
+  const { confirmNavigation } = useUnsavedChanges();
 
   const basePath = `/${space}`;
+
+  // T3.2/T3.3 — переключение пространства через guard несохранённых данных.
+  const switchSpace = useCallback((newSpace) => {
+    if (newSpace === space) return;
+    confirmNavigation(() => {
+      onSpaceChange?.(newSpace);
+      navigate(`/${newSpace}/dashboard`);
+    });
+  }, [space, onSpaceChange, navigate, confirmNavigation]);
+  const toggleSpace = useCallback(() => {
+    switchSpace(space === 'personal' ? 'family' : 'personal');
+  }, [switchSpace, space]);
+
+  // T3.3 — хоткей Alt+S для переключения пространства (только при наличии семьи).
+  useEffect(() => {
+    if (!user?.family_id) return undefined;
+    const onKey = (e) => {
+      if (e.altKey && (e.code === 'KeyS' || e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        toggleSpace();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [user, toggleSpace]);
 
   const personalNav = [
     { name: 'Главная', path: `${basePath}/dashboard`, icon: 'dashboard' },
@@ -96,6 +123,23 @@ export default function Layout({ space = 'personal', currentSpace, onSpaceChange
             <p className="text-[10px] text-on-surface-variant font-medium tracking-wide">Premium Capital</p>
           </div>
         </div>
+
+        {/* T3.1 — бейдж активного пространства (desktop): всегда видно «где я», клик = переключение (Alt+S) */}
+        {user?.family_id && (
+          <button
+            onClick={toggleSpace}
+            title="Переключить пространство (Alt+S)"
+            className={`mb-6 w-full flex items-center gap-2 px-3 py-2.5 rounded-2xl text-sm font-semibold transition-colors ${
+              space === 'family'
+                ? 'bg-secondary-container text-on-secondary-container hover:bg-secondary-container/80'
+                : 'bg-primary/10 text-primary hover:bg-primary/15'
+            }`}
+          >
+            <span>{space === 'personal' ? '👤' : '👨‍👩‍👧'}</span>
+            <span>{space === 'personal' ? 'Личное пространство' : 'Семейное пространство'}</span>
+            <span className="material-symbols-outlined ml-auto text-base opacity-60">swap_horiz</span>
+          </button>
+        )}
 
         {/* Navigation */}
         <nav className="flex-1 space-y-1">
@@ -194,15 +238,16 @@ export default function Layout({ space = 'personal', currentSpace, onSpaceChange
           {/* Space Switcher */}
           {user?.family_id && (
             <button
-              onClick={() => {
-                const newSpace = space === 'personal' ? 'family' : 'personal';
-                onSpaceChange?.(newSpace);
-                navigate(`/${newSpace}/dashboard`);
-              }}
-              className="flex items-center gap-2 px-3 py-1.5 bg-surface-container rounded-full text-sm font-semibold hover:bg-surface-container-high transition-colors"
+              onClick={toggleSpace}
+              title={space === 'personal' ? 'Личное пространство — нажмите (или Alt+S), чтобы переключиться на семейное' : 'Семейное пространство — нажмите (или Alt+S), чтобы переключиться на личное'}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold ring-1 transition-colors ${
+                space === 'family'
+                  ? 'bg-secondary-container text-on-secondary-container ring-secondary/30 hover:bg-secondary-container/80'
+                  : 'bg-primary/10 text-primary ring-primary/20 hover:bg-primary/15'
+              }`}
             >
               <span>{space === 'personal' ? '👤' : '👨‍👩‍👧'}</span>
-              <span className="text-primary">{space === 'personal' ? 'Личное' : 'Семья'}</span>
+              <span>{space === 'personal' ? 'Личное' : 'Семья'}</span>
             </button>
           )}
         </div>

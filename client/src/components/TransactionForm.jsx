@@ -1,11 +1,14 @@
 import Modal from './Modal';
 import FormattedInput from './ui/FormattedInput';
-import Toggle from './ui/Toggle';
 
 export default function TransactionForm({
   isOpen, onClose, editingId, categories, accounts, space, hasFamily,
   register, handleSubmit, onSubmit, watch, setValue, reset,
 }) {
+  // §4.2: с семейного счёта операцию нельзя сделать личной/скрытой — чип «Личное» блокируется.
+  const selectedAccount = accounts.find(a => String(a.id) === String(watch('account_id')));
+  const isFamilyAccount = selectedAccount?.scope === 'family';
+  const effectiveScope = isFamilyAccount ? 'family' : watch('scope');
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={editingId ? 'Редактировать операцию' : 'Добавить операцию'}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -80,8 +83,8 @@ export default function TransactionForm({
             <select
               {...register('account_id', {
                 onChange: (e) => {
-                  // Счёт определяет scope операции по умолчанию (ТЗ Логика семьи §5).
-                  // Тумблер «Личное/Семья» по-прежнему может переопределить вручную.
+                  // Счёт задаёт scope (ТЗ §5). Семейный счёт — всегда «Семья» (§4.2),
+                  // с личного можно вручную переключить на «Семья» чипом.
                   const acc = accounts.find(a => String(a.id) === String(e.target.value));
                   if (acc?.scope) setValue('scope', acc.scope);
                 },
@@ -97,24 +100,45 @@ export default function TransactionForm({
           <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Комментарий</label>
           <textarea {...register('comment')} rows="2" className="input-ghost" placeholder="Необязательно" />
         </div>
-        {/* Единый переключатель scope (личное = скрыто от партнёра, семейное = общий бюджет).
-            Показываем только участнику семьи — у соло-пользователя выбора нет. */}
+        {/* Scope-чипы (личное = скрыто от партнёра, семейное = общий бюджет).
+            Только для участника семьи. С семейного счёта «Личное» недоступно (§4.2). */}
         {hasFamily && (
-          <div className="flex items-center justify-between p-4 bg-surface-container rounded-3xl">
-            <div>
-              <span className="text-sm font-semibold text-on-surface">
-                {watch('scope') === 'personal' ? '🔒 Личная операция' : '👥 Семейная операция'}
-              </span>
-              <p className="text-xs text-on-surface-variant">
-                {watch('scope') === 'personal'
-                  ? 'Видна только вам — партнёр увидит «🔒 Сюрприз» вместо суммы, в общий бюджет не входит'
-                  : 'Видна всем участникам и учитывается в общем семейном бюджете'}
-              </p>
+          <div className="p-4 bg-surface-container rounded-3xl space-y-3">
+            <span className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest ml-1">Кто видит операцию</span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={isFamilyAccount}
+                onClick={() => setValue('scope', 'personal')}
+                className={`flex-1 py-3 rounded-2xl text-sm font-semibold transition-all ${
+                  effectiveScope === 'personal'
+                    ? 'bg-primary text-white'
+                    : isFamilyAccount
+                      ? 'bg-surface-container-low text-outline opacity-50 cursor-not-allowed'
+                      : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high'
+                }`}
+              >
+                🔒 Личное
+              </button>
+              <button
+                type="button"
+                onClick={() => setValue('scope', 'family')}
+                className={`flex-1 py-3 rounded-2xl text-sm font-semibold transition-all ${
+                  effectiveScope === 'family'
+                    ? 'bg-secondary text-white'
+                    : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high'
+                }`}
+              >
+                👥 Семья
+              </button>
             </div>
-            <Toggle
-              checked={watch('scope') !== 'personal'}
-              onChange={() => setValue('scope', watch('scope') === 'personal' ? 'family' : 'personal')}
-            />
+            <p className="text-xs text-on-surface-variant ml-1">
+              {isFamilyAccount
+                ? 'Трата с общего счёта всегда видна семье'
+                : effectiveScope === 'personal'
+                  ? 'Видна только вам — партнёр увидит «🔒 Сюрприз» вместо суммы'
+                  : 'Видна всем участникам и входит в общий семейный бюджет'}
+            </p>
           </div>
         )}
         <div className="flex justify-end gap-3 pt-2">

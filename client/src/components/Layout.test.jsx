@@ -1,7 +1,8 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import Layout from './Layout';
 
 const mockUser = { id: 1, name: 'Test', email: 'test@test.com' };
+const mockNavigate = jest.fn();
 
 jest.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({
@@ -16,7 +17,7 @@ jest.mock('../contexts/AuthContext', () => ({
 jest.mock('react-router-dom', () => ({
   Link: ({ children, to }) => <a href={to}>{children}</a>,
   Outlet: () => <div data-testid="outlet" />,
-  useNavigate: () => jest.fn(),
+  useNavigate: () => mockNavigate,
   useLocation: () => ({ pathname: '/personal/dashboard' }),
 }));
 
@@ -61,5 +62,36 @@ describe('Layout', () => {
   it('renders logout button', async () => {
     render(<Layout space="personal" />);
     expect(await screen.findByText('Выйти')).toBeInTheDocument();
+  });
+
+  // T3.1 / T3.3 — индикатор пространства и хоткей (только для участника семьи)
+  describe('family member: space badge + Alt+S hotkey', () => {
+    beforeEach(() => { mockUser.family_id = 7; mockNavigate.mockClear(); });
+    afterEach(() => { delete mockUser.family_id; });
+
+    it('shows the active-space badge in the sidebar (personal)', async () => {
+      render(<Layout space="personal" />);
+      expect(await screen.findByText('Личное пространство')).toBeInTheDocument();
+    });
+
+    it('shows the active-space badge in the sidebar (family)', async () => {
+      render(<Layout space="family" />);
+      expect(await screen.findByText('Семейное пространство')).toBeInTheDocument();
+    });
+
+    it('Alt+S switches to the other space', async () => {
+      render(<Layout space="personal" />);
+      await screen.findByText('Выйти');
+      fireEvent.keyDown(window, { code: 'KeyS', key: 's', altKey: true });
+      expect(mockNavigate).toHaveBeenCalledWith('/family/dashboard');
+    });
+
+    it('does not register the hotkey for a solo user', async () => {
+      delete mockUser.family_id;
+      render(<Layout space="personal" />);
+      await screen.findByText('Выйти');
+      fireEvent.keyDown(window, { code: 'KeyS', key: 's', altKey: true });
+      expect(mockNavigate).not.toHaveBeenCalled();
+    });
   });
 });

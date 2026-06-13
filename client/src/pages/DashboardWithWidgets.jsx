@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useOutletContext, useLocation } from 'react-router-dom';
+import { useOutletContext, useLocation, useNavigate } from 'react-router-dom';
 import {
   DndContext,
   closestCenter,
@@ -16,13 +16,21 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useForm } from 'react-hook-form';
 import api from '../services/api';
 import { getWidgetConfig, saveWidgetConfig } from '../services/widgetStorage';
 import { WIDGET_DEFINITIONS, getVisibleWidgets } from '../widgets/widgetRegistry';
 import WidgetCard from '../widgets/WidgetCard';
+import TransactionForm from '../components/TransactionForm';
+import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
+import { flags } from '../config/flags';
 import { formatMoney } from '../utils/format';
 import logger from '../utils/logger';
 import { SkeletonChart, SkeletonCard } from '../components/ui/Skeleton';
+
+function localDateStr(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 const WIDGET_ROUTES = {
   allocation:   'analytics',
@@ -93,6 +101,13 @@ export default function DashboardWithWidgets({ space: routeSpace }) {
   const [editMode, setEditMode] = useState(false);
   const [activeId, setActiveId] = useState(null);
 
+  // T1.2 — быстрое добавление операции без смены пространства
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  const { register, handleSubmit, reset, setValue, watch } = useForm({ defaultValues: { type: 'expense', scope: 'personal' } });
+  const { setDirty, confirmNavigation } = useUnsavedChanges();
+
   const activeTypes = useMemo(() => widgetConfig.map(w => w.type), [widgetConfig]);
   const space = routeSpace || (hasFamily ? 'family' : 'personal');
 
@@ -159,12 +174,51 @@ export default function DashboardWithWidgets({ space: routeSpace }) {
   }, [selectedMember, currentUser, space, activeTypes]);
 
   const location = useLocation();
+  const navigate = useNavigate();
   useEffect(() => { fetchDashboard(); }, [fetchDashboard, location.pathname]);
   useEffect(() => {
     const handler = () => { if (document.visibilityState === 'visible') fetchDashboard(); };
     document.addEventListener('visibilitychange', handler);
     return () => document.removeEventListener('visibilitychange', handler);
   }, [fetchDashboard]);
+
+  // Справочники для быстрого добавления — грузим один раз
+  useEffect(() => {
+    let cancelled = false;
+    Promise.allSettled([api.get('/categories'), api.get('/accounts')]).then(([c, a]) => {
+      if (cancelled) return;
+      if (c.status === 'fulfilled') setCategories(Array.isArray(c.value.data) ? c.value.data : []);
+      if (a.status === 'fulfilled') setAccounts(Array.isArray(a.value.data) ? a.value.data : []);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const openQuickAdd = useCallback(() => {
+    // Дефолт scope — по текущему пространству, но пользователь меняет чипами (T1.1).
+    reset({ type: 'expense', scope: space === 'family' ? 'family' : 'personal', date: localDateStr() });
+    setQuickAddOpen(true);
+  }, [reset, space]);
+
+  // T3.2 — пока в быстром добавлении есть несохранённый ввод, переключение пространства спросит подтверждение
+  const quickAmount = watch('amount');
+  useEffect(() => {
+    setDirty(quickAddOpen && !!quickAmount);
+    return () => setDirty(false);
+  }, [quickAddOpen, quickAmount, setDirty]);
+
+  const handleQuickAddSubmit = useCallback(async (data) => {
+    try {
+      const payload = { ...data, amount: Number(data.amount), category_id: Number(data.category_id) };
+      if (data.account_id) payload.account_id = Number(data.account_id);
+      if (!payload.date) payload.date = localDateStr();
+      await api.post('/transactions', payload);
+      setQuickAddOpen(false);
+      reset();
+      fetchDashboard();
+    } catch (err) {
+      logger.error('Quick add failed', err);
+    }
+  }, [reset, fetchDashboard]);
 
   const visibleWidgets = useMemo(() => getVisibleWidgets(widgetConfig, hasFamily), [widgetConfig, hasFamily]);
   const availableWidgets = useMemo(() =>
@@ -249,6 +303,42 @@ export default function DashboardWithWidgets({ space: routeSpace }) {
           <p className="text-sm text-on-surface-variant mt-0.5">{monthNames[now.getMonth()]} {now.getFullYear()}</p>
         </div>
       </div>
+
+      {/* T2.1 — Двойной баланс: оба пространства одним взглядом (только для участника семьи).
+          Текущее подсвечено, по клику — переключение пространства без потери контекста.
+          T4.2 — за фиче-флагом spaceUxV2 (откат к старому дашборду). */}
+      {hasFamily && flags.spaceUxV2 && (
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { key: 'personal', label: 'Личное', icon: 'person', data: personal },
+            { key: 'family', label: 'Семья', icon: 'groups', data: family },
+          ].map(({ key, label, icon, data }) => {
+            const isCurrent = space === key;
+            const accentCls = key === 'family'
+              ? 'bg-secondary-container text-on-secondary-container ring-2 ring-secondary/40'
+              : 'bg-primary/10 text-primary ring-2 ring-primary/30';
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => { if (!isCurrent) confirmNavigation(() => navigate(`/${key}/dashboard`)); }}
+                aria-current={isCurrent}
+                className={`text-left rounded-2xl p-4 transition-all ${
+                  isCurrent ? accentCls : 'bg-surface-container-lowest text-on-surface hover:bg-surface-container'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="material-symbols-outlined text-base">{icon}</span>
+                  <span className="text-xs font-bold uppercase tracking-wide">{label}</span>
+                  {isCurrent && <span className="ml-auto text-[10px] font-semibold opacity-70">сейчас</span>}
+                </div>
+                <p className="text-xl sm:text-2xl font-extrabold">{formatMoney(data?.available || 0)} ₽</p>
+                <p className="text-[11px] opacity-70 mt-0.5">доступно</p>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Hero */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
@@ -387,6 +477,32 @@ export default function DashboardWithWidgets({ space: routeSpace }) {
           </div>
         </div>
       )}
+
+      {/* T1.2 — плавающая кнопка быстрого добавления (не меняет пространство) */}
+      <button
+        type="button"
+        onClick={openQuickAdd}
+        aria-label="Быстро добавить операцию"
+        className="fixed right-5 bottom-24 md:bottom-8 z-40 w-14 h-14 rounded-full bg-primary text-white shadow-ambient flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
+      >
+        <span className="material-symbols-outlined text-3xl">add</span>
+      </button>
+
+      <TransactionForm
+        isOpen={quickAddOpen}
+        onClose={() => { setQuickAddOpen(false); reset(); }}
+        editingId={null}
+        categories={categories}
+        accounts={accounts}
+        space={space}
+        hasFamily={!!hasFamily}
+        register={register}
+        handleSubmit={handleSubmit}
+        onSubmit={handleQuickAddSubmit}
+        watch={watch}
+        setValue={setValue}
+        reset={reset}
+      />
     </div>
   );
 }

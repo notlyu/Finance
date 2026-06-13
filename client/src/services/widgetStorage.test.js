@@ -167,6 +167,22 @@ describe('saveWidgetConfig', () => {
     });
   });
 
+  it('persists drag-drop order: serializes by order field, not array position', async () => {
+    api.patch.mockResolvedValue({});
+    // Сценарий после drag-drop: массив в ИСХОДНОМ порядке, но order-поля переставлены
+    // (transactions перетащили на первое место). Раньше порядок терялся при сохранении.
+    const dragged = [
+      { id: 'w1', type: 'allocation', order: 1 },
+      { id: 'w2', type: 'transactions', order: 0 },
+    ];
+
+    await saveWidgetConfig(userId, null, dragged);
+
+    expect(api.patch).toHaveBeenCalledWith('/widget-config', {
+      personal_widgets: { widgets: ['transactions', 'allocation'] },
+    });
+  });
+
   it('rolls back localStorage on API failure', async () => {
     const previous = JSON.stringify([{ id: 'old', type: 'old', order: 0 }]);
     localStorage.setItem(`dashboard_widgets_${userId}_personal`, previous);

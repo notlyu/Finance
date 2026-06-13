@@ -14,10 +14,13 @@ describe('OnboardingModal', () => {
     expect(screen.getByText('Пропустить')).toBeInTheDocument();
   });
 
-  it('navigates through all steps', () => {
+  it('navigates through all steps (incl. spaces slide T4.1)', () => {
     render(<OnboardingModal />);
 
     expect(screen.getByText('Объедините финансы')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Далее'));
+
+    expect(screen.getByText('Личное и Семья')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Далее'));
 
     expect(screen.getByText('Накопления и цели')).toBeInTheDocument();
@@ -33,13 +36,14 @@ describe('OnboardingModal', () => {
 
     fireEvent.click(screen.getByText('Далее'));
     fireEvent.click(screen.getByText('Далее'));
+    fireEvent.click(screen.getByText('Далее'));
 
     const startBtn = screen.getByText('Начать');
     expect(startBtn).toBeInTheDocument();
     fireEvent.click(startBtn);
 
     expect(localStorage.getItem('onboarding_completed')).toBe('true');
-    expect(localStorage.getItem('onboarding_completed_version')).toBe('1');
+    expect(localStorage.getItem('onboarding_completed_version')).toBe('2');
   });
 
   it('skips and marks completed when skip is clicked', () => {
@@ -48,15 +52,23 @@ describe('OnboardingModal', () => {
     expect(localStorage.getItem('onboarding_completed')).toBe('true');
   });
 
-  it('does not render when already completed', () => {
+  it('does not render when already completed at current version', () => {
     localStorage.setItem('onboarding_completed', 'true');
-    localStorage.setItem('onboarding_completed_version', '1');
+    localStorage.setItem('onboarding_completed_version', '2');
     const { container } = render(<OnboardingModal />);
     expect(container.innerHTML).toBe('');
   });
 
+  it('re-shows after version bump (old version completed)', () => {
+    localStorage.setItem('onboarding_completed', 'true');
+    localStorage.setItem('onboarding_completed_version', '1');
+    render(<OnboardingModal />);
+    expect(screen.getByText('Объедините финансы')).toBeInTheDocument();
+  });
+
   it('shows Начать on last slide', () => {
     render(<OnboardingModal />);
+    fireEvent.click(screen.getByText('Далее'));
     fireEvent.click(screen.getByText('Далее'));
     fireEvent.click(screen.getByText('Далее'));
     expect(screen.getByText('Начать')).toBeInTheDocument();

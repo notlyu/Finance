@@ -1,12 +1,15 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import DashboardWithWidgets from './DashboardWithWidgets';
 
+let mockOutlet = {
+  currentUser: { id: 1, name: 'Test', email: 'test@test.com', family_id: null },
+  selectedMember: null,
+};
+const mockNavigate = jest.fn();
 jest.mock('react-router-dom', () => ({
-  useOutletContext: () => ({
-    currentUser: { id: 1, name: 'Test', email: 'test@test.com', family_id: null },
-    selectedMember: null,
-  }),
+  useOutletContext: () => mockOutlet,
   useLocation: () => ({ pathname: '/' }),
+  useNavigate: () => mockNavigate,
   Link: ({ children, to, ...props }) => <a href={to} {...props}>{children}</a>,
 }));
 
@@ -41,6 +44,10 @@ const defaultWidgetConfig = [
 describe('DashboardWithWidgets', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockOutlet = {
+      currentUser: { id: 1, name: 'Test', email: 'test@test.com', family_id: null },
+      selectedMember: null,
+    };
     getWidgetConfig.mockResolvedValue(defaultWidgetConfig);
     api.get.mockResolvedValue({ data: defaultDashboardData });
   });
@@ -89,11 +96,51 @@ describe('DashboardWithWidgets', () => {
     expect(await screen.findByText('Настроить')).toBeInTheDocument();
   });
 
+  it('opens the quick-add form when the FAB is clicked (T1.2)', async () => {
+    render(<DashboardWithWidgets />);
+    await screen.findByText('Личные финансы');
+    fireEvent.click(screen.getByLabelText('Быстро добавить операцию'));
+    expect(await screen.findByText('Добавить операцию')).toBeInTheDocument();
+  });
+
   it('shows family title when routeSpace is family', async () => {
     getWidgetConfig.mockResolvedValue([
       { id: 'fw1', type: 'allocation', order: 0 },
     ]);
     render(<DashboardWithWidgets space="family" />);
     expect(await screen.findByText('Семейные финансы')).toBeInTheDocument();
+  });
+
+  // T2.1 — двойной баланс: участник семьи видит оба пространства сразу
+  describe('dual-balance strip (family member)', () => {
+    beforeEach(() => {
+      mockOutlet = {
+        currentUser: { id: 1, name: 'Test', family_id: 7 },
+        selectedMember: { id: 1, name: 'Test' },
+      };
+      api.get.mockResolvedValue({
+        data: {
+          personal: { available: 600000, balance: 1200000, monthIncome: 1, monthExpenses: 0 },
+          family: { available: 250000, balance: 400000, monthIncome: 1, monthExpenses: 0 },
+        },
+      });
+    });
+
+    it('renders both Личное and Семья summaries with their amounts', async () => {
+      render(<DashboardWithWidgets space="family" />);
+      expect(await screen.findByText('Личное')).toBeInTheDocument();
+      expect(screen.getByText('Семья')).toBeInTheDocument();
+      // личный «доступно» виден только в дуал-карте (hero показывает семейное)
+      expect(screen.getByText(/600\s*000/)).toBeInTheDocument();
+      // семейное «доступно» — и в карте, и в hero
+      expect(screen.getAllByText(/250\s*000/).length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('navigates to the other space when its card is clicked', async () => {
+      render(<DashboardWithWidgets space="family" />);
+      const personalCard = (await screen.findByText('Личное')).closest('button');
+      fireEvent.click(personalCard);
+      expect(mockNavigate).toHaveBeenCalledWith('/personal/dashboard');
+    });
   });
 });

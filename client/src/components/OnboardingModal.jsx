@@ -1,9 +1,21 @@
 import { useState, useEffect } from 'react';
+import { flags } from '../config/flags';
 
 const ONBOARDING_KEY = 'onboarding_completed';
-const ONBOARDING_VERSION = '1';
+// Версия зависит от флага: при включённой механике пространств бамп до '2' покажет
+// обновлённый тур (со слайдом «Личное и Семья») существующим пользователям один раз.
+const ONBOARDING_VERSION = flags.spaceUxV2 ? '2' : '1';
 
-const slides = [
+// T4.1 — слайд про модель «Личное/Семья» (текст из ТЗ §1.4). Показываем только при flag.
+const spacesSlide = {
+  id: 'spaces',
+  icon: 'swap_horiz',
+  title: 'Личное и Семья',
+  description: '«Личное» — ваш кошелёк, суммы видите только вы. «Семья» — общий бюджет, видимый обоим. Оба баланса показаны сразу на главной, а у каждой операции вы выбираете «Личное» или «Семья». Переключатель сверху меняет только то, что вы смотрите.',
+  color: '#006c49',
+};
+
+const baseSlides = [
   {
     id: 'family',
     icon: 'groups',
@@ -26,6 +38,11 @@ const slides = [
     color: '#95002b',
   },
 ];
+
+// Слайд «Личное/Семья» вставляем вторым (после знакомства с семьёй), только при флаге.
+const slides = flags.spaceUxV2
+  ? [baseSlides[0], spacesSlide, ...baseSlides.slice(1)]
+  : baseSlides;
 
 export default function OnboardingModal() {
   const [isOpen, setIsOpen] = useState(false);

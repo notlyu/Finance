@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { getCategoryIcon } from '../utils/categoryIcons';
 import { formatMoney } from '../utils/format';
+import { MASK_ICON, MASK_LABEL, MASK_DOTS, MASK_ACTION } from '../utils/masking';
 
 function TransactionCard({ t, onDuplicate, onEdit, onDelete, selected, onToggleSelect }) {
   const cardRef = useRef(null);
@@ -61,12 +62,12 @@ function TransactionCard({ t, onDuplicate, onEdit, onDelete, selected, onToggleS
             t.type === 'income' ? 'bg-secondary/10 text-secondary' : 'bg-surface-container-high text-primary'
           }`}>
             <span className="material-symbols-outlined">
-              {t.is_hidden ? 'lock' : getCategoryIcon(t.category_name)}
+              {t.is_hidden ? MASK_ICON : getCategoryIcon(t.category_name)}
             </span>
           </div>
           <div className="min-w-0">
             <p className="font-bold text-on-surface text-sm truncate">
-              {t.is_hidden ? '🔒 Сюрприз' : t.category_name}
+              {t.is_hidden ? MASK_LABEL : t.category_name}
             </p>
             <p className="text-xs text-on-surface-variant mt-0.5">
               {new Date(t.date).toLocaleDateString('ru-RU')} • {t.user_name}
@@ -76,7 +77,7 @@ function TransactionCard({ t, onDuplicate, onEdit, onDelete, selected, onToggleS
         </div>
         <div className="text-right shrink-0">
           <p className={`font-bold font-headline ${t.type === 'income' ? 'text-secondary' : 'text-on-surface'}`}>
-            {t.type === 'income' ? '+' : '-'}{t.is_hidden ? '••••' : formatMoney(t.amount)} ₽
+            {t.type === 'income' ? '+' : '-'}{t.is_hidden ? MASK_DOTS : formatMoney(t.amount)} ₽
           </p>
         </div>
       </div>
@@ -120,11 +121,11 @@ function TransactionRow({ t, index, onDuplicate, onEdit, onDelete, selected, onT
             t.type === 'income' ? 'bg-secondary/10 text-secondary' : 'bg-primary/10 text-primary'
           }`}>
             <span className="material-symbols-outlined text-sm">
-              {t.is_hidden ? 'lock' : getCategoryIcon(t.category_name)}
+              {t.is_hidden ? MASK_ICON : getCategoryIcon(t.category_name)}
             </span>
           </div>
           <span className="text-sm font-semibold text-on-surface">
-            {t.is_hidden ? '🔒 Сюрприз' : t.category_name}
+            {t.is_hidden ? MASK_LABEL : t.category_name}
           </span>
         </div>
       </td>
@@ -133,7 +134,7 @@ function TransactionRow({ t, index, onDuplicate, onEdit, onDelete, selected, onT
       </td>
       <td className="px-6 py-4 whitespace-nowrap">
         <span className={`font-bold font-headline ${t.type === 'income' ? 'text-secondary' : 'text-on-surface'}`}>
-          {t.type === 'income' ? '+' : '-'}{t.is_hidden ? '••••' : formatMoney(t.amount)} ₽
+          {t.type === 'income' ? '+' : '-'}{t.is_hidden ? MASK_DOTS : formatMoney(t.amount)} ₽
         </span>
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-on-surface-variant max-w-48 truncate">{t.comment || '—'}</td>
@@ -141,7 +142,7 @@ function TransactionRow({ t, index, onDuplicate, onEdit, onDelete, selected, onT
       <td className="px-6 py-4 whitespace-nowrap text-right">
         <div className="flex items-center justify-end gap-1">
           {t.is_hidden ? (
-            <span className="text-xs text-on-surface-variant px-2">Скрыто</span>
+            <span className="text-xs text-on-surface-variant px-2">{MASK_ACTION}</span>
           ) : (
             <>
               <button onClick={() => onDuplicate(t)} title="Дублировать" className="w-9 h-9 flex items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container hover:text-primary transition-colors">

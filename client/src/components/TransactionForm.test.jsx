@@ -142,17 +142,40 @@ describe('TransactionForm', () => {
     expect(optionTexts).not.toContain('Еда');
   });
 
-  it('renders a single scope toggle for family users', () => {
+  it('renders scope chips for family users', () => {
     renderForm({ hasFamily: true, space: 'family' });
-    // scope='personal' по умолчанию → «Личная операция»
-    expect(screen.getByText(/Личная операция/)).toBeInTheDocument();
-    // старый дублирующий тумблер «Тип операции» удалён
-    expect(screen.queryByText(/Тип операции/)).not.toBeInTheDocument();
+    expect(screen.getByText('🔒 Личное')).toBeInTheDocument();
+    expect(screen.getByText('👥 Семья')).toBeInTheDocument();
+    expect(screen.getByText(/Кто видит операцию/)).toBeInTheDocument();
   });
 
-  it('does not render scope toggle for solo user (no family)', () => {
+  it('does not render scope chips for solo user (no family)', () => {
     renderForm({ hasFamily: false });
-    expect(screen.queryByText(/Личная операция/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Семейная операция/)).not.toBeInTheDocument();
+    expect(screen.queryByText('🔒 Личное')).not.toBeInTheDocument();
+    expect(screen.queryByText('👥 Семья')).not.toBeInTheDocument();
+  });
+
+  it('disables the «Личное» chip when a family account is selected (§4.2)', () => {
+    const famAccounts = [{ id: 1, name: 'Общий счёт', scope: 'family' }];
+    const mock = createMockForm();
+    mock.formState.account_id = 1;
+    mock.formState.scope = 'family';
+    render(
+      <TransactionForm
+        isOpen={true}
+        onClose={jest.fn()}
+        categories={categories}
+        accounts={famAccounts}
+        hasFamily={true}
+        space="family"
+        register={mock.register}
+        handleSubmit={mock.handleSubmit}
+        onSubmit={mock.onSubmit}
+        watch={mock.watch}
+        setValue={mock.setValue}
+        reset={mock.reset}
+      />
+    );
+    expect(screen.getByText('🔒 Личное').closest('button')).toBeDisabled();
   });
 });

@@ -13,7 +13,12 @@ function toWidgetArray(widgetData) {
 }
 
 function toWidgetPayload(widgetArray) {
-  return { widgets: widgetArray.map(w => w.type || w.id) };
+  // Сериализуем по полю `order` (источник правды), а не по позиции в массиве.
+  // После drag-drop массив остаётся в исходном порядке, меняются только order-поля
+  // (см. handleDragEnd в DashboardWithWidgets) — без сортировки порядок виджетов
+  // терялся при перезагрузке, т.к. toWidgetArray восстанавливает order по индексу.
+  const ordered = [...widgetArray].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  return { widgets: ordered.map(w => w.type || w.id) };
 }
 
 export async function getWidgetConfig(userId, familyId) {
