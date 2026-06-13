@@ -8,7 +8,9 @@ async function getUserTransactions(userId, familyId, query = {}) {
   if (familyId) {
     whereClause = {
       OR: [
-        { family_id: null, user_id: userId, scope: 'personal' },
+        // Собственные ЛИЧНЫЕ операции — независимо от family_id
+        // (createTransaction проставляет family_id всем операциям члена семьи)
+        { user_id: userId, scope: 'personal' },
         { family_id: familyId, scope: { in: ['family', 'shared'] } }
       ]
     };

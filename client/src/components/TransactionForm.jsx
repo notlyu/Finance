@@ -77,7 +77,17 @@ export default function TransactionForm({
         {accounts.length > 0 && (
           <div>
             <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Счет</label>
-            <select {...register('account_id')} className="select-ghost">
+            <select
+              {...register('account_id', {
+                onChange: (e) => {
+                  // Счёт определяет scope операции по умолчанию (ТЗ Логика семьи §5).
+                  // Тумблер «Личное/Семья» по-прежнему может переопределить вручную.
+                  const acc = accounts.find(a => String(a.id) === String(e.target.value));
+                  if (acc?.scope) setValue('scope', acc.scope);
+                },
+              })}
+              className="select-ghost"
+            >
               <option value="">Выберите счет</option>
               {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
@@ -87,30 +97,24 @@ export default function TransactionForm({
           <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Комментарий</label>
           <textarea {...register('comment')} rows="2" className="input-ghost" placeholder="Необязательно" />
         </div>
-        <div className="flex items-center justify-between p-4 bg-surface-container rounded-3xl">
-          <div>
-            <span className="text-sm font-semibold text-on-surface">🔒 Скрытая операция</span>
-            <p className="text-xs text-on-surface-variant">Операция будет видна только вам (другие участники увидят «Сюрприз» вместо суммы)</p>
-          </div>
-          <Toggle checked={watch('scope') === 'personal'} onChange={() => setValue('scope', watch('scope') === 'personal' ? 'family' : 'personal')} />
-        </div>
-        {space !== 'personal' && hasFamily && (
+        {/* Единый переключатель scope (личное = скрыто от партнёра, семейное = общий бюджет).
+            Показываем только участнику семьи — у соло-пользователя выбора нет. */}
+        {hasFamily && (
           <div className="flex items-center justify-between p-4 bg-surface-container rounded-3xl">
             <div>
-              <span className="text-sm font-semibold text-on-surface">👥 Тип операции</span>
+              <span className="text-sm font-semibold text-on-surface">
+                {watch('scope') === 'personal' ? '🔒 Личная операция' : '👥 Семейная операция'}
+              </span>
               <p className="text-xs text-on-surface-variant">
                 {watch('scope') === 'personal'
-                  ? 'Личная операция — только ваша, не учитывается в семейном бюджете'
-                  : 'Семейная операция — видна всем участникам, учитывается в общем бюджете'}
+                  ? 'Видна только вам — партнёр увидит «🔒 Сюрприз» вместо суммы, в общий бюджет не входит'
+                  : 'Видна всем участникам и учитывается в общем семейном бюджете'}
               </p>
             </div>
-            <Toggle checked={watch('scope') === 'personal'} onChange={() => setValue('scope', watch('scope') === 'personal' ? 'family' : 'personal')} />
-          </div>
-        )}
-        {hasFamily && (
-          <div className="flex items-center gap-2 text-xs text-on-surface-variant bg-surface-container p-3 rounded-xl">
-            <span className="material-symbols-outlined text-sm">lightbulb</span>
-            <span>Переключатель «Личное/Семья» влияет только на видимость. Для сокрытия суммы от других участников используйте переключатель «Скрытая операция».</span>
+            <Toggle
+              checked={watch('scope') !== 'personal'}
+              onChange={() => setValue('scope', watch('scope') === 'personal' ? 'family' : 'personal')}
+            />
           </div>
         )}
         <div className="flex justify-end gap-3 pt-2">

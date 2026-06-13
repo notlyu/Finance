@@ -61,7 +61,6 @@ model FamilyMember {
   id        Int        @id @default(autoincrement())
   user_id   Int
   family_id Int
-  role      FamilyRole @default(MEMBER)
   joined_at DateTime   @default(now())
   family    Family     @relation(fields: [family_id], references: [id], onDelete: Cascade)
   user      User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -453,13 +452,6 @@ model UserWidgetConfig {
   family_widgets   Json
   updated_at       DateTime @default(now())
   user             User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-}
-
-enum FamilyRole {
-  OWNER
-  ADMIN
-  MEMBER
-  VIEWER
 }
 
 model FamilySettings {

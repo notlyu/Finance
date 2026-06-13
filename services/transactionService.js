@@ -1,6 +1,18 @@
 ﻿const prisma = require('../lib/prisma-client');
 const { logger } = require('../lib/errors');
 
+// Режим прозрачности семьи: если включён, личные операции партнёра НЕ маскируются.
+// По умолчанию (false) — маскирование «🔒 факт операции» (R1 / ТЗ Логика семьи).
+async function isFamilyTransparent(familyId) {
+    if (!familyId) return false;
+    const settings = await prisma.familySettings.findUnique({
+        where: { family_id: familyId },
+        select: { show_personal_in_stats: true },
+    });
+    return Boolean(settings?.show_personal_in_stats);
+}
+exports.isFamilyTransparent = isFamilyTransparent;
+
 exports.getTransactions = async (userId, familyId, query = {}) => {
     const whereClause = familyId
         ? { OR: [{ family_id: familyId }, { AND: [{ family_id: null }, { user_id: userId }] }] }
@@ -74,8 +86,9 @@ exports.getTransactions = async (userId, familyId, query = {}) => {
     const offset = clampInt(query.offset, 0, 0, 1_000_000);
     const paginate = String(query.paginate || '') === 'true';
 
+    const transparent = await isFamilyTransparent(familyId);
     const mapTx = (t) => {
-        const isOtherUsersPrivate = t.scope === 'personal' && t.user_id !== userId;
+        const isOtherUsersPrivate = !transparent && t.scope === 'personal' && t.user_id !== userId;
         if (isOtherUsersPrivate) {
             return {
                 id: t.id,
@@ -151,6 +164,21 @@ exports.createTransaction = async (userId, familyId, data) => {
         }
     } else {
         txDate = new Date();
+    }
+
+    // Привязка к счёту: проверяем, что счёт доступен пользователю (свой личный
+    // или семейный), иначе не привязываем чужой/несуществующий счёт.
+    // F4 (ТЗ Логика семьи §5): если scope не задан явно — наследуем его от счёта.
+    if (data.account_id) {
+        const accWhere = familyId
+            ? { id: Number(data.account_id), OR: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
+            : { id: Number(data.account_id), family_id: null, user_id: userId };
+        const acc = await prisma.account.findFirst({ where: accWhere, select: { scope: true } });
+        if (!acc) {
+            delete data.account_id;
+        } else if (familyId && !data.scope) {
+            data.scope = acc.scope;
+        }
     }
 
     // Проверка бюджетного предупреждения ПЕРЕД транзакцией (read-only, не требует атомарности)
@@ -294,7 +322,8 @@ exports.getTransactionById = async (id, familyId, userId) => {
     });
     if (!t) return null;
 
-    const isOtherUsersPrivate = t.scope === 'personal' && t.user_id !== userId;
+    const transparent = await isFamilyTransparent(familyId);
+    const isOtherUsersPrivate = !transparent && t.scope === 'personal' && t.user_id !== userId;
     if (isOtherUsersPrivate) {
         return {
             id: t.id,

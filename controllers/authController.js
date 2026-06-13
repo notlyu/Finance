@@ -136,25 +136,30 @@ exports.createFamily = async (req, res, next) => {
     const inviteCode = generateSecureInviteCode(10);
     const hashedInviteCode = await bcrypt.hash(inviteCode, 10);
 
-    const family = await prisma.family.create({
-      data: {
-        name,
-        invite_code: hashedInviteCode,
-        owner_user_id: user.id,
-      },
-    });
+    // Атомарно: создание семьи + привязка пользователя + запись участника-владельца.
+    // Иначе при сбое familyMember.create семья и user.family_id остаются в рассинхроне.
+    const family = await prisma.$transaction(async (tx) => {
+      const created = await tx.family.create({
+        data: {
+          name,
+          invite_code: hashedInviteCode,
+          owner_user_id: user.id,
+        },
+      });
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { family_id: family.id },
-    });
+      await tx.user.update({
+        where: { id: user.id },
+        data: { family_id: created.id },
+      });
 
-    await prisma.familyMember.create({
-      data: {
-        user_id: user.id,
-        family_id: family.id,
-        role: 'OWNER',
-      }
+      await tx.familyMember.create({
+        data: {
+          user_id: user.id,
+          family_id: created.id,
+        },
+      });
+
+      return created;
     });
 
     res.status(201).json({
@@ -210,7 +215,6 @@ exports.joinFamily = async (req, res, next) => {
         data: {
           user_id: req.user.id,
           family_id: family.id,
-          role: 'MEMBER',
         }
       });
       
@@ -404,6 +408,13 @@ exports.leaveFamily = async (req, res, next) => {
 
       // Goals и Wishes остаются как есть - личные остаются личными, семейные остаются семейными
       // Пользователь сохраняет доступ к своим личным Goals/Wishes
+
+      // Удаляем запись участника, иначе @@unique([user_id, family_id])
+      // заблокирует повторное вступление в эту же семью.
+      await tx.familyMember.deleteMany({
+        where: { user_id: user.id, family_id: family.id },
+      });
+
       await tx.user.update({ where: { id: user.id }, data: { family_id: null } });
     });
     res.json({ message: 'Вы покинули семью' });
@@ -455,6 +466,11 @@ exports.removeFamilyMember = async (req, res, next) => {
         where: { user_id: targetUserId, family_id: user.family_id },
         data: { family_id: null }
       }),
+      // Удаляем запись участника, иначе она осиротеет и заблокирует
+      // повторное вступление по @@unique([user_id, family_id]).
+      prisma.familyMember.deleteMany({
+        where: { user_id: targetUserId, family_id: user.family_id }
+      }),
       prisma.user.update({
         where: { id: targetUserId },
         data: { family_id: null }
@@ -497,9 +513,10 @@ exports.transferOwnership = async (req, res, next) => {
       throw new NotFoundError('Участник не найден в вашей семье');
     }
 
+    // Владелец определяется только через family.owner_user_id (роли удалены, В3).
     await prisma.family.update({
       where: { id: user.family_id },
-      data: { owner_user_id: Number(newOwnerId) }
+      data: { owner_user_id: Number(newOwnerId) },
     });
 
     logger.info(`User ${user.id} transferred ownership of family ${user.family_id} to ${newOwnerId}`);

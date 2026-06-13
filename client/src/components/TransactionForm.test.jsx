@@ -142,13 +142,17 @@ describe('TransactionForm', () => {
     expect(optionTexts).not.toContain('Еда');
   });
 
-  it('renders scope toggle with hasFamily and space=family', () => {
+  it('renders a single scope toggle for family users', () => {
     renderForm({ hasFamily: true, space: 'family' });
-    expect(screen.getAllByText(/Скрытая операция/).length).toBeGreaterThanOrEqual(1);
+    // scope='personal' по умолчанию → «Личная операция»
+    expect(screen.getByText(/Личная операция/)).toBeInTheDocument();
+    // старый дублирующий тумблер «Тип операции» удалён
+    expect(screen.queryByText(/Тип операции/)).not.toBeInTheDocument();
   });
 
-  it('renders family operation type toggle when hasFamily', () => {
-    renderForm({ hasFamily: true, space: 'family' });
-    expect(screen.getByText(/Тип операции/)).toBeInTheDocument();
+  it('does not render scope toggle for solo user (no family)', () => {
+    renderForm({ hasFamily: false });
+    expect(screen.queryByText(/Личная операция/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Семейная операция/)).not.toBeInTheDocument();
   });
 });

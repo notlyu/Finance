@@ -2,6 +2,7 @@ const prisma = require('../lib/prisma-client');
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
 const { logger, ForbiddenError } = require('../lib/errors');
+const { isFamilyTransparent } = require('../services/transactionService');
 
 function toMonthKeyFromDateOnly(dateOnly) {
   const d = dateOnly instanceof Date ? dateOnly : new Date(`${dateOnly}T00:00:00`);
@@ -332,8 +333,11 @@ exports.exportExcel = async (req, res, next) => {
     sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
     sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
 
+    // Маскируем ТОЛЬКО чужое личное (scope='personal'), не семейное.
+    // В режиме прозрачности семьи — не маскируем.
+    const transparent = await isFamilyTransparent(familyId);
     transactions.forEach(t => {
-      const isHidden = t.scope && t.user_id !== user.id;
+      const isHidden = !transparent && t.scope === 'personal' && t.user_id !== user.id;
       sheet.addRow({
         date: t.date,
         type: t.type === 'income' ? 'Доход' : 'Расход',
@@ -729,9 +733,12 @@ exports.exportPDF = async (req, res, next) => {
     const maxRows = 50;
     let visibleCount = 0;
 
+    // Маскируем ТОЛЬКО чужое личное (scope='personal'); семейное видно обоим.
+    // В режиме прозрачности — не маскируем.
+    const transparent = await isFamilyTransparent(familyId);
     for (const t of transactions) {
       if (visibleCount >= maxRows) break;
-      const isHidden = t.scope && t.user_id !== user.id;
+      const isHidden = !transparent && t.scope === 'personal' && t.user_id !== user.id;
 
       x = 50;
       doc.text(

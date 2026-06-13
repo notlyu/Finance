@@ -1,5 +1,5 @@
 const prisma = require('../lib/prisma-client');
-const { logger, ValidationError } = require('../lib/errors');
+const { logger, ValidationError, ForbiddenError } = require('../lib/errors');
 
 exports.getFamilySettings = async (req, res, next) => {
   try {
@@ -34,7 +34,18 @@ exports.updateFamilySettings = async (req, res, next) => {
     }
     
     const { show_personal_in_stats, safety_pillow_months } = req.validated;
-    
+
+    // Режим прозрачности (снятие маски с личного для всей семьи) меняет только владелец.
+    if (show_personal_in_stats !== undefined) {
+      const family = await prisma.family.findUnique({
+        where: { id: user.family_id },
+        select: { owner_user_id: true },
+      });
+      if (!family || family.owner_user_id !== user.id) {
+        throw new ForbiddenError('Режим прозрачности может менять только владелец семьи');
+      }
+    }
+
     const data = { updated_at: new Date() };
     if (show_personal_in_stats !== undefined) data.show_personal_in_stats = show_personal_in_stats;
     if (safety_pillow_months !== undefined) data.safety_pillow_months = safety_pillow_months;

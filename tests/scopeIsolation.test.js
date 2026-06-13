@@ -14,12 +14,12 @@ beforeAll(async () => {
   ownerToken = generateToken(owner.id);
   testFamily = await createTestFamily(owner.id);
   await prisma.user.update({ where: { id: owner.id }, data: { family_id: testFamily.id } });
-  await prisma.familyMember.create({ data: { user_id: owner.id, family_id: testFamily.id, role: 'OWNER' } }).catch(() => {});
+  await prisma.familyMember.create({ data: { user_id: owner.id, family_id: testFamily.id } }).catch(() => {});
 
   member = await createTestUser({ name: 'Scope Member' });
   memberToken = generateToken(member.id);
   await prisma.user.update({ where: { id: member.id }, data: { family_id: testFamily.id } });
-  await prisma.familyMember.create({ data: { user_id: member.id, family_id: testFamily.id, role: 'MEMBER' } }).catch(() => {});
+  await prisma.familyMember.create({ data: { user_id: member.id, family_id: testFamily.id } }).catch(() => {});
 
   soloUser = await createTestUser({ name: 'Scope Solo' });
   soloToken = generateToken(soloUser.id);
