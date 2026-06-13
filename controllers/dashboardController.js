@@ -38,24 +38,14 @@ async function getPersonalReserved(userId) {
   return Number(goals._sum.current_amount || 0) + Number(wishes._sum.saved_amount || 0);
 }
 
-async function getFamilyBalance(familyId, memberIds) {
+async function getFamilyBalance(familyId) {
+  // «Общий котёл»: только семейные счета и семейные операции (В6 — личное не входит,
+  // иначе в семейный баланс утекали бы личные счета партнёра).
   const accounts = await prisma.account.findMany({
-    where: {
-      is_active: true,
-      is_liquid: true,
-      OR: [
-        { family_id: familyId },
-        { family_id: null, user_id: { in: memberIds } }
-      ]
-    }
+    where: { is_active: true, is_liquid: true, family_id: familyId }
   });
   const balance = accounts.reduce((sum, acc) => sum + Number(acc.balance), 0);
-  const txWhere = {
-    OR: [
-      { family_id: familyId, scope: { in: ['family', 'shared'] } },
-      { family_id: null, user_id: { in: memberIds }, scope: 'personal' }
-    ]
-  };
+  const txWhere = { family_id: familyId, scope: { in: ['family', 'shared'] } };
   const [income, expense] = await Promise.all([
     prisma.transaction.aggregate({ where: { ...txWhere, type: 'income' }, _sum: { amount: true } }),
     prisma.transaction.aggregate({ where: { ...txWhere, type: 'expense' }, _sum: { amount: true } }),
@@ -67,14 +57,15 @@ async function getFamilyBalance(familyId, memberIds) {
   };
 }
 
-async function getFamilyReserved(familyId, memberIds) {
+async function getFamilyReserved(familyId) {
+  // Семейный резерв — только семейные цели/желания (личные не входят в общий котёл).
   const [goals, wishes] = await Promise.all([
     prisma.goal.aggregate({
-      where: { OR: [{ family_id: familyId }, { user_id: { in: memberIds }, family_id: null }] },
+      where: { family_id: familyId },
       _sum: { current_amount: true }
     }),
     prisma.wish.aggregate({
-      where: { OR: [{ family_id: familyId }, { user_id: { in: memberIds }, family_id: null }] },
+      where: { family_id: familyId },
       _sum: { saved_amount: true }
     }),
   ]);
@@ -83,14 +74,9 @@ async function getFamilyReserved(familyId, memberIds) {
 
 async function getMonthTotals(userId, familyId, memberIds, startDateStr, endDateStr) {
   const { startDateTime, endDateTime } = parseDateRange(startDateStr, endDateStr);
+  // Семейные итоги месяца — только семейные операции (личное в общий котёл не входит, В6).
   const txWhere = familyId
-    ? {
-        date: { gte: startDateTime, lte: endDateTime },
-        OR: [
-          { family_id: familyId, scope: { in: ['family', 'shared'] } },
-          { family_id: null, user_id: { in: memberIds }, scope: 'personal' }
-        ]
-      }
+    ? { date: { gte: startDateTime, lte: endDateTime }, family_id: familyId, scope: { in: ['family', 'shared'] } }
     : { user_id: userId, family_id: null, scope: 'personal', date: { gte: startDateTime, lte: endDateTime } };
   const [incomeResult, expenseResult] = await Promise.all([
     prisma.transaction.aggregate({ where: { ...txWhere, type: 'income' }, _sum: { amount: true } }),
@@ -236,8 +222,8 @@ exports.getDashboard = async (req, res, next) => {
         const rawAvailable = balance - reserved;
         return { income: inc, expenses: exp, balance, reserved, available: Math.min(balance, Math.max(0, rawAvailable)) };
       })(),
-      getFamilyBalance(familyId, memberIds),
-      getFamilyReserved(familyId, memberIds),
+      getFamilyBalance(familyId),
+      getFamilyReserved(familyId),
       getMonthTotals(user.id, familyId, memberIds, monthStartStr, todayStr),
       getMonthTotals(user.id, null, null, monthStartStr, todayStr),
       prisma.transaction.findMany({
@@ -260,9 +246,12 @@ exports.getDashboard = async (req, res, next) => {
       }),
       getAllocation(familyId, user.id, monthStartStr, todayStr),
       (async () => {
+        // Вклады участников — только СЕМЕЙНОЕ (В6: личное не входит в «общий котёл»
+        // и не должно раскрывать траты партнёра).
+        const contribWhere = { family_id: familyId, scope: { in: ['family', 'shared'] } };
         const [incomeStats, expenseStats] = await Promise.all([
-          prisma.transaction.groupBy({ by: ['user_id'], where: { user_id: { in: memberIds }, type: 'income', OR: [{ family_id: familyId, scope: { in: ['family', 'shared'] } }, { family_id: null, scope: 'personal' }] }, _sum: { amount: true } }),
-          prisma.transaction.groupBy({ by: ['user_id'], where: { user_id: { in: memberIds }, type: 'expense', OR: [{ family_id: familyId, scope: { in: ['family', 'shared'] } }, { family_id: null, scope: 'personal' }] }, _sum: { amount: true } }),
+          prisma.transaction.groupBy({ by: ['user_id'], where: { user_id: { in: memberIds }, type: 'income', ...contribWhere }, _sum: { amount: true } }),
+          prisma.transaction.groupBy({ by: ['user_id'], where: { user_id: { in: memberIds }, type: 'expense', ...contribWhere }, _sum: { amount: true } }),
         ]);
         const memberStatsMap = new Map();
         members.forEach(m => memberStatsMap.set(m.id, { userId: m.id, name: m.name, income: 0, expenses: 0, contributions: 0 }));
