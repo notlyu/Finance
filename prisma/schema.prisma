@@ -374,13 +374,14 @@ model PasswordResetToken {
 }
 
 model RefreshToken {
-  id         Int      @id @default(autoincrement())
+  id         Int       @id @default(autoincrement())
   user_id    Int
-  token      String   @unique
+  token      String    @unique
   expires_at DateTime
-  created_at DateTime @default(now())
-  revoked    Boolean  @default(false)
-  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  created_at DateTime  @default(now())
+  revoked    Boolean   @default(false)
+  rotated_at DateTime? // grace-период ротации: токен ещё принимается короткое время после ротации
+  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([token])

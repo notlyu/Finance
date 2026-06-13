@@ -8,6 +8,8 @@ const { logger, ConflictError, UnauthorizedError, NotFoundError, ForbiddenError,
 const REFRESH_TOKEN_EXPIRY_DAYS = 30;
 // В5: лимит участников семьи (по умолчанию 6 — пара + дети/родители; настраивается env).
 const MAX_FAMILY_MEMBERS = Number(process.env.MAX_FAMILY_MEMBERS) || 6;
+// Grace-период ротации refresh-токена (мс): окно, в которое старый токен ещё принимается.
+const REFRESH_GRACE_MS = Number(process.env.REFRESH_GRACE_MS) || 30000;
 
 function generateSecureInviteCode(length = 10) {
   return crypto.randomBytes(Math.ceil(length)).toString('base64url').slice(0, length).toUpperCase();
@@ -649,6 +651,12 @@ exports.refreshToken = async (req, res, next) => {
       throw new UnauthorizedError('Refresh token has expired');
     }
 
+    // Grace-период ротации: уже ротированный токен принимается ещё REFRESH_GRACE_MS
+    // (параллельные вкладки не разлогиниваются). После окна — отклоняем как устаревший.
+    if (storedToken.rotated_at && storedToken.rotated_at.getTime() + REFRESH_GRACE_MS < Date.now()) {
+      throw new UnauthorizedError('Refresh token has been rotated');
+    }
+
     const user = await prisma.user.findUnique({
       where: { id: storedToken.user_id },
     });
@@ -657,7 +665,10 @@ exports.refreshToken = async (req, res, next) => {
       throw new UnauthorizedError('User not found');
     }
 
-    await revokeRefreshToken(refreshToken);
+    // Помечаем как ротированный (не отзываем сразу — иначе гонка вкладок = разлогин).
+    if (!storedToken.rotated_at) {
+      await prisma.refreshToken.update({ where: { id: storedToken.id }, data: { rotated_at: new Date() } });
+    }
 
     const newToken = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { algorithm: 'HS256', expiresIn: '7d' });
     const newRefreshTokenData = await generateRefreshToken(user.id);
