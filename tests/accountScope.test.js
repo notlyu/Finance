@@ -68,4 +68,12 @@ describe('Operation inherits account scope (F4)', () => {
     const tx = await createTx({ account_id: famAcc.id, scope: 'personal' });
     expect(tx.scope).toBe('personal');
   });
+
+  // В4: личная покупка с общей карты — scope=personal вопреки семейному счёту,
+  // при этом привязка к счёту сохраняется.
+  test('personal purchase on a family account keeps the account link', async () => {
+    const tx = await createTx({ account_id: famAcc.id, scope: 'personal' });
+    expect(tx.scope).toBe('personal');
+    expect(tx.account_id).toBe(famAcc.id);
+  });
 });

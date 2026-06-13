@@ -6,6 +6,8 @@ const { sendPasswordResetEmail } = require('../services/emailService');
 const { logger, ConflictError, UnauthorizedError, NotFoundError, ForbiddenError, ValidationError, AppError } = require('../lib/errors');
 
 const REFRESH_TOKEN_EXPIRY_DAYS = 30;
+// В5: лимит участников семьи (по умолчанию 6 — пара + дети/родители; настраивается env).
+const MAX_FAMILY_MEMBERS = Number(process.env.MAX_FAMILY_MEMBERS) || 6;
 
 function generateSecureInviteCode(length = 10) {
   return crypto.randomBytes(Math.ceil(length)).toString('base64url').slice(0, length).toUpperCase();
@@ -202,6 +204,12 @@ exports.joinFamily = async (req, res, next) => {
       const family = await tx.family.findUnique({ where: { id: invite.family_id } });
       if (!family) {
         throw new NotFoundError('Семья не найдена');
+      }
+
+      // В5: лимит участников. Считаем внутри транзакции (защита от гонки).
+      const memberCount = await tx.user.count({ where: { family_id: family.id } });
+      if (memberCount >= MAX_FAMILY_MEMBERS) {
+        throw new ValidationError(`В семье уже максимум участников (${MAX_FAMILY_MEMBERS})`);
       }
 
       // Обновляем пользователя
