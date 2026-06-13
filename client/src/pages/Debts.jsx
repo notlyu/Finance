@@ -462,15 +462,6 @@ export default function Debts({ space = 'personal' }) {
   const [sortField, setSortField] = useState('interest_rate');
   const [sortDir, setSortDir] = useState('desc');
 
-  const handleSortChange = (field) => {
-    if (sortField === field) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDir(field === 'name' ? 'asc' : 'desc');
-    }
-  };
-
   const sortedDebts = useMemo(() => {
     return [...filteredDebts].sort((a, b) => {
       let cmp = 0;

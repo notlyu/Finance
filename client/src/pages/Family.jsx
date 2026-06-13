@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import Modal from '../components/Modal';
 import ConfirmModal from '../components/ConfirmModal';
@@ -22,24 +22,29 @@ export default function Family() {
   const [confirmModal, setConfirmModal] = useState({ open: false, onConfirm: null, title: '', message: '' });
   const [promptModal, setPromptModal] = useState({ open: false, title: '', onSubmit: null });
 
-  const fetchUser = async () => {
+  const fetchUser = useCallback(async () => {
     try {
       const res = await api.get('/auth/me');
       setUser(res.data);
       setFamily(res.data.family);
     } catch (err) { console.error('User fetch error:', err); }
-  };
+  }, []);
 
-  const fetchMemberStats = async () => {
+  const fetchMemberStats = useCallback(async () => {
     try {
       const res = await api.get('/dashboard');
       if (res.data?.family?.memberStats) {
         setMemberStats(res.data.family.memberStats);
       }
     } catch (err) { console.error('Dashboard fetch error:', err); }
-  };
+  }, []);
 
-  const fetchData = async () => {
+  const fetchInvites = useCallback(async () => {
+    try { const res = await api.get('/auth/family/invites'); setInvites(res.data); }
+    catch (err) { console.error(err); setInvites([]); }
+  }, []);
+
+  const fetchData = useCallback(async () => {
     setLoading(true);
     await Promise.allSettled([
       fetchUser(),
@@ -47,12 +52,7 @@ export default function Family() {
       fetchInvites(),
     ]);
     setLoading(false);
-  };
-
-  const fetchInvites = async () => {
-    try { const res = await api.get('/auth/family/invites'); setInvites(res.data); }
-    catch (err) { console.error(err); setInvites([]); }
-  };
+  }, [fetchUser, fetchMemberStats, fetchInvites]);
 
   const revokeInvite = async (invId) => {
     setConfirmModal({
@@ -90,7 +90,7 @@ export default function Family() {
     });
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const copyInviteCode = (code) => {
     if (code) { navigator.clipboard.writeText(code); showSuccess('Код приглашения скопирован'); }

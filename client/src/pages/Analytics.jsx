@@ -172,6 +172,9 @@ export default function Analytics({ space = 'personal' }) {
       legend: { display: false },
       tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${formatMoney(ctx.parsed)} ₽` } },
     },
+    // handleDrillDown объявлен ниже и пересоздаётся каждый рендер; добавлять в deps нельзя
+    // (TDZ — он определён после этого useCallback). Поведение drill-down не зависит от мемоизации.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }), []);
 
   const pillowBarOptions = useCallback(() => ({
