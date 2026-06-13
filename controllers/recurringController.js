@@ -81,7 +81,7 @@ exports.createRecurring = async (req, res, next) => {
       scope: reqScope,
     } = req.validated;
     const { account_id } = req.body;
-    const scope = reqScope || 'personal';
+    let scope = reqScope;
 
     const a = Number(amount);
     if (!Number.isFinite(a) || a <= 0) throw new ValidationError('amount должен быть > 0');
@@ -102,7 +102,10 @@ exports.createRecurring = async (req, res, next) => {
       });
       if (!acc) throw new NotFoundError('Счёт не найден');
       accId = acc.id;
+      // F4 (паритет с разовой операцией): scope наследуется от счёта, если не задан явно.
+      if (!scope && familyId && acc.scope) scope = acc.scope;
     }
+    scope = scope || 'personal';
 
     const item = await prisma.recurringTransaction.create({
       data: {
