@@ -417,6 +417,7 @@ model Debt {
   monthly_payment    Decimal                @db.Decimal(12, 2)
   type               String                 @default("credit")
   debt_type          String                 @default("loan")
+  scope              Scope                  @default(personal)
   start_date         DateTime
   end_date           DateTime?
   notes              String?
@@ -467,7 +468,6 @@ model FamilySettings {
 enum Scope {
   personal
   family
-  shared
 }
 
 enum BudgetType {

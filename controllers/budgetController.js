@@ -44,7 +44,7 @@ exports.getBudgets = async (req, res, next) => {
     const budgetWhere = familyId
       ? { 
           OR: [
-            { family_id: familyId, month: { in: months }, scope: { in: ['family', 'shared'] } },
+            { family_id: familyId, month: { in: months }, scope: 'family' },
             { family_id: null, user_id: user.id, month: { in: months }, scope: 'personal' }
           ]
         }
@@ -84,7 +84,7 @@ exports.getBudgets = async (req, res, next) => {
       const txWhere = familyId
         ? { 
             OR: [
-              { family_id: familyId, scope: { in: ['family', 'shared'] }, date: { gte: txDateStart, lt: txDateEnd } },
+              { family_id: familyId, scope: 'family', date: { gte: txDateStart, lt: txDateEnd } },
               { family_id: null, user_id: user.id, date: { gte: txDateStart, lt: txDateEnd } }
             ]
           }
@@ -155,7 +155,7 @@ exports.getBudgets = async (req, res, next) => {
       ? { family_id: familyId, date: { gte: startDate, lt: endDate } }
       : { family_id: null, user_id: user.id, date: { gte: startDate, lt: endDate } };
 
-    const privacyFilter = { OR: [{ scope: { in: ['family', 'shared'] } }, { user_id: user.id }] };
+    const privacyFilter = { OR: [{ scope: 'family' }, { user_id: user.id }] };
     txWhere = { ...txWhere, ...privacyFilter };
 
     if (memberId) {
@@ -165,7 +165,7 @@ exports.getBudgets = async (req, res, next) => {
     const budgetWhere = familyId
       ? { 
           OR: [
-            { family_id: familyId, month, scope: { in: ['family', 'shared'] } },
+            { family_id: familyId, month, scope: 'family' },
             { family_id: null, user_id: user.id, month, scope: 'personal' }
           ]
         }
@@ -259,8 +259,8 @@ exports.createBudget = async (req, res, next) => {
       throw new ValidationError('Категория не найдена');
     }
 
-    // scope: 'personal' -> family_id = null, 'family'/'shared' -> family_id = familyId
-    const budgetScope = ['family', 'shared'].includes(scope) && familyId ? scope : 'personal';
+    // scope: 'personal' -> family_id = null, 'family' -> family_id = familyId
+    const budgetScope = scope === 'family' && familyId ? scope : 'personal';
     const budgetFamilyId = budgetScope === 'personal' ? null : familyId;
 
     const budget = await prisma.budget.create({

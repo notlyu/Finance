@@ -58,7 +58,7 @@ exports.updateAccount = async (req, res, next) => {
         id: Number(id),
         OR: [
           { user_id: user.id, family_id: null, scope: 'personal' },
-          { family_id: user.family_id, scope: { in: ['family', 'shared'] } }
+          { family_id: user.family_id, scope: 'family' }
         ]
       }
     });

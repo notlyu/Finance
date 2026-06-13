@@ -24,13 +24,15 @@ const createDebt = async (userId, familyId, data) => {
     throw new ValidationError('Обязательны: название, сумма, дата начала');
   }
 
-  const scope = data.scope || 'personal';
+  // Семейный scope возможен только при наличии семьи (соло → всегда personal).
+  const scope = (familyId && data.scope === 'family') ? 'family' : 'personal';
 
   return await prisma.$transaction(async (tx) => {
     const debt = await tx.debt.create({
       data: {
         user_id: userId,
         family_id: scope === 'personal' ? null : familyId,
+        scope,
         name: data.name,
         total_amount: data.total_amount,
         remaining: data.remaining || data.total_amount,
@@ -59,7 +61,7 @@ const createDebt = async (userId, familyId, data) => {
           day_of_month: validDay,
           start_month: new Date(data.start_date).toISOString().slice(0, 7),
           comment: `Платёж по кредиту: ${data.name}`,
-          scope: scope === 'personal' ? 'personal' : 'family',
+          scope,
           debt_id: debt.id,
         },
       });

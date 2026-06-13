@@ -12,9 +12,9 @@ async function calculateSafetyPillow(userId, familyId) {
 
   // Фильтрация с учётом scope
   // Личные транзакции (scope='personal'): family_id=null, user_id=self
-  // Семейные транзакции (scope='family'/'shared'): family_id=familyId
+  // Семейные транзакции (scope='family'): family_id=familyId
   const txFilter = isFamily
-    ? { OR: [{ family_id: familyId, scope: { in: ['family', 'shared'] } }, { family_id: null, user_id: userId, scope: 'personal' }] }
+    ? { OR: [{ family_id: familyId, scope: 'family' }, { family_id: null, user_id: userId, scope: 'personal' }] }
     : { family_id: null, user_id: userId, scope: 'personal' };
 
   const reserveFilter = isFamily

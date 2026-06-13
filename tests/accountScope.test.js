@@ -64,16 +64,33 @@ describe('Operation inherits account scope (F4)', () => {
     expect(tx.scope).toBe('personal');
   });
 
-  test('explicit scope overrides account scope', async () => {
+  // §4.2 (реверс В4): с СЕМЕЙНОГО счёта личную/скрытую операцию сделать нельзя —
+  // явный scope=personal игнорируется, операция остаётся семейной («общий котёл»).
+  test('family account forces scope=family even if personal requested', async () => {
     const tx = await createTx({ account_id: famAcc.id, scope: 'personal' });
-    expect(tx.scope).toBe('personal');
+    expect(tx.scope).toBe('family');
+    expect(tx.account_id).toBe(famAcc.id);
   });
 
-  // В4: личная покупка с общей карты — scope=personal вопреки семейному счёту,
-  // при этом привязка к счёту сохраняется.
-  test('personal purchase on a family account keeps the account link', async () => {
-    const tx = await createTx({ account_id: famAcc.id, scope: 'personal' });
-    expect(tx.scope).toBe('personal');
-    expect(tx.account_id).toBe(famAcc.id);
+  // С ЛИЧНОГО счёта переключение в «Семья» (внести своё в общий бюджет) — разрешено.
+  test('explicit family scope on a personal account is allowed', async () => {
+    const tx = await createTx({ account_id: persAcc.id, scope: 'family' });
+    expect(tx.scope).toBe('family');
+    expect(tx.account_id).toBe(persAcc.id);
+  });
+
+  // PATCH тоже не должен обходить правило: перенос операции на семейный счёт
+  // с попыткой оставить её личной → форсируется family.
+  test('PATCH onto a family account forces scope=family (no hiding via update)', async () => {
+    const created = await createTx({ account_id: persAcc.id, scope: 'personal' });
+    expect(created.scope).toBe('personal');
+    const res = await request(app)
+      .patch(`/api/transactions/${created.id}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ account_id: famAcc.id, scope: 'personal' });
+    expect(res.status).toBe(200);
+    const after = await prisma.transaction.findUnique({ where: { id: created.id } });
+    expect(after.scope).toBe('family');
+    expect(after.account_id).toBe(famAcc.id);
   });
 });

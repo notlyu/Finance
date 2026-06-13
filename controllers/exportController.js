@@ -11,7 +11,7 @@ async function getUserTransactions(userId, familyId, query = {}) {
         // Собственные ЛИЧНЫЕ операции — независимо от family_id
         // (createTransaction проставляет family_id всем операциям члена семьи)
         { user_id: userId, scope: 'personal' },
-        { family_id: familyId, scope: { in: ['family', 'shared'] } }
+        { family_id: familyId, scope: 'family' }
       ]
     };
   } else {
@@ -99,7 +99,7 @@ const transactionColumns = [
   { key: 'account_name', header: 'Счет' },
   { key: 'user_name', header: 'Автор' },
   { key: 'comment', header: 'Комментарий' },
-  { key: 'scope', header: 'Тип (personal/family/shared)' }
+  { key: 'scope', header: 'Тип (personal/family)' }
 ];
 
 const wishColumns = [

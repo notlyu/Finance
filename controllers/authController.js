@@ -400,7 +400,7 @@ exports.leaveFamily = async (req, res, next) => {
 
     // При выходе из семьи:
     // - Личные транзакции (scope='personal'): family_id остаётся null
-    // - Семейные транзакции (scope='family'/'shared'): НЕ меняем family_id (они остаются в семье)
+    // - Семейные транзакции (scope='family'): НЕ меняем family_id (они остаются в семье)
     // - Личные Goals/Wishes (scope='personal'): остаются личными
     // - Семейные Goals/Wishes: остаются семейными
     await prisma.$transaction(async (tx) => {

@@ -1,5 +1,6 @@
 ﻿const prisma = require('../lib/prisma-client');
 const { logger } = require('../lib/errors');
+const { resolveScope, maskTransaction } = require('../lib/scope');
 
 // Режим прозрачности семьи: если включён, личные операции партнёра НЕ маскируются.
 // По умолчанию (false) — маскирование «🔒 факт операции» (R1 / ТЗ Логика семьи).
@@ -59,7 +60,7 @@ exports.getTransactions = async (userId, familyId, query = {}) => {
         whereClause.user_id = userId;
     } else if (includePrivate === 'only_visible' || includePrivate === 'family') {
         whereClause.OR = [
-            { scope: { in: ['family', 'shared'] } },
+            { scope: 'family' },
             { user_id: userId },
         ];
     }
@@ -87,43 +88,12 @@ exports.getTransactions = async (userId, familyId, query = {}) => {
     const paginate = String(query.paginate || '') === 'true';
 
     const transparent = await isFamilyTransparent(familyId);
-    const mapTx = (t) => {
-        const isOtherUsersPrivate = !transparent && t.scope === 'personal' && t.user_id !== userId;
-        if (isOtherUsersPrivate) {
-            return {
-                id: t.id,
-                date: t.date,
-                type: t.type,
-                amount: null,
-                comment: null,
-                scope: 'personal',
-                is_hidden: true,
-                category_id: t.category_id,
-                category_name: 'Скрыто',
-                user_id: t.user_id,
-                user_name: t.user?.name || 'Участник',
-            };
-        }
-
-        return {
-            id: t.id,
-            date: t.date,
-            type: t.type,
-            amount: t.amount,
-            comment: t.comment,
-            scope: t.scope,
-            is_hidden: false,
-            category_id: t.category_id,
-            category_name: t.category?.name || 'Без категории',
-            user_id: t.user_id,
-            user_name: t.user?.name || '',
-        };
-    };
+    const mapTx = (t) => maskTransaction(t, userId, transparent);
 
     if (!paginate) {
         const rows = await prisma.transaction.findMany({
             where: whereClause,
-            include: { category: true, user: true },
+            include: { category: true, user: true, account: { select: { name: true } } },
             orderBy: [{ date: 'desc' }, { id: 'desc' }],
             take: limit,
             skip: offset,
@@ -134,7 +104,7 @@ exports.getTransactions = async (userId, familyId, query = {}) => {
     const [rows, count] = await Promise.all([
         prisma.transaction.findMany({
             where: whereClause,
-            include: { category: true, user: true },
+            include: { category: true, user: true, account: { select: { name: true } } },
             orderBy: [{ date: 'desc' }, { id: 'desc' }],
             take: limit,
             skip: offset,
@@ -168,7 +138,7 @@ exports.createTransaction = async (userId, familyId, data) => {
 
     // Привязка к счёту: проверяем, что счёт доступен пользователю (свой личный
     // или семейный), иначе не привязываем чужой/несуществующий счёт.
-    // F4 (ТЗ Логика семьи §5): если scope не задан явно — наследуем его от счёта.
+    let accountScope = null;
     if (data.account_id) {
         const accWhere = familyId
             ? { id: Number(data.account_id), OR: [{ family_id: familyId }, { family_id: null, user_id: userId }] }
@@ -176,10 +146,13 @@ exports.createTransaction = async (userId, familyId, data) => {
         const acc = await prisma.account.findFirst({ where: accWhere, select: { scope: true } });
         if (!acc) {
             delete data.account_id;
-        } else if (familyId && !data.scope) {
-            data.scope = acc.scope;
+        } else {
+            accountScope = acc.scope;
         }
     }
+    // F4/§4: итоговый scope — единая точка (явный > scope счёта > personal;
+    // соло-пользователь всегда personal, даже если прислал scope='family').
+    data.scope = resolveScope({ familyId, requestedScope: data.scope, accountScope });
 
     // Проверка бюджетного предупреждения ПЕРЕД транзакцией (read-only, не требует атомарности)
     let budgetWarning = null;
@@ -318,41 +291,12 @@ exports.getTransactionById = async (id, familyId, userId) => {
     
     const t = await prisma.transaction.findFirst({ 
         where,
-        include: { category: true, user: true }
+        include: { category: true, user: true, account: { select: { name: true } } }
     });
     if (!t) return null;
 
     const transparent = await isFamilyTransparent(familyId);
-    const isOtherUsersPrivate = !transparent && t.scope === 'personal' && t.user_id !== userId;
-    if (isOtherUsersPrivate) {
-        return {
-            id: t.id,
-            date: t.date,
-            type: t.type,
-            amount: null,
-            comment: null,
-            scope: 'personal',
-            is_hidden: true,
-            category_id: t.category_id,
-            category_name: 'Скрыто',
-            user_id: t.user_id,
-            user_name: t.user?.name || 'Участник',
-        };
-    }
-
-    return {
-        id: t.id,
-        date: t.date,
-        type: t.type,
-        amount: t.amount,
-        comment: t.comment,
-        scope: t.scope,
-        is_hidden: false,
-        category_id: t.category_id,
-        category_name: t.category?.name || 'Без категории',
-        user_id: t.user_id,
-        user_name: t.user?.name || '',
-    };
+    return maskTransaction(t, userId, transparent);
 };
 
 exports.updateTransaction = async (id, familyId, userId, data) => {
@@ -377,6 +321,25 @@ exports.updateTransaction = async (id, familyId, userId, data) => {
         if (safeData.amount) safeData.amount = Number(safeData.amount);
         if (safeData.category_id) safeData.category_id = Number(safeData.category_id);
 
+        // §4.2/F4: пересчитываем scope через единую точку, чтобы PATCH не обходил правило
+        // «общего котла» (с семейного счёта операцию нельзя сделать личной/скрытой;
+        // соло-пользователь — всегда personal).
+        let accountScope = null;
+        const effectiveAccountId = safeData.account_id !== undefined ? safeData.account_id : existing.account_id;
+        if (familyId && effectiveAccountId) {
+            const acc = await tx.account.findFirst({
+                where: { id: Number(effectiveAccountId), OR: [{ family_id: familyId }, { family_id: null, user_id: userId }] },
+                select: { scope: true },
+            });
+            if (!acc) {
+                if (safeData.account_id !== undefined) delete safeData.account_id;
+            } else {
+                accountScope = acc.scope;
+            }
+        }
+        const requestedScope = safeData.scope !== undefined ? safeData.scope : existing.scope;
+        safeData.scope = resolveScope({ familyId, requestedScope, accountScope });
+
         const updated = await tx.transaction.update({
             where: { id: txId },
             data: safeData,
@@ -390,7 +353,7 @@ exports.updateTransaction = async (id, familyId, userId, data) => {
 
         return tx.transaction.findUnique({
             where: { id: txId },
-            include: { category: true, user: true },
+            include: { category: true, user: true, account: { select: { name: true } } },
         });
     });
 };

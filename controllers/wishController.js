@@ -150,7 +150,7 @@ exports.getWishes = async (req, res, next) => {
       ? {
           OR: [
             { family_id: null, user_id: user.id, scope: 'personal' },
-            { family_id: familyId, scope: { in: ['family', 'shared'] } }
+            { family_id: familyId, scope: 'family' }
           ]
         }
       : { family_id: null, user_id: user.id, scope: 'personal' };
