@@ -1,18 +1,7 @@
 const transactionService = require('../services/transactionService');
 const auditService = require('../services/auditService');
-const { emitFamilyUpdate } = require('../lib/socket');
+const { notifyFamily } = require('../lib/familyRealtime');
 const { logger, NotFoundError, ValidationError, UnauthorizedError } = require('../lib/errors');
-
-// Realtime для семьи (#9): уведомляем остальных участников об изменении общих данных.
-// Личные операции НЕ шлём — приватность (партнёр не получает realtime-сигнал о личном).
-function notifyFamily(req, resource) {
-    if (!req.user?.family_id) return;
-    try {
-        emitFamilyUpdate(req.user.family_id, 'family_update', { resource, by: req.user.id }, req.user.id);
-    } catch (e) {
-        logger.warn({ err: e }, 'family_update emit failed');
-    }
-}
 
 const getTransactions = async (req, res, next) => {
     if (!req.user) {

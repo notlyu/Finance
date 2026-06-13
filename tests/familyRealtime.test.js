@@ -62,3 +62,26 @@ describe('Family realtime emit (#9)', () => {
     expect(socket.emitFamilyUpdate).not.toHaveBeenCalled();
   });
 });
+
+async function createGoal(scope) {
+  return request(app)
+    .post('/api/goals')
+    .set('Authorization', `Bearer ${ownerToken}`)
+    .send({ name: `Goal ${scope} ${Date.now()}`, target_amount: 5000, scope });
+}
+
+describe('Family realtime emit — goals (#9)', () => {
+  test('family goal emits family_update with resource=goals', async () => {
+    const res = await createGoal('family');
+    expect(res.status).toBe(201);
+    expect(socket.emitFamilyUpdate).toHaveBeenCalledWith(
+      family.id, 'family_update', { resource: 'goals', by: owner.id }, owner.id,
+    );
+  });
+
+  test('personal goal does NOT emit family_update', async () => {
+    const res = await createGoal('personal');
+    expect(res.status).toBe(201);
+    expect(socket.emitFamilyUpdate).not.toHaveBeenCalled();
+  });
+});

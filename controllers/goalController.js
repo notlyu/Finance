@@ -1,4 +1,5 @@
 const prisma = require('../lib/prisma-client');
+const { notifyFamily } = require('../lib/familyRealtime');
 const { logger, ValidationError, NotFoundError, ForbiddenError } = require('../lib/errors');
 
 function currentMonth() {
@@ -214,6 +215,7 @@ exports.createGoal = async (req, res, next) => {
       });
     }
 
+    if (goal.family_id) notifyFamily(req, 'goals');
     logger.info(`User ${user.id} created goal ${goal.id}`);
     res.status(201).json(goal);
   } catch (error) {
@@ -309,6 +311,7 @@ exports.updateGoal = async (req, res, next) => {
       }
     }
 
+    if (updated.family_id) notifyFamily(req, 'goals');
     logger.info(`User ${user.id} updated goal ${id}`);
     res.json({ ...updated, scope: updated.scope || (updated.family_id ? 'family' : 'personal') });
   } catch (error) {
@@ -342,6 +345,7 @@ exports.deleteGoal = async (req, res, next) => {
 
     await prisma.recurringTransaction.deleteMany({ where: { goal_id: goal.id } });
     await prisma.goal.delete({ where: { id: Number(id) } });
+    if (goal.family_id) notifyFamily(req, 'goals');
     logger.info(`User ${user.id} deleted goal ${id}`);
     res.status(204).send();
   } catch (error) {
@@ -504,6 +508,7 @@ exports.contributeToGoal = async (req, res, next) => {
       );
     }
 
+    if (goal.family_id) notifyFamily(req, 'goals');
     logger.info(`User ${user.id} contributed to goal ${id}, amount: ${amount}`);
     res.status(201).json({
       message: 'Цель пополнена',
