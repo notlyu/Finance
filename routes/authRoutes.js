@@ -2,6 +2,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const authController = require('../controllers/authController');
 const authMiddleware = require('../middleware/auth');
+const { issueCsrfToken } = require('../middleware/csrf');
 const { validateMiddleware, validateObjectId, validateMemberId } = require('../lib/validation');
 
 /**
@@ -27,6 +28,9 @@ const { validateMiddleware, validateObjectId, validateMemberId } = require('../l
  */
 
 const router = express.Router();
+
+// Bootstrap CSRF-токена (публичный, до логина). Ставит cookie XSRF-TOKEN + отдаёт токен.
+router.get('/csrf-token', issueCsrfToken);
 
 /**
  * @swagger

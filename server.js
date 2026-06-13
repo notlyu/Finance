@@ -82,9 +82,14 @@ app.use(cors({
   origin: corsOrigins.length > 0 ? corsOrigins : true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
 }));
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
+
+// CSRF-защита (double-submit). Для cookie-аутентифицированных мутаций; Bearer
+// (тесты/API) пропускается. Требует cookieParser (выше) и express.json (выше).
+const { csrfProtection } = require('./middleware/csrf');
+app.use(csrfProtection);
 
 // Rate limiting
 const authLimiter = rateLimit({
