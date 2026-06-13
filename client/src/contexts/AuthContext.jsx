@@ -1,64 +1,49 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import api, { setAccessToken, clearAccessToken } from '../services/api';
+import api, { API_BASE } from '../services/api';
 
 const AuthContext = createContext(null);
-
-function decodeToken(token) {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return {
-      id: payload.id,
-      email: payload.email,
-      name: payload.name || payload.email?.split('@')[0],
-      family_id: payload.family_id || null,
-      exp: payload.exp,
-    };
-  } catch {
-    return null;
-  }
-}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Пользователь определяется по cookie-сессии через /me (токена в JS нет).
+  // Используем raw axios (мимо интерсептора api), чтобы init сам обрабатывал 401.
+  const fetchMe = useCallback(async () => {
+    const res = await axios.get(`${API_BASE}/auth/me`, { withCredentials: true });
+    setUser(res.data);
+    return res.data;
+  }, []);
+
   useEffect(() => {
     const init = async () => {
       try {
-        const res = await axios.get('/api/auth/me', { withCredentials: true });
-        setUser(res.data);
+        await fetchMe();
       } catch {
-        // Not authenticated via cookie, try refreshing
+        // Нет валидной cookie-сессии — пробуем refresh (cookie), затем снова /me.
         try {
-          const refreshRes = await axios.post('/api/auth/refresh-token', {}, { withCredentials: true });
-          if (refreshRes.data?.token) {
-            setAccessToken(refreshRes.data.token);
-            const decoded = decodeToken(refreshRes.data.token);
-            setUser(decoded);
-          }
+          await axios.post(`${API_BASE}/auth/refresh-token`, {}, { withCredentials: true });
+          await fetchMe();
         } catch {
-          clearAccessToken();
+          setUser(null);
         }
       }
       setLoading(false);
     };
 
     init();
-  }, []);
+  }, [fetchMe]);
 
-  const login = useCallback((token, refreshToken, refreshTokenExpiresAt) => {
-    setAccessToken(token);
-    const decoded = decodeToken(token);
-    setUser(decoded);
-  }, []);
+  // Вызывается после успешного login/register (сервер уже выставил cookie-сессию).
+  const login = useCallback(async () => fetchMe(), [fetchMe]);
 
   const logout = useCallback(async () => {
     try {
       await api.post('/auth/logout');
     } catch {
+      /* игнорируем — cookie всё равно чистятся сервером */
     }
-    clearAccessToken();
     setUser(null);
   }, []);
 

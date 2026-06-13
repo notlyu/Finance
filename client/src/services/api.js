@@ -47,11 +47,29 @@ export const classifyError = (err) => {
   return { text, sourceCode };
 };
 
-let accessToken = null;
+// Cookie-only: access-токен живёт только в httpOnly cookie (не в JS-памяти, защита от XSS).
+// Стабы сохранены для обратной совместимости импортов.
+export const setAccessToken = () => {};
+export const getAccessToken = () => null;
+export const clearAccessToken = () => {};
 
-export const setAccessToken = (token) => { accessToken = token; };
-export const getAccessToken = () => accessToken;
-export const clearAccessToken = () => { accessToken = null; };
+function readCookie(name) {
+  const m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+// Bootstrap CSRF-токена (читаемая cookie XSRF-TOKEN). Дедупим параллельные запросы.
+let csrfPromise = null;
+async function ensureCsrfToken() {
+  if (readCookie('XSRF-TOKEN')) return;
+  if (!csrfPromise) {
+    csrfPromise = axios
+      .get(`${API_BASE}/auth/csrf-token`, { withCredentials: true })
+      .catch(() => {})
+      .finally(() => { csrfPromise = null; });
+  }
+  await csrfPromise;
+}
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -79,9 +97,14 @@ const onRefreshFailed = () => {
   refreshSubscribers = [];
 };
 
-api.interceptors.request.use(config => {
-  if (accessToken) {
-    config.headers.Authorization = `Bearer ${accessToken}`;
+// Аутентификация через httpOnly cookie (withCredentials). Bearer не шлём.
+// На мутациях прикладываем CSRF-токен (double-submit): XSRF-TOKEN cookie → X-CSRF-Token.
+api.interceptors.request.use(async (config) => {
+  const method = (config.method || 'get').toLowerCase();
+  if (['post', 'put', 'patch', 'delete'].includes(method)) {
+    await ensureCsrfToken();
+    const csrf = readCookie('XSRF-TOKEN');
+    if (csrf) config.headers['X-CSRF-Token'] = csrf;
   }
   return config;
 });
@@ -119,11 +142,8 @@ api.interceptors.response.use(
       isRefreshing = true;
       
       try {
-        const refreshRes = await axios.post(`${API_BASE}/auth/refresh-token`, {}, { withCredentials: true });
-        const { token } = refreshRes.data;
-        if (token) {
-          setAccessToken(token);
-        }
+        // Сервер выставит новые cookie (token/refreshToken). В JS токен не храним.
+        await axios.post(`${API_BASE}/auth/refresh-token`, {}, { withCredentials: true });
         onRefreshed('refreshed');
         isRefreshing = false;
         return api(originalRequest);

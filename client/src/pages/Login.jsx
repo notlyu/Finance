@@ -82,8 +82,8 @@ export default function Login() {
       const res = await api.post(isLogin ? '/auth/login' : '/auth/register', body, { withCredentials: true });
       console.log('Login response:', res.status, res.data);
       if (res.status === 200 || res.status === 201) {
-        const { token, refreshToken, refreshTokenExpiresAt } = res.data;
-        login(token, refreshToken, refreshTokenExpiresAt);
+        // Сервер выставил cookie-сессию; пользователя берём из /me (токен в JS не храним).
+        await login();
         navigate('/');
         return;
       }

@@ -1,5 +1,4 @@
 import { io } from 'socket.io-client';
-import { getAccessToken } from './api';
 import logger from '../utils/logger';
 
 class SocketService {
@@ -11,13 +10,11 @@ class SocketService {
   connect() {
     if (this.socket?.connected) return;
 
-    const token = getAccessToken();
-    if (!token) return;
-
     const wsUrl = process.env.REACT_APP_WS_URL || `http://localhost:${window.location.port === '3000' ? '3001' : window.location.port}`;
 
+    // Аутентификация сокета через httpOnly cookie (withCredentials) — токена в JS нет.
     this.socket = io(wsUrl, {
-      auth: { token },
+      withCredentials: true,
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 5,

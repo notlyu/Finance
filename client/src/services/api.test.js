@@ -31,7 +31,7 @@ jest.mock('axios', () => {
   };
 });
 
-import api, { classifyError, downloadFile, setAccessToken, clearAccessToken, API_BASE } from './api';
+import api, { classifyError, downloadFile, setAccessToken, API_BASE } from './api';
 
 let reqHandler;
 let resSuccessHandler;
@@ -131,19 +131,20 @@ describe('classifyError', () => {
   });
 });
 
-describe('request interceptor', () => {
-  it('adds Bearer token when accessToken is set', () => {
-    setAccessToken('test-token');
-    const config = { headers: {} };
-    const result = reqHandler(config);
-    expect(result.headers.Authorization).toBe('Bearer test-token');
+describe('request interceptor (cookie-only + CSRF)', () => {
+  it('adds X-CSRF-Token on mutating request when XSRF-TOKEN cookie present', async () => {
+    document.cookie = 'XSRF-TOKEN=tok123';
+    const config = { method: 'post', headers: {} };
+    const result = await reqHandler(config);
+    expect(result.headers['X-CSRF-Token']).toBe('tok123');
+    expect(result.headers.Authorization).toBeUndefined();
   });
 
-  it('does not add Authorization header when no token', () => {
-    clearAccessToken();
-    const config = { headers: {} };
-    const result = reqHandler(config);
-    expect(result.headers.Authorization).toBeUndefined();
+  it('does not add CSRF header on GET requests', async () => {
+    document.cookie = 'XSRF-TOKEN=tok123';
+    const config = { method: 'get', headers: {} };
+    const result = await reqHandler(config);
+    expect(result.headers['X-CSRF-Token']).toBeUndefined();
   });
 });
 
@@ -197,10 +198,7 @@ describe('response interceptor', () => {
       {},
       { withCredentials: true },
     );
-    // Verify new token is set in memory for subsequent requests
-    const config = { headers: {} };
-    const updatedConfig = reqHandler(config);
-    expect(updatedConfig.headers.Authorization).toBe('Bearer new-token');
+    // Токен в JS не храним — после refresh сервер выставил новые cookie, запрос ретраится.
     expect(mockInstance).toHaveBeenCalledWith({
       url: '/data', headers: {}, _retry: true,
     });

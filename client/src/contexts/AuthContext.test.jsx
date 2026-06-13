@@ -18,71 +18,14 @@ import { AuthProvider, useAuth } from './AuthContext';
 import api from '../services/api';
 import axios from 'axios';
 
-const createTestToken = (payload, expOffset = 3600) => {
-  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const body = btoa(JSON.stringify({ ...payload, exp: Math.floor(Date.now() / 1000) + expOffset }));
-  return `${header}.${body}.signature`;
-};
-
-let store = {};
-function mockStorage() {
-  store = {};
-  Object.defineProperty(window, 'localStorage', {
-    value: {
-      getItem: (key) => store[key] ?? null,
-      setItem: (key, value) => { store[key] = value; },
-      removeItem: (key) => { delete store[key]; },
-      clear: () => { store = {}; },
-      get length() { return Object.keys(store).length; },
-      key: (i) => Object.keys(store)[i] ?? null,
-    },
-    configurable: true,
-    writable: true,
-  });
-}
-
 beforeEach(() => {
-  mockStorage();
   jest.clearAllMocks();
 });
 
-describe('decodeToken', () => {
-  it('sets user from token payload', () => {
-    axios.get.mockRejectedValue(new Error('no session'));
-    axios.post.mockRejectedValue(new Error('no refresh'));
+// Cookie-only: пользователь определяется по /me, токена в JS нет.
 
-    const payload = { id: 1, email: 'test@example.com', name: 'Test User', family_id: 5, exp: Math.floor(Date.now() / 1000) + 3600 };
-    const token = createTestToken(payload);
-
-    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
-    act(() => {
-      result.current.login(token);
-    });
-
-    expect(result.current.user).toEqual({
-      id: 1,
-      email: 'test@example.com',
-      name: 'Test User',
-      family_id: 5,
-      exp: payload.exp,
-    });
-  });
-
-  it('returns null for invalid token', () => {
-    axios.get.mockRejectedValue(new Error('no session'));
-    axios.post.mockRejectedValue(new Error('no refresh'));
-
-    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
-    act(() => {
-      result.current.login('invalid-token');
-    });
-
-    expect(result.current.user).toBeNull();
-  });
-});
-
-describe('AuthProvider', () => {
-  it('shows loading state initially, then resolves', async () => {
+describe('AuthProvider init', () => {
+  it('shows loading initially, then resolves', async () => {
     axios.get.mockRejectedValue(new Error('no session'));
     axios.post.mockRejectedValue(new Error('no refresh'));
 
@@ -99,8 +42,8 @@ describe('AuthProvider', () => {
     await waitFor(() => expect(states[states.length - 1]).toBe(false));
   });
 
-  it('loads user from /api/auth/me on mount', async () => {
-    const userData = { id: 1, email: 'test@example.com', name: 'Test' };
+  it('loads user from /me on mount', async () => {
+    const userData = { id: 1, email: 'test@example.com', name: 'Test', family_id: 5 };
     axios.get.mockResolvedValue({ data: userData });
 
     const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
@@ -110,25 +53,20 @@ describe('AuthProvider', () => {
     expect(result.current.isAuthenticated).toBe(true);
   });
 
-  it('refreshes token when /api/auth/me fails', async () => {
-    const token = createTestToken({ id: 1, email: 'test@example.com', name: 'Test', family_id: 5 });
-    axios.get.mockRejectedValue(new Error('no session'));
-    axios.post.mockResolvedValue({ data: { token } });
+  it('refreshes then re-fetches /me when first /me fails', async () => {
+    const userData = { id: 1, email: 'test@example.com', name: 'Test', family_id: 5 };
+    // первый /me падает, refresh ок, второй /me возвращает пользователя
+    axios.get.mockRejectedValueOnce(new Error('no session')).mockResolvedValueOnce({ data: userData });
+    axios.post.mockResolvedValue({ data: { ok: true } });
 
     const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(result.current.user).toEqual({
-      id: 1,
-      email: 'test@example.com',
-      name: 'Test',
-      family_id: 5,
-      exp: expect.any(Number),
-    });
+    expect(result.current.user).toEqual(userData);
     expect(result.current.isAuthenticated).toBe(true);
   });
 
-  it('does not load user when not authenticated', async () => {
+  it('stays unauthenticated when /me and refresh both fail', async () => {
     axios.get.mockRejectedValue(new Error('no session'));
     axios.post.mockRejectedValue(new Error('no refresh'));
 
@@ -140,120 +78,64 @@ describe('AuthProvider', () => {
   });
 });
 
-describe('login', () => {
-  it('sets user state from decoded token', () => {
-    axios.get.mockRejectedValue(new Error('no session'));
-    axios.post.mockRejectedValue(new Error('no refresh'));
-
-    const token = createTestToken({
-      id: 1,
-      email: 'test@example.com',
-      name: 'Test',
-      family_id: 5,
-    });
+describe('login()', () => {
+  it('fetches /me and sets the user (no token in JS)', async () => {
+    const userData = { id: 7, email: 'a@b.com', name: 'A', family_id: null };
+    // init: нет сессии
+    axios.get.mockRejectedValueOnce(new Error('no session'));
+    axios.post.mockRejectedValueOnce(new Error('no refresh'));
 
     const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
-    act(() => {
-      result.current.login(token);
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    // после успешного логина (cookie выставлена сервером) login() тянет /me
+    axios.get.mockResolvedValueOnce({ data: userData });
+    await act(async () => {
+      await result.current.login();
     });
 
-    expect(result.current.user).toEqual({
-      id: 1,
-      email: 'test@example.com',
-      name: 'Test',
-      family_id: 5,
-      exp: expect.any(Number),
-    });
-  });
-
-  it('updates isAuthenticated', () => {
-    axios.get.mockRejectedValue(new Error('no session'));
-    axios.post.mockRejectedValue(new Error('no refresh'));
-
-    const token = createTestToken({ id: 1, email: 'test@example.com' });
-
-    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
-    act(() => {
-      result.current.login(token);
-    });
-
+    expect(result.current.user).toEqual(userData);
     expect(result.current.isAuthenticated).toBe(true);
-  });
-
-  it('saves token via setAccessToken', () => {
-    axios.get.mockRejectedValue(new Error('no session'));
-    axios.post.mockRejectedValue(new Error('no refresh'));
-
-    const token = createTestToken({ id: 1, email: 'test@example.com' });
-
-    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
-    act(() => {
-      result.current.login(token);
-    });
-
-    const { getAccessToken } = require('../services/api');
-    expect(getAccessToken()).toBe(token);
   });
 });
 
-describe('logout', () => {
+describe('logout()', () => {
   beforeEach(() => {
     axios.get.mockRejectedValue(new Error('no session'));
     axios.post.mockRejectedValue(new Error('no refresh'));
     api.post = jest.fn().mockResolvedValue({ data: {} });
   });
 
-  it('calls api.post /auth/logout', async () => {
+  it('calls api.post /auth/logout and clears the user', async () => {
     const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
     await act(async () => {
       await result.current.logout();
     });
 
     expect(api.post).toHaveBeenCalledWith('/auth/logout');
-  });
-
-  it('sets user to null and clears isAuthenticated', async () => {
-    const token = createTestToken({ id: 1, email: 'test@example.com' });
-    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
-    act(() => {
-      result.current.login(token);
-    });
-
-    await act(async () => {
-      await result.current.logout();
-    });
-
     expect(result.current.user).toBeNull();
     expect(result.current.isAuthenticated).toBe(false);
   });
 
-  it('handles api error gracefully', async () => {
+  it('clears the user even if logout request fails', async () => {
     api.post.mockRejectedValue(new Error('Network error'));
 
     const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
     await act(async () => {
       await result.current.logout();
     });
 
     expect(result.current.user).toBeNull();
     expect(result.current.isAuthenticated).toBe(false);
-  });
-
-  it('clears in-memory access token', async () => {
-    const { getAccessToken, setAccessToken } = require('../services/api');
-    setAccessToken('old-token');
-
-    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider });
-    await act(async () => {
-      await result.current.logout();
-    });
-
-    expect(getAccessToken()).toBeNull();
   });
 });
 
 describe('useAuth', () => {
-  it('returns context value when used within AuthProvider', async () => {
+  it('returns context value within AuthProvider', async () => {
     axios.get.mockRejectedValue(new Error('no session'));
     axios.post.mockRejectedValue(new Error('no refresh'));
 
@@ -267,7 +149,7 @@ describe('useAuth', () => {
     expect(result.current).toHaveProperty('logout');
   });
 
-  it('throws error when used outside AuthProvider', () => {
+  it('throws when used outside AuthProvider', () => {
     expect(() => {
       renderHook(() => useAuth());
     }).toThrow('useAuth must be used within AuthProvider');

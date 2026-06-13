@@ -3,7 +3,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, useState, lazy, Suspense } from 'react';
 import { ToastContainer } from './utils/toast';
 import { socketService } from './services/socket';
-import { getAccessToken } from './services/api';
 import ErrorBoundary from './components/ErrorBoundary';
 import OnboardingModal from './components/OnboardingModal';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -53,6 +52,29 @@ const PrivateRoute = ({ children }) => {
   return isAuthenticated ? children : <Navigate to="/login" />;
 };
 
+// Управляет realtime-соединением: подключает сокет при аутентификации (cookie-сессия),
+// инвалидирует кэш на family_update (#9). Живёт внутри AuthProvider (нужен useAuth).
+function RealtimeBridge() {
+  const { isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      socketService.connect();
+    } else {
+      socketService.disconnect();
+    }
+    return () => socketService.disconnect();
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    const handleFamilyUpdate = () => queryClient.invalidateQueries();
+    socketService.on('family_update', handleFamilyUpdate);
+    return () => socketService.off('family_update', handleFamilyUpdate);
+  }, []);
+
+  return null;
+}
+
 // AppRoutes живёт внутри BrowserRouter, поэтому может использовать useLocation
 function AppRoutes() {
   const [currentSpace, setCurrentSpace] = useState(
@@ -84,23 +106,9 @@ function AppRoutes() {
     }
   }, []);
 
-  useEffect(() => {
-    if (getAccessToken()) {
-      socketService.connect();
-    }
-    return () => socketService.disconnect();
-  }, []);
-
-  // Realtime (#9): когда участник семьи меняет общие данные — перезапрашиваем кэш,
-  // чтобы партнёр видел изменения без перезагрузки.
-  useEffect(() => {
-    const handleFamilyUpdate = () => queryClient.invalidateQueries();
-    socketService.on('family_update', handleFamilyUpdate);
-    return () => socketService.off('family_update', handleFamilyUpdate);
-  }, []);
-
   return (
     <AuthProvider>
+      <RealtimeBridge />
       <ErrorBoundary>
         <ToastContainer />
         <OnboardingModal />

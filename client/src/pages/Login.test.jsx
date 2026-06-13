@@ -68,7 +68,8 @@ describe('Login', () => {
     fireEvent.click(screen.getByText('Войти'));
 
     await waitFor(() => {
-      expect(mockLogin).toHaveBeenCalledWith('tok', 'rt', 'exp');
+      // cookie-only: login() без аргументов (пользователь берётся из /me)
+      expect(mockLogin).toHaveBeenCalled();
       expect(mockNavigate).toHaveBeenCalledWith('/');
     });
   });
