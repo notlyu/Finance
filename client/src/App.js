@@ -6,6 +6,7 @@ import { socketService } from './services/socket';
 import ErrorBoundary from './components/ErrorBoundary';
 import OnboardingModal from './components/OnboardingModal';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { UnsavedChangesProvider } from './contexts/UnsavedChangesContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
@@ -112,6 +113,7 @@ function AppRoutes() {
       <ErrorBoundary>
         <ToastContainer />
         <OnboardingModal />
+        <UnsavedChangesProvider>
         <Suspense fallback={<PageLoader />}>
           <Routes>
             {/* Auth routes */}
@@ -156,6 +158,7 @@ function AppRoutes() {
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
+        </UnsavedChangesProvider>
       </ErrorBoundary>
     </AuthProvider>
   );
