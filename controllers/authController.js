@@ -406,8 +406,13 @@ exports.leaveFamily = async (req, res, next) => {
         data: { family_id: null }
       });
 
-      // Goals и Wishes остаются как есть - личные остаются личными, семейные остаются семейными
-      // Пользователь сохраняет доступ к своим личным Goals/Wishes
+      // Личные Goals/Wishes (family_id=null) остаются у пользователя.
+      // В2: СЕМЕЙНЫЕ цели/желания/долги переназначаем на владельца семьи — они
+      // принадлежат семье и не должны потеряться (Goal/Wish имеют onDelete: Cascade
+      // по user_id → при будущем удалении аккаунта семья лишилась бы общих целей).
+      await tx.goal.updateMany({ where: { user_id: user.id, family_id: family.id }, data: { user_id: family.owner_user_id } });
+      await tx.wish.updateMany({ where: { user_id: user.id, family_id: family.id }, data: { user_id: family.owner_user_id } });
+      await tx.debt.updateMany({ where: { user_id: user.id, family_id: family.id }, data: { user_id: family.owner_user_id } });
 
       // Удаляем запись участника, иначе @@unique([user_id, family_id])
       // заблокирует повторное вступление в эту же семью.
@@ -466,6 +471,11 @@ exports.removeFamilyMember = async (req, res, next) => {
         where: { user_id: targetUserId, family_id: user.family_id },
         data: { family_id: null }
       }),
+      // В2: семейные цели/желания/долги удаляемого участника переназначаем на
+      // владельца семьи (им является удаляющий, user.id) — они принадлежат семье.
+      prisma.goal.updateMany({ where: { user_id: targetUserId, family_id: user.family_id }, data: { user_id: user.id } }),
+      prisma.wish.updateMany({ where: { user_id: targetUserId, family_id: user.family_id }, data: { user_id: user.id } }),
+      prisma.debt.updateMany({ where: { user_id: targetUserId, family_id: user.family_id }, data: { user_id: user.id } }),
       // Удаляем запись участника, иначе она осиротеет и заблокирует
       // повторное вступление по @@unique([user_id, family_id]).
       prisma.familyMember.deleteMany({
