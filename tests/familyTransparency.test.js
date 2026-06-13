@@ -83,4 +83,15 @@ describe('Family transparency mode (F3)', () => {
     expect(tx.is_hidden).toBe(false);
     expect(Number(tx.amount)).toBe(555);
   });
+
+  test('non-owner can edit other settings without changing transparency (no false 403)', async () => {
+    // На этом этапе show_personal_in_stats=true (включил owner выше).
+    // Участник шлёт то же значение + меняет месяцы подушки → должно пройти.
+    const res = await request(app)
+      .patch('/api/family-settings')
+      .set('Authorization', `Bearer ${memberToken}`)
+      .send({ show_personal_in_stats: true, safety_pillow_months: 7 });
+    expect(res.status).toBe(200);
+    expect(res.body.safety_pillow_months).toBe(7);
+  });
 });

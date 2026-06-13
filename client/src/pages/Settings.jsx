@@ -492,12 +492,20 @@ export default function Settings() {
         <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card">
           <h3 className="text-lg font-bold font-headline mb-6">Настройки семьи</h3>
           <div className="space-y-6 max-w-lg">
-            <div className="flex items-center justify-between p-4 bg-surface-container rounded-3xl">
+            <div className={`flex items-center justify-between p-4 bg-surface-container rounded-3xl ${user?.family?.owner_user_id === user?.id ? '' : 'opacity-70'}`}>
               <div>
-                <p className="text-sm font-semibold text-on-surface">Учитывать личные траты в семейной статистике</p>
-                <p className="text-xs text-on-surface-variant mt-1">Личные расходы участников будут включены в общую семейную статистику</p>
+                <p className="text-sm font-semibold text-on-surface">Прозрачность личных операций</p>
+                <p className="text-xs text-on-surface-variant mt-1">
+                  {user?.family?.owner_user_id === user?.id
+                    ? 'Если включено — личные операции участников видны партнёрам полностью (без «🔒 Сюрприз»). Меняет только владелец семьи.'
+                    : 'По умолчанию личные операции скрыты от партнёра («🔒 Сюрприз»). Включить полную прозрачность может только владелец семьи.'}
+                </p>
               </div>
-              <Toggle checked={familySettings.show_personal_in_stats} onChange={() => setFamilySettings(prev => ({ ...prev, show_personal_in_stats: !prev.show_personal_in_stats }))} />
+              <Toggle
+                checked={familySettings.show_personal_in_stats}
+                disabled={user?.family?.owner_user_id !== user?.id}
+                onChange={() => setFamilySettings(prev => ({ ...prev, show_personal_in_stats: !prev.show_personal_in_stats }))}
+              />
             </div>
             <div className="flex items-center justify-between p-4 bg-surface-container rounded-3xl">
               <div>

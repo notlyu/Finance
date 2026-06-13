@@ -36,12 +36,15 @@ exports.updateFamilySettings = async (req, res, next) => {
     const { show_personal_in_stats, safety_pillow_months } = req.validated;
 
     // Режим прозрачности (снятие маски с личного для всей семьи) меняет только владелец.
+    // Проверяем владельца лишь при фактическом ИЗМЕНЕНИИ значения — иначе участник,
+    // редактирующий другие поля (frontend всегда шлёт show_personal_in_stats), ложно получал бы 403.
     if (show_personal_in_stats !== undefined) {
-      const family = await prisma.family.findUnique({
-        where: { id: user.family_id },
-        select: { owner_user_id: true },
-      });
-      if (!family || family.owner_user_id !== user.id) {
+      const [family, current] = await Promise.all([
+        prisma.family.findUnique({ where: { id: user.family_id }, select: { owner_user_id: true } }),
+        prisma.familySettings.findUnique({ where: { family_id: user.family_id }, select: { show_personal_in_stats: true } }),
+      ]);
+      const currentVal = current?.show_personal_in_stats ?? false;
+      if (show_personal_in_stats !== currentVal && (!family || family.owner_user_id !== user.id)) {
         throw new ForbiddenError('Режим прозрачности может менять только владелец семьи');
       }
     }
