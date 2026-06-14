@@ -33,10 +33,8 @@ jobs:
         run: npx prisma db push --accept-data-loss
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
-      - name: Seed
-        run: node scripts/prisma-seed.js
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
+      # Сид НЕ нужен: Jest создаёт свои данные через хелперы (createTestUser).
+      # Сид переехал в job e2e, где он реально используется (test@example.com).
       - name: Jest tests
         run: npm test
         env:
@@ -128,6 +126,11 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
       - name: Push schema
         run: npx prisma db push --accept-data-loss
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
+      # Сид нужен e2e: login.spec/transaction.spec логинятся под test@example.com / 123456.
+      - name: Seed
+        run: node scripts/prisma-seed.js
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
       - name: Install Playwright
