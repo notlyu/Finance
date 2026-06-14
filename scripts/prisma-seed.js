@@ -276,8 +276,23 @@ async function seed() {
     
   } catch (err) {
     console.error('❌ Ошибка при заполнении тестовыми данными:', err);
+    await prisma.$disconnect();
+    if (prisma.pool) await prisma.pool.end().catch(() => {});
     process.exit(1);
   }
 }
 
-seed();
+// ВАЖНО: пул pg создан с allowExitOnIdle:false (lib/prisma-client.js) — без явного
+// закрытия процесс зависает вечно (в CI шаг seed грузится бесконечно). Закрываем и выходим.
+seed()
+  .then(async () => {
+    await prisma.$disconnect();
+    if (prisma.pool) await prisma.pool.end().catch(() => {});
+    process.exit(0);
+  })
+  .catch(async (err) => {
+    console.error('❌ Seed failed:', err);
+    await prisma.$disconnect().catch(() => {});
+    if (prisma.pool) await prisma.pool.end().catch(() => {});
+    process.exit(1);
+  });
