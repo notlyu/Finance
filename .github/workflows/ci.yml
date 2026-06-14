@@ -135,14 +135,7 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
       - name: Install Playwright
         run: npx playwright install --with-deps
-      - name: Start server
-        run: |
-          node server.js &
-          sleep 5
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
-          JWT_SECRET: test_secret_for_ci
-          FRONTEND_URL: http://localhost:5173
+      # Сервер поднимает сам Playwright (webServer в playwright.config.ts) и ждёт /health.
       - name: Playwright tests
         run: npx playwright test
         env:
