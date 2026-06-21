@@ -34,7 +34,7 @@ function LevelCard({ keyName, level }) {
   const isCurrent = !isReached && level.progress > 0;
   
   return (
-    <div className={`p-5 rounded-3xl flex items-center gap-4 bg-surface-container-lowest dark:bg-surface-container-low ${c.border} hover:shadow-[var(--md-shadow-premium)] transition-all`}>
+    <div className={`p-5 rounded-2xl flex items-center gap-4 bg-surface-container-lowest border border-outline-variant/60 hover:bg-surface-container transition-colors`}>
       <div className={`w-12 h-12 ${c.bg} ${c.color} rounded-xl flex items-center justify-center`}>
         <span className="material-symbols-outlined text-2xl">{c.icon}</span>
       </div>
