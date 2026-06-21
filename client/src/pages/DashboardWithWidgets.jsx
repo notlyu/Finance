@@ -340,50 +340,32 @@ export default function DashboardWithWidgets({ space: routeSpace }) {
         </div>
       )}
 
-      {/* Hero */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
-        <div className="md:col-span-8 bg-gradient-to-br from-primary to-indigo-900 rounded-3xl p-7 relative overflow-hidden min-h-[220px]">
-          <div className="absolute -top-20 -right-20 w-64 h-64 bg-indigo-400/20 rounded-full blur-3xl" />
-          <div className="relative z-10">
-            <p className="text-xs text-white/50 uppercase tracking-[0.2em] mb-1">
-              {space === 'family' ? 'Общий остаток семьи' : 'Ваш остаток'}
-            </p>
-            <h3 className="text-5xl font-extrabold text-white">{formatMoney(available)} ₽</h3>
-          </div>
-          <div className="relative z-10 grid grid-cols-3 gap-3 mt-4">
-            <div className="glass-card rounded-xl p-4">
-              <p className="text-[10px] text-white/50 uppercase mb-1">Доход</p>
-              <p className="text-xl font-bold text-green-300">+{formatMoney(monthIncome)}</p>
-            </div>
-            <div className="glass-card rounded-xl p-4">
-              <p className="text-[10px] text-white/50 uppercase mb-1">Расход</p>
-              <p className="text-xl font-bold text-pink-200">−{formatMoney(monthExpenses)}</p>
-            </div>
-            <div className="glass-card rounded-xl p-4">
-              <p className="text-[10px] text-white/50 uppercase mb-1">Накопления</p>
-              <p className="text-xl font-bold text-white">{savingsRate}%</p>
-            </div>
-          </div>
+      {/* Остаток (соло) — у участника семьи показан в дуал-карте выше */}
+      {!(hasFamily && flags.spaceUxV2) && (
+        <div className="rounded-3xl p-6 bg-primary/10 ring-2 ring-primary/20">
+          <p className="text-xs uppercase tracking-[0.15em] text-primary/80 mb-1">
+            {space === 'family' ? 'Общий остаток семьи' : 'Ваш остаток'}
+          </p>
+          <h3 className="text-4xl font-extrabold text-primary">{formatMoney(available)} ₽</h3>
+          <p className="text-xs text-on-surface-variant mt-2">
+            Баланс {formatMoney(balance)} ₽ · {Math.round((available / Math.max(balance, 1)) * 100)}% свободно
+          </p>
         </div>
-        <div className="md:col-span-4 bg-surface-container-lowest rounded-3xl p-6 shadow-vault flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-                <span className="material-symbols-outlined text-primary text-lg">account_balance</span>
-              </div>
-            </div>
-            <p className="text-xs text-on-surface-variant mb-1">{space === 'family' ? 'Общий баланс' : 'Баланс'}</p>
-            <h3 className="text-3xl font-extrabold text-on-surface">{formatMoney(balance)} ₽</h3>
-          </div>
-          <div className="mt-4">
-            <div className="h-1.5 w-full bg-surface-container-highest rounded-full">
-              <div className="h-full bg-gradient-to-r from-primary to-primary-container rounded-full"
-                style={{ width: `${Math.min(Math.max((available / Math.max(balance, 1)) * 100, 0), 100)}%` }} />
-            </div>
-            <p className="text-[10px] text-on-surface-variant mt-2">
-              {Math.round((available / Math.max(balance, 1)) * 100)}% свободно
-            </p>
-          </div>
+      )}
+
+      {/* Метрики месяца — флэт-карточки */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-surface-container rounded-2xl p-4">
+          <p className="text-xs text-on-surface-variant">Доход</p>
+          <p className="text-lg sm:text-xl font-bold text-secondary mt-1">+{formatMoney(monthIncome)} ₽</p>
+        </div>
+        <div className="bg-surface-container rounded-2xl p-4">
+          <p className="text-xs text-on-surface-variant">Расход</p>
+          <p className="text-lg sm:text-xl font-bold text-error mt-1">−{formatMoney(monthExpenses)} ₽</p>
+        </div>
+        <div className="bg-surface-container rounded-2xl p-4">
+          <p className="text-xs text-on-surface-variant">Накопления</p>
+          <p className="text-lg sm:text-xl font-bold text-on-surface mt-1">{savingsRate}%</p>
         </div>
       </div>
 
