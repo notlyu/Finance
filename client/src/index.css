@@ -213,7 +213,8 @@
   .card {
     background-color: var(--md-surface-container-lowest);
     border-radius: 1.5rem;
-    box-shadow: 0 4px 20px var(--md-shadow);
+    border: 1px solid var(--md-outline-variant);
+    box-shadow: none;
   }
 
   /* Input style */
