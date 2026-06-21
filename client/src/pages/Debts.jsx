@@ -49,57 +49,38 @@ function EditorialLabel({ children, className = '' }) {
 }
 
 function DebtCard({ debt, onPartialClose, onDelete, onEdit }) {
+  const total = Number(debt.total_amount || 0);
+  const remaining = Number(debt.remaining || 0);
+  const paidPct = total > 0 ? Math.min(100, Math.round(((total - remaining) / total) * 100)) : 0;
   return (
-    <div className="group bg-surface-container-lowest dark:bg-surface-container-low p-6 rounded-3xl hover:shadow-[var(--md-shadow-premium)] transition-all duration-300 flex flex-col md:flex-row md:items-center justify-between gap-6">
-      <div className="flex items-center gap-6">
-        <div className="w-14 h-14 bg-surface-container dark:bg-surface-container-high rounded-3xl flex items-center justify-center text-primary">
-          <span className="material-symbols-outlined text-3xl">
-            {debtTypeIcons[debt.type] || 'credit_card'}
+    <div className="group rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-4 transition-colors hover:bg-surface-container">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="w-10 h-10 shrink-0 rounded-xl bg-surface-container-high flex items-center justify-center text-on-surface-variant">
+            <span className="material-symbols-outlined text-lg">{debtTypeIcons[debt.type] || 'credit_card'}</span>
           </span>
+          <div className="min-w-0">
+            <h4 className="text-sm font-semibold text-on-surface truncate">{debt.name}</h4>
+            <p className="text-xs text-on-surface-variant truncate">
+              {debt.monthly_payment ? `${formatMoney(debt.monthly_payment)} ₽/мес` : 'без платежа'}
+              {debt.interest_rate ? ` · ${debt.interest_rate}%` : ''}
+            </p>
+          </div>
         </div>
-        <div>
-          <h4 className="font-bold text-lg text-on-surface">{debt.name}</h4>
-          <EditorialLabel className="mt-1">{debt.type === 'credit' ? 'Кредит' : 'Долг'}</EditorialLabel>
-        </div>
+        <span className="text-sm font-bold text-on-surface shrink-0">{formatMoney(debt.remaining)} ₽</span>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-8 flex-1 md:ml-12">
-        <div>
-          <EditorialLabel className="mb-1">Остаток</EditorialLabel>
-          <p className="font-bold text-on-surface">{formatMoney(debt.remaining)} ₽</p>
-        </div>
-        <div>
-          <EditorialLabel className="mb-1">Платёж</EditorialLabel>
-          <p className="font-bold text-on-surface">
-            {debt.monthly_payment ? `${formatMoney(debt.monthly_payment)} ₽` : '—'}
-          </p>
-        </div>
-        <div className="hidden md:block">
-          <EditorialLabel className="mb-1">Процент</EditorialLabel>
-          <p className="font-bold text-secondary">{debt.interest_rate ? `${debt.interest_rate}%` : '0%'}</p>
-        </div>
+      <div className="h-2 rounded-full overflow-hidden bg-surface-container-high mb-2.5">
+        <div className="h-full bg-secondary transition-all" style={{ width: `${paidPct}%` }}></div>
       </div>
-      <div className="flex items-center gap-2">
-        <button 
-          onClick={() => onEdit(debt)} 
-          className="p-3 hover:bg-surface-container dark:hover:bg-surface-container-high rounded-full transition-colors"
-          title="Редактировать"
-        >
-          <span className="material-symbols-outlined">edit</span>
-        </button>
-        <button 
-          onClick={() => onPartialClose(debt)} 
-          className="p-3 hover:bg-surface-container dark:hover:bg-surface-container-high rounded-full transition-colors"
-          title="Закрыть часть"
-        >
-          <span className="material-symbols-outlined">payments</span>
-        </button>
-        <button 
-          onClick={() => onDelete(debt.id)} 
-          className="p-3 hover:bg-error-container dark:hover:bg-error-container/30 rounded-full transition-colors text-error"
-          title="Удалить"
-        >
-          <span className="material-symbols-outlined">delete</span>
-        </button>
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-on-surface-variant">Погашено {paidPct}%</span>
+        <div className="flex items-center gap-1">
+          <button onClick={() => onPartialClose(debt)} title="Закрыть часть" className="px-3 h-8 inline-flex items-center gap-1 rounded-lg text-xs text-on-surface-variant hover:bg-surface-container-high transition-colors">
+            <span className="material-symbols-outlined text-base">payments</span>Погасить
+          </button>
+          <button onClick={() => onEdit(debt)} title="Редактировать" className="w-8 h-8 flex items-center justify-center rounded-lg text-primary hover:bg-primary/10 transition-colors"><span className="material-symbols-outlined text-base">edit</span></button>
+          <button onClick={() => onDelete(debt.id)} title="Удалить" className="w-8 h-8 flex items-center justify-center rounded-lg text-error hover:bg-error-container transition-colors"><span className="material-symbols-outlined text-base">delete</span></button>
+        </div>
       </div>
     </div>
   );
