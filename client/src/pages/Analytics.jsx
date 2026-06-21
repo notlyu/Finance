@@ -361,7 +361,7 @@ export default function Analytics({ space = 'personal' }) {
               <span className="material-symbols-outlined text-sm">{exportDropdownOpen ? 'expand_less' : 'expand_more'}</span>
             </button>
             {exportDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-surface-container-lowest rounded-xl shadow-card overflow-hidden z-50">
+              <div className="absolute right-0 mt-2 w-48 bg-surface-container-lowest rounded-xl shadow-card border border-outline-variant/60 overflow-hidden z-50">
                 <button onClick={() => handleExport('excel')} className="w-full px-4 py-3 text-left text-sm hover:bg-surface-container flex items-center gap-2">
                   <span className="material-symbols-outlined text-sm">table_chart</span> Excel (.xlsx)
                 </button>
@@ -374,7 +374,7 @@ export default function Analytics({ space = 'personal' }) {
         </div>
       </div>
 
-      <div className="bg-surface-container-lowest p-2 rounded-3xl shadow-card inline-flex">
+      <div className="bg-surface-container-lowest p-2 rounded-3xl shadow-card border border-outline-variant/60 inline-flex">
         <div className="flex bg-surface-container p-1 rounded-xl">
           {[
             { key: '3m', label: '3 мес' },
@@ -409,7 +409,7 @@ export default function Analytics({ space = 'personal' }) {
       {/* Comparison Section */}
       {compareMode && comparison && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-surface-container-lowest p-6 rounded-3xl shadow-card">
+          <div className="bg-surface-container-lowest p-6 rounded-3xl shadow-card border border-outline-variant/60">
             <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1">Текущий период</p>
             <p className="text-sm text-on-surface-variant mb-3">{comparison.current.startDate} – {comparison.current.endDate}</p>
             <div className="space-y-2">
@@ -423,7 +423,7 @@ export default function Analytics({ space = 'personal' }) {
               </div>
             </div>
           </div>
-          <div className="bg-surface-container-lowest p-6 rounded-3xl shadow-card">
+          <div className="bg-surface-container-lowest p-6 rounded-3xl shadow-card border border-outline-variant/60">
             <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1">Прошлый период</p>
             <p className="text-sm text-on-surface-variant mb-3">{comparison.previous.startDate} – {comparison.previous.endDate}</p>
             <div className="space-y-2">
@@ -437,7 +437,7 @@ export default function Analytics({ space = 'personal' }) {
               </div>
             </div>
           </div>
-          <div className="bg-surface-container-lowest p-6 rounded-3xl shadow-card">
+          <div className="bg-surface-container-lowest p-6 rounded-3xl shadow-card border border-outline-variant/60">
             <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1">Изменение</p>
             <p className="text-sm text-on-surface-variant mb-3">Текущий vs прошлый</p>
             <div className="space-y-2">
@@ -459,7 +459,7 @@ export default function Analytics({ space = 'personal' }) {
       )}
 
       {/* Line Chart */}
-      <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card relative overflow-hidden">
+      <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card border border-outline-variant/60 relative overflow-hidden">
         <div className="absolute -top-12 -right-12 w-48 h-48 bg-primary/5 rounded-full blur-3xl pointer-events-none"></div>
         <h3 className="text-xl font-bold font-headline mb-1">Динамика доходов и расходов</h3>
         <p className="text-sm text-on-surface-variant mb-6">Сравнение по месяцам за выбранный период</p>
@@ -508,7 +508,7 @@ export default function Analytics({ space = 'personal' }) {
 
       {/* Net Worth + Savings Rate - 7.3 & 7.4 */}
       {netWorth && netWorthLineData && (
-        <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card relative overflow-hidden">
+        <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card border border-outline-variant/60 relative overflow-hidden">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
             <div>
               <h3 className="text-xl font-bold font-headline mb-1">Капитал и норма сбережений</h3>
@@ -541,7 +541,7 @@ export default function Analytics({ space = 'personal' }) {
 
       {/* Budget Overlay - 7.6 */}
       {budgetBarData && budgets.filter(b => b.category_type === 'expense').length > 0 && (
-        <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card relative overflow-hidden">
+        <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card border border-outline-variant/60 relative overflow-hidden">
           <h3 className="text-xl font-bold font-headline mb-1">Бюджет vs Факт</h3>
           <p className="text-sm text-on-surface-variant mb-6">Сравнение лимитов с фактическими расходами</p>
           <div className="h-64 md:h-72">
@@ -552,7 +552,7 @@ export default function Analytics({ space = 'personal' }) {
 
       {/* Donut Charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card">
+        <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card border border-outline-variant/60">
           <h3 className="text-xl font-bold font-headline mb-1">Расходы по категориям</h3>
           <p className="text-sm text-on-surface-variant mb-6">Куда уходят деньги (кликните для деталей)</p>
           {expensesByCat.length > 0 ? (
@@ -589,7 +589,7 @@ export default function Analytics({ space = 'personal' }) {
             </div>
           )}
         </div>
-        <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card">
+        <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card border border-outline-variant/60">
           <h3 className="text-xl font-bold font-headline mb-1">Доходы по категориям</h3>
           <p className="text-sm text-on-surface-variant mb-6">Источники дохода (кликните для деталей)</p>
           {incomeByCat.length > 0 ? (

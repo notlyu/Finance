@@ -118,7 +118,7 @@ export default function WishesSection({ wishes, showArchived, categories, accoun
           const remaining = Math.max(0, Number(wish.cost) - Number(wish.saved_amount));
           const isCompleted = progress >= 100;
           return (
-            <div key={wish.id} className={`p-6 rounded-3xl transition-all duration-300 ${isCompleted ? 'bg-secondary/5 border-2 border-secondary/30' : 'bg-surface-container-lowest shadow-card'}`}>
+            <div key={wish.id} className={`p-6 rounded-3xl transition-all duration-300 ${isCompleted ? 'bg-secondary/5 border-2 border-secondary/30' : 'bg-surface-container-lowest shadow-card border border-outline-variant/60'}`}>
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">

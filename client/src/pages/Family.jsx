@@ -164,7 +164,7 @@ export default function Family() {
           </button>
           <h2 className="text-3xl font-extrabold tracking-tight text-on-surface font-headline">Семья</h2>
         </div>
-        <div className="bg-surface-container-lowest p-12 rounded-3xl shadow-card text-center">
+        <div className="bg-surface-container-lowest p-12 rounded-3xl shadow-card border border-outline-variant/60 text-center">
           <div className="w-20 h-20 mx-auto rounded-3xl bg-primary/10 flex items-center justify-center mb-6">
             <span className="material-symbols-outlined text-4xl text-primary">groups</span>
           </div>
@@ -210,7 +210,7 @@ export default function Family() {
       </div>
 
       {/* Family Info Card */}
-      <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card">
+      <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card border border-outline-variant/60">
         <div className="flex items-center gap-4 mb-6">
           <div className="w-16 h-16 rounded-3xl bg-primary/10 flex items-center justify-center">
             <span className="material-symbols-outlined text-3xl text-primary">groups</span>
@@ -268,7 +268,7 @@ export default function Family() {
           )}
 
           {/* Members */}
-          <div className="bg-surface-container-lowest p-6 rounded-3xl shadow-card">
+          <div className="bg-surface-container-lowest p-6 rounded-3xl shadow-card border border-outline-variant/60">
             <h3 className="text-lg font-bold font-headline mb-4 flex items-center gap-2">
               <span className="material-symbols-outlined text-on-surface-variant">people</span>
               Участники ({family.members?.length || 0})
@@ -335,7 +335,7 @@ export default function Family() {
 
       {activeTab === 'finance' && (
         <div className="space-y-6">
-          <div className="bg-surface-container-lowest p-6 rounded-3xl shadow-card">
+          <div className="bg-surface-container-lowest p-6 rounded-3xl shadow-card border border-outline-variant/60">
             <h3 className="text-lg font-bold font-headline mb-4 flex items-center gap-2">
               <span className="material-symbols-outlined text-on-surface-variant">bar_chart</span>
               Финансовый обзор за месяц

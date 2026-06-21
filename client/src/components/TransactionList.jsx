@@ -39,7 +39,7 @@ function TransactionCard({ t, onDuplicate, onEdit, onDelete, selected, onToggleS
         <span className="material-symbols-outlined text-white text-2xl">delete</span>
       </div>
       <div
-        className={`relative bg-surface-container-lowest shadow-card p-5 rounded-3xl transition-transform duration-200 ${
+        className={`relative bg-surface-container-lowest shadow-card border border-outline-variant/60 p-5 rounded-3xl transition-transform duration-200 ${
           selected ? 'ring-2 ring-primary' : ''
         }`}
         style={{ transform: `translateX(${swipeOffset}px)` }}
@@ -186,7 +186,7 @@ export default function TransactionList({ transactions, hasMore, onLoadMore, onD
       </div>
 
       {/* Desktop Table */}
-      <div className="hidden sm:block bg-surface-container-lowest rounded-3xl shadow-card overflow-hidden">
+      <div className="hidden sm:block bg-surface-container-lowest rounded-3xl shadow-card border border-outline-variant/60 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full">
             <thead className="bg-surface-container">

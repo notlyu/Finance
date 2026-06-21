@@ -215,7 +215,7 @@ export default function Recurring({ space = 'personal' }) {
 
       {/* Stats Grid 3-column */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-surface-container-lowest p-5 rounded-3xl shadow-card">
+        <div className="bg-surface-container-lowest p-5 rounded-3xl shadow-card border border-outline-variant/60">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
               <span className="material-symbols-outlined">autorenew</span>
@@ -226,7 +226,7 @@ export default function Recurring({ space = 'personal' }) {
             </div>
           </div>
         </div>
-        <div className="bg-surface-container-lowest p-5 rounded-3xl shadow-card">
+        <div className="bg-surface-container-lowest p-5 rounded-3xl shadow-card border border-outline-variant/60">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center text-secondary">
               <span className="material-symbols-outlined">calendar_today</span>
@@ -239,7 +239,7 @@ export default function Recurring({ space = 'personal' }) {
             </div>
           </div>
         </div>
-        <div className="bg-surface-container-lowest p-5 rounded-3xl shadow-card">
+        <div className="bg-surface-container-lowest p-5 rounded-3xl shadow-card border border-outline-variant/60">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-xl bg-tertiary/10 flex items-center justify-center text-tertiary">
               <span className="material-symbols-outlined">check_circle</span>
@@ -253,7 +253,7 @@ export default function Recurring({ space = 'personal' }) {
       </div>
 
       {/* Table */}
-      <div className="bg-surface-container-lowest rounded-3xl shadow-card overflow-hidden">
+      <div className="bg-surface-container-lowest rounded-3xl shadow-card border border-outline-variant/60 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full">
             <thead className="bg-surface-container">

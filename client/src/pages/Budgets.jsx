@@ -284,7 +284,7 @@ export default function Budgets({ space = 'personal' }) {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-surface-container-lowest p-5 rounded-3xl shadow-card">
+        <div className="bg-surface-container-lowest p-5 rounded-3xl shadow-card border border-outline-variant/60">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-xl bg-secondary/10 flex items-center justify-center text-secondary">
               <span className="material-symbols-outlined text-sm">trending_up</span>
@@ -296,7 +296,7 @@ export default function Budgets({ space = 'personal' }) {
             {totals.income.limit > 0 ? `${Math.round((totals.income.actual / totals.income.limit) * 100)}% от плана` : 'Без плана'}
           </p>
         </div>
-        <div className="bg-surface-container-lowest p-5 rounded-3xl shadow-card">
+        <div className="bg-surface-container-lowest p-5 rounded-3xl shadow-card border border-outline-variant/60">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-xl bg-error/10 flex items-center justify-center text-error">
               <span className="material-symbols-outlined text-sm">trending_down</span>
@@ -308,7 +308,7 @@ export default function Budgets({ space = 'personal' }) {
             <div className={`progress-bar-fill ${totals.expense.limit > 0 && totals.expense.actual > totals.expense.limit ? 'bg-error' : 'bg-primary'}`} style={{ width: `${totals.expense.limit > 0 ? Math.min(100, (totals.expense.actual / totals.expense.limit) * 100) : 0}%` }}></div>
           </div>
         </div>
-        <div className="bg-surface-container-lowest p-5 rounded-3xl shadow-card">
+        <div className="bg-surface-container-lowest p-5 rounded-3xl shadow-card border border-outline-variant/60">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
               <span className="material-symbols-outlined text-sm">savings</span>
@@ -331,7 +331,7 @@ export default function Budgets({ space = 'personal' }) {
         </div>
       </div>
 
-      <div className="bg-surface-container-lowest rounded-3xl shadow-card overflow-hidden">
+      <div className="bg-surface-container-lowest rounded-3xl shadow-card border border-outline-variant/60 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full">
             <thead className="bg-surface-container">

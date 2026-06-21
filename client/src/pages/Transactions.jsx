@@ -322,7 +322,7 @@ export default function Transactions({ space = 'personal' }) {
               <span className="material-symbols-outlined text-sm ml-1">{exportDropdownOpen ? 'expand_less' : 'expand_more'}</span>
             </button>
             {exportDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-44 bg-surface-container-lowest rounded-xl shadow-card overflow-hidden z-50">
+              <div className="absolute right-0 mt-2 w-44 bg-surface-container-lowest rounded-xl shadow-card border border-outline-variant/60 overflow-hidden z-50">
                 <button onClick={() => handleExport('excel')} className="w-full px-4 py-3 text-left text-sm hover:bg-surface-container flex items-center gap-2">
                   <span className="material-symbols-outlined text-sm">table_chart</span> Excel (.xlsx)
                 </button>

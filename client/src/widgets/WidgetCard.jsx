@@ -7,7 +7,7 @@ export default function WidgetCard({ widget, def, data, loading, space, onRemove
   const basePath = space === 'family' ? '/family' : '/personal';
 
   return (
-    <div className="w-full h-full bg-surface-container-lowest rounded-3xl shadow-card relative flex flex-col overflow-hidden">
+    <div className="w-full h-full bg-surface-container-lowest rounded-3xl shadow-card border border-outline-variant/60 relative flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 px-5 pt-4 pb-3">
         {/* Drag handle — только в editMode */}

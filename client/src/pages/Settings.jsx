@@ -281,7 +281,7 @@ export default function Settings() {
       {/* Profile Tab */}
       {activeTab === 'profile' && (
         <div className="space-y-6">
-          <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card">
+          <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card border border-outline-variant/60">
             <div className="flex items-center gap-4 mb-8">
               <div className="w-16 h-16 rounded-3xl bg-primary/10 flex items-center justify-center text-primary font-bold text-2xl">
                 {user?.name?.charAt(0).toUpperCase() || '?'}
@@ -351,7 +351,7 @@ export default function Settings() {
 
       {/* Notifications Tab */}
       {activeTab === 'notifications' && (
-        <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card">
+        <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card border border-outline-variant/60">
           <h3 className="text-lg font-bold font-headline mb-6">Настройки уведомлений</h3>
           <div className="space-y-4 max-w-lg">
             {[
@@ -489,7 +489,7 @@ export default function Settings() {
 
       {/* Family Tab */}
       {activeTab === 'family' && user?.family_id && (
-        <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card">
+        <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card border border-outline-variant/60">
           <h3 className="text-lg font-bold font-headline mb-6">Настройки семьи</h3>
           <div className="space-y-6 max-w-lg">
             <div className={`flex items-center justify-between p-4 bg-surface-container rounded-3xl ${user?.family?.owner_user_id === user?.id ? '' : 'opacity-70'}`}>
@@ -712,7 +712,7 @@ export default function Settings() {
 
       {/* Theme Tab */}
       {activeTab === 'theme' && (
-        <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card">
+        <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card border border-outline-variant/60">
           <h3 className="text-lg font-bold font-headline mb-6">Тема оформления</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <button

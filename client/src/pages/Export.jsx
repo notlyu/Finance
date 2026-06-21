@@ -65,7 +65,7 @@ export default function Export({ space = 'personal' }) {
         <p className="text-on-surface-variant text-sm mt-1">Выгрузите данные в Excel или CSV</p>
       </div>
 
-      <div className="bg-surface-container-lowest rounded-3xl p-8 shadow-card max-w-2xl">
+      <div className="bg-surface-container-lowest rounded-3xl p-8 shadow-card border border-outline-variant/60 max-w-2xl">
         <div className="space-y-6">
           <div>
             <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-3">Тип данных</label>
