@@ -138,28 +138,10 @@ export default function Recurring({ space = 'personal' }) {
     return result;
   }, [items, typeFilter, searchQuery]);
 
-  const [sortField, setSortField] = useState('day_of_month');
-  const [sortDir, setSortDir] = useState('asc');
-
-  const handleSort = (field) => {
-    if (sortField === field) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDir('asc');
-    }
-  };
-
+  // Дефолтная сортировка по дню месяца — карточный список без интерактивной сортировки (макет).
   const sortedItems = useMemo(() => {
-    return [...filteredItems].sort((a, b) => {
-      let cmp = 0;
-      if (sortField === 'amount') cmp = Number(a.amount) - Number(b.amount);
-      else if (sortField === 'day_of_month') cmp = a.day_of_month - b.day_of_month;
-      else if (sortField === 'category_name') cmp = (a.category_name || '').localeCompare(b.category_name || '', 'ru');
-      else if (sortField === 'type') cmp = (a.type || '').localeCompare(b.type || '');
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
-  }, [filteredItems, sortField, sortDir]);
+    return [...filteredItems].sort((a, b) => a.day_of_month - b.day_of_month);
+  }, [filteredItems]);
 
   // Stats — must be before any early return
   const activeCount = items.filter(i => i.active).length;
@@ -252,83 +234,50 @@ export default function Recurring({ space = 'personal' }) {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-surface-container-lowest rounded-3xl shadow-card border border-outline-variant/60 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead className="bg-surface-container">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Активно</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest cursor-pointer hover:text-on-surface select-none" onClick={() => handleSort('type')}>
-                  Тип{sortField === 'type' && <span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest cursor-pointer hover:text-on-surface select-none" onClick={() => handleSort('category_name')}>
-                  Категория{sortField === 'category_name' && <span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest cursor-pointer hover:text-on-surface select-none" onClick={() => handleSort('amount')}>
-                  Сумма{sortField === 'amount' && <span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest cursor-pointer hover:text-on-surface select-none" onClick={() => handleSort('day_of_month')}>
-                  День{sortField === 'day_of_month' && <span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Комментарий</th>
-                <th className="px-6 py-4 text-right text-xs font-bold text-on-surface-variant uppercase tracking-widest"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedItems.map((i, idx) => (
-                <tr key={i.id} className={`transition-colors hover:bg-surface-container ${idx % 2 === 0 ? 'bg-surface-container-lowest' : 'bg-surface-container-low'}`}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <button onClick={() => toggleActive(i)} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${
-                      i.active ? 'bg-secondary/10 text-secondary' : 'bg-surface-container-high text-on-surface-variant'
-                    }`}>
-                      {i.active ? 'Активно' : 'Неактивно'}
-                    </button>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
-                      i.type === 'expense' ? 'bg-error/10 text-error' : 'bg-secondary/10 text-secondary'
-                    }`}>
-                      <span className="material-symbols-outlined text-sm">{i.type === 'expense' ? 'trending_down' : 'trending_up'}</span>
-                      {i.type === 'income' ? 'Доход' : 'Расход'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-on-surface">{i.category_name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-on-surface">{formatMoney(i.amount)} ₽</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-on-surface-variant">{i.day_of_month}-е число</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-on-surface-variant max-w-48 truncate">{i.comment || '—'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
-                      i.scope === 'family' || i.scope === 'shared' ? 'bg-primary/10 text-primary' : 'bg-tertiary-container text-tertiary'
-                    }`}>
-                      <span className="material-symbols-outlined text-xs">{i.scope === 'family' || i.scope === 'shared' ? 'home' : 'person'}</span>
-                      {i.scope === 'family' || i.scope === 'shared' ? 'Семейный' : 'Личный'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => openEditModal(i)} className="w-9 h-9 inline-flex items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container-high transition-colors">
-                        <span className="material-symbols-outlined text-sm">edit</span>
-                      </button>
-                      <button onClick={() => remove(i.id)} className="w-9 h-9 inline-flex items-center justify-center rounded-xl text-error hover:bg-error-container transition-colors">
-                        <span className="material-symbols-outlined text-sm">delete</span>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {sortedItems.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-6 py-16 text-center">
-                    <span className="material-symbols-outlined text-5xl text-outline mb-3">event_repeat</span>
-                    <h3 className="text-lg font-bold text-on-surface mb-1">Нет регулярных операций</h3>
-                    <p className="text-on-surface-variant text-sm">Добавьте первую регулярную операцию</p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+      {/* Список регулярных — карточки (макет) */}
+      <div className="space-y-2">
+        {sortedItems.map((i) => {
+          const isIncome = i.type === 'income';
+          const isFamily = i.scope === 'family' || i.scope === 'shared';
+          return (
+            <div key={i.id} className={`group flex items-center gap-3 px-3 py-3 rounded-2xl border border-outline-variant/60 bg-surface-container-lowest transition-colors hover:bg-surface-container ${!i.active ? 'opacity-60' : ''}`}>
+              <span className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${isIncome ? 'bg-secondary/10 text-secondary' : 'bg-surface-container-high text-on-surface-variant'}`}>
+                <span className="material-symbols-outlined text-lg">{isIncome ? 'trending_up' : 'event_repeat'}</span>
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-on-surface truncate">{i.category_name}</p>
+                <p className="text-xs text-on-surface-variant truncate">
+                  каждое {i.day_of_month}-е · {isFamily ? 'Семейное' : 'Личное'}
+                  {i.comment ? ` · ${i.comment}` : ''}
+                </p>
+              </div>
+              <span className={`text-sm font-bold shrink-0 ${isIncome ? 'text-secondary' : 'text-on-surface'}`}>
+                {isIncome ? '+' : '−'}{formatMoney(i.amount)} ₽
+              </span>
+              <button
+                onClick={() => toggleActive(i)}
+                className={`shrink-0 px-3 py-1 rounded-full text-xs font-bold transition-colors ${i.active ? 'bg-secondary/10 text-secondary' : 'bg-surface-container-high text-on-surface-variant'}`}
+              >
+                {i.active ? 'Активно' : 'Неактивно'}
+              </button>
+              <div className="flex items-center gap-1 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                <button onClick={() => openEditModal(i)} title="Изменить" className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-primary hover:bg-primary/10 transition-colors">
+                  <span className="material-symbols-outlined text-base">edit</span>
+                </button>
+                <button onClick={() => remove(i.id)} title="Удалить" className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-error hover:bg-error-container transition-colors">
+                  <span className="material-symbols-outlined text-base">delete</span>
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        {sortedItems.length === 0 && (
+          <div className="bg-surface-container-lowest border border-outline-variant/60 rounded-2xl px-6 py-16 text-center">
+            <span className="material-symbols-outlined text-5xl text-outline mb-3 block">event_repeat</span>
+            <h3 className="text-lg font-bold text-on-surface mb-1">Нет регулярных операций</h3>
+            <p className="text-on-surface-variant text-sm">Добавьте первую регулярную операцию</p>
+          </div>
+        )}
       </div>
 
       {/* Modal */}
