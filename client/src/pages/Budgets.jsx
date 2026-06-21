@@ -34,29 +34,10 @@ export default function Budgets({ space = 'personal' }) {
   const [confirmModal, setConfirmModal] = useState({ open: false, onConfirm: null, title: '', message: '' });
   const [editModal, setEditModal] = useState({ open: false, budget: null });
   const [periodType, setPeriodType] = useState('month');
-  const [sortField, setSortField] = useState('limit_amount');
-  const [sortDir, setSortDir] = useState('desc');
-
-  const handleSort = (field) => {
-    if (sortField === field) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDir('desc');
-    }
-  };
-
+  // Дефолтная сортировка по плану (убыв.) — карточный список без интерактивной сортировки (макет).
   const sortedItems = useMemo(() => {
-    return [...items].sort((a, b) => {
-      let cmp = 0;
-      if (sortField === 'limit_amount') cmp = Number(a.limit_amount) - Number(b.limit_amount);
-      else if (sortField === 'actual_amount') cmp = Number(a.actual_amount || 0) - Number(b.actual_amount || 0);
-      else if (sortField === 'progress') cmp = Number(a.progress || 0) - Number(b.progress || 0);
-      else if (sortField === 'category_name') cmp = (a.category_name || '').localeCompare(b.category_name || '', 'ru');
-      else if (sortField === 'category_type') cmp = (a.category_type || 'expense').localeCompare(b.category_type || 'expense');
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
-  }, [items, sortField, sortDir]);
+    return [...items].sort((a, b) => Number(b.limit_amount) - Number(a.limit_amount));
+  }, [items]);
   const { register, handleSubmit, reset, watch, setValue } = useForm({
     defaultValues: {
       month: currentMonth(),
@@ -331,109 +312,70 @@ export default function Budgets({ space = 'personal' }) {
         </div>
       </div>
 
-      <div className="bg-surface-container-lowest rounded-3xl shadow-card border border-outline-variant/60 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead className="bg-surface-container">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Активно</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest cursor-pointer hover:text-on-surface select-none" onClick={() => handleSort('category_type')}>
-                  Тип{sortField === 'category_type' && <span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest cursor-pointer hover:text-on-surface select-none" onClick={() => handleSort('category_name')}>
-                  Категория{sortField === 'category_name' && <span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest cursor-pointer hover:text-on-surface select-none" onClick={() => handleSort('limit_amount')}>
-                  План{sortField === 'limit_amount' && <span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest cursor-pointer hover:text-on-surface select-none" onClick={() => handleSort('actual_amount')}>
-                  Факт{sortField === 'actual_amount' && <span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest cursor-pointer hover:text-on-surface select-none" onClick={() => handleSort('progress')}>
-                  Прогресс{sortField === 'progress' && <span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
-                </th>
-                <th className="px-6 py-4 text-right text-xs font-bold text-on-surface-variant uppercase tracking-widest"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedItems.map((b, i) => {
-                const progress = Math.min(100, Math.round(Number(b.progress || 0)));
-                const isOver = Number(b.actual_amount || 0) > Number(b.limit_amount || 0);
-                const hasMembers = b.spent_by_members && b.spent_by_members.length > 1 && b.spent_by_members.some(m => m.amount > 0);
-                return (
-                  <tr key={b.id} className={`transition-colors hover:bg-surface-container ${i % 2 === 0 ? 'bg-surface-container-lowest' : 'bg-surface-container-low'}`}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
-                        (b.category_type || 'expense') === 'expense' ? 'bg-error/10 text-error' : 'bg-secondary/10 text-secondary'
-                      }`}>
-                        <span className="material-symbols-outlined text-sm">{(b.category_type || 'expense') === 'expense' ? 'trending_down' : 'trending_up'}</span>
-                        {(b.category_type || 'expense') === 'expense' ? 'Расход' : 'Доход'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-semibold text-on-surface">{b.category_name}</span>
-                      {hasMembers && (
-                        <div className="flex items-center gap-1 mt-1">
-                          {b.spent_by_members.filter(m => m.amount > 0).map((m, idx) => (
-                            <span key={m.userId} className="text-[10px] px-1.5 py-0.5 bg-surface-container rounded-full text-on-surface-variant flex items-center gap-1">
-                              <span className={`w-1.5 h-1.5 rounded-full ${colors[idx % colors.length]}`}></span>
-                              {m.name}: {formatMoney(m.amount)}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-on-surface-variant">{formatMoney(b.limit_amount)} ₽</td>
-              <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${isOver ? (b.category_type === 'income' ? 'text-secondary' : 'text-error') : 'text-on-surface'}`}>
-                {formatMoney(b.actual_amount)} ₽
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="flex items-center gap-3">
-                  {hasMembers ? (
-                    <div className="flex-1 h-3 rounded-full overflow-hidden flex" style={{ minWidth: 128 }}>
-                      {b.spent_by_members.filter(m => m.amount > 0).map((m, idx) => (
-                        <div
-                          key={m.userId}
-                          className={`h-full ${colors[idx % colors.length]} transition-all`}
-                          style={{ width: `${m.percentage}%` }}
-                          title={`${m.name}: ${m.percentage}%`}
-                        ></div>
-                      ))}
-                      <div className="h-full bg-surface-container flex-1"></div>
-                    </div>
-                  ) : (
-                    <div className="progress-bar flex-1 w-32">
-                      <div className={`progress-bar-fill ${isOver ? (b.category_type === 'income' ? 'bg-secondary' : 'bg-error') : 'bg-primary'}`} style={{ width: `${progress}%` }}></div>
-                    </div>
-                  )}
-                  <span className={`text-xs font-bold ${isOver ? (b.category_type === 'income' ? 'text-secondary' : 'text-error') : 'text-on-surface-variant'}`}>{progress}%</span>
+      <div className="space-y-3">
+        {sortedItems.map((b) => {
+          const progress = Math.min(100, Math.round(Number(b.progress || 0)));
+          const limit = Number(b.limit_amount || 0);
+          const actual = Number(b.actual_amount || 0);
+          const isOver = actual > limit;
+          const isIncome = b.category_type === 'income';
+          const overExpense = isOver && !isIncome;
+          const accentCls = overExpense ? 'text-error' : (isOver && isIncome) ? 'text-secondary' : 'text-on-surface';
+          const barCls = overExpense ? 'bg-error' : isIncome ? 'bg-secondary' : 'bg-primary';
+          const hasMembers = b.spent_by_members && b.spent_by_members.length > 1 && b.spent_by_members.some(m => m.amount > 0);
+          return (
+            <div key={b.id} className={`group rounded-2xl border p-4 transition-colors ${overExpense ? 'border-error/40 bg-error/5' : 'border-outline-variant/60 bg-surface-container-lowest hover:bg-surface-container'}`}>
+              <div className="flex items-center justify-between gap-3 mb-2.5">
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className={`material-symbols-outlined text-base ${isIncome ? 'text-secondary' : 'text-on-surface-variant'}`}>{isIncome ? 'trending_up' : 'trending_down'}</span>
+                  <span className="text-sm font-semibold text-on-surface truncate">{b.category_name}</span>
+                </span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className={`text-xs font-semibold ${accentCls}`}>{formatMoney(actual)} / {formatMoney(limit)} ₽</span>
+                  <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => setEditModal({ open: true, budget: b })} title="Изменить" className="w-8 h-8 flex items-center justify-center rounded-lg text-primary hover:bg-primary/10 transition-colors"><span className="material-symbols-outlined text-base">edit</span></button>
+                    <button onClick={() => onDelete(b.id)} title="Удалить" className="w-8 h-8 flex items-center justify-center rounded-lg text-error hover:bg-error-container transition-colors"><span className="material-symbols-outlined text-base">delete</span></button>
+                  </div>
                 </div>
-              </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => setEditModal({ open: true, budget: b })} className="w-9 h-9 flex items-center justify-center rounded-xl text-primary hover:bg-primary/10 transition-colors">
-                          <span className="material-symbols-outlined text-sm">edit</span>
-                        </button>
-                        <button onClick={() => onDelete(b.id)} className="w-9 h-9 flex items-center justify-center rounded-xl text-error hover:bg-error-container transition-colors">
-                          <span className="material-symbols-outlined text-sm">delete</span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {sortedItems.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-6 py-16 text-center">
-                    <span className="material-symbols-outlined text-5xl text-outline mb-3">account_balance_wallet</span>
-                    <h3 className="text-lg font-bold text-on-surface mb-1">Нет бюджетов</h3>
-                    <p className="text-on-surface-variant text-sm">Добавьте первый бюджет на этот месяц</p>
-                  </td>
-                </tr>
+              </div>
+              {hasMembers ? (
+                <div className="h-2 rounded-full overflow-hidden flex bg-surface-container-high">
+                  {b.spent_by_members.filter(m => m.amount > 0).map((m, idx) => (
+                    <div key={m.userId} className={`h-full ${colors[idx % colors.length]}`} style={{ width: `${m.percentage}%` }} title={`${m.name}: ${m.percentage}%`}></div>
+                  ))}
+                </div>
+              ) : (
+                <div className="h-2 rounded-full overflow-hidden bg-surface-container-high">
+                  <div className={`h-full ${barCls} transition-all`} style={{ width: `${progress}%` }}></div>
+                </div>
               )}
-            </tbody>
-          </table>
-        </div>
+              <div className="flex items-center justify-between mt-1.5 text-xs">
+                <span className={overExpense ? 'text-error flex items-center gap-1' : 'text-on-surface-variant'}>
+                  {overExpense && <span className="material-symbols-outlined text-sm">warning</span>}
+                  {isOver ? `Превышено на ${formatMoney(Math.abs(actual - limit))} ₽` : `Осталось ${formatMoney(Math.max(0, limit - actual))} ₽`}
+                </span>
+                <span className={`font-bold ${accentCls === 'text-on-surface' ? 'text-on-surface-variant' : accentCls}`}>{progress}%</span>
+              </div>
+              {hasMembers && (
+                <div className="flex flex-wrap items-center gap-1 mt-2">
+                  {b.spent_by_members.filter(m => m.amount > 0).map((m, idx) => (
+                    <span key={m.userId} className="text-[10px] px-1.5 py-0.5 bg-surface-container rounded-full text-on-surface-variant flex items-center gap-1">
+                      <span className={`w-1.5 h-1.5 rounded-full ${colors[idx % colors.length]}`}></span>
+                      {m.name}: {formatMoney(m.amount)}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {sortedItems.length === 0 && (
+          <div className="bg-surface-container-lowest border border-outline-variant/60 rounded-2xl px-6 py-16 text-center">
+            <span className="material-symbols-outlined text-5xl text-outline mb-3 block">account_balance_wallet</span>
+            <h3 className="text-lg font-bold text-on-surface mb-1">Нет бюджетов</h3>
+            <p className="text-on-surface-variant text-sm">Добавьте первый бюджет на этот месяц</p>
+          </div>
+        )}
       </div>
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Новый бюджет">
