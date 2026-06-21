@@ -126,7 +126,7 @@ function HistoryTable({ history, filter, onFilterChange }) {
                 <td className="py-4">
                   <div className="flex items-center gap-2">
                     <div className="flex-1 h-1.5 bg-surface-container dark:bg-surface-container-high rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-primary to-primary-container rounded-full" style={{ width: `${Math.min(record.target_value > 0 ? (record.value / record.target_value) * 100 : 0, 100)}%` }}></div>
+                      <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(record.target_value > 0 ? (record.value / record.target_value) * 100 : 0, 100)}%` }}></div>
                     </div>
                     <span className="text-xs font-bold text-on-surface-variant w-10">{record.target_value > 0 ? Math.round((record.value / record.target_value) * 100) : 0}%</span>
                   </div>
@@ -269,7 +269,7 @@ export default function SafetyPillow({ space = 'personal' }) {
                 <span className="text-xl font-bold text-primary">{Math.round(progress)}%</span>
               </div>
               <div className="h-4 w-full bg-surface-container-high dark:bg-surface-container-highest rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-primary to-primary-container rounded-full" style={{ width: `${Math.min(progress, 100)}%` }}></div>
+                <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(progress, 100)}%` }}></div>
               </div>
             </div>
 
@@ -396,7 +396,7 @@ export default function SafetyPillow({ space = 'personal' }) {
               <button
                 onClick={() => saveMonths(monthsInput)}
                 disabled={!monthsInput || parseInt(monthsInput) < 1 || parseInt(monthsInput) > 24}
-                className="px-6 py-2.5 bg-gradient-to-r from-primary to-primary-container text-white rounded-xl font-semibold text-sm disabled:opacity-50"
+                className="px-6 py-2.5 bg-primary text-white rounded-xl font-semibold text-sm disabled:opacity-50"
               >
                 Сохранить
               </button>

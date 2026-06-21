@@ -209,7 +209,7 @@ export default function Layout({ space = 'personal', currentSpace, onSpaceChange
         <div className="mt-auto space-y-1">
           <Link
             to={`${basePath}/transactions`}
-            className="w-full mb-6 py-3 px-4 bg-gradient-to-br from-primary to-primary-container text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-vault hover:opacity-90 active:scale-[0.98] transition-all"
+            className="w-full mb-6 py-3 px-4 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-vault hover:opacity-90 active:scale-[0.98] transition-all"
           >
             <span className="material-symbols-outlined text-sm">add</span>
             Добавить операцию

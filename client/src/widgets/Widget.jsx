@@ -132,7 +132,7 @@ function GoalsContent({ data }) {
                   <span className="text-sm font-bold text-primary">{progress}%</span>
                 </div>
                 <div className="h-2 w-full bg-surface-container-highest rounded-full">
-                  <div className="h-full bg-gradient-to-r from-primary to-primary-container rounded-full" style={{ width: `${progress}%` }}></div>
+                  <div className="h-full bg-primary rounded-full" style={{ width: `${progress}%` }}></div>
                 </div>
               </div>
             );
@@ -157,7 +157,7 @@ function MemberStatsContent({ data }) {
               <div><p className="font-semibold text-sm truncate">{m.name}</p><p className="text-xs text-on-surface-variant">{pct}% дохода</p></div>
             </div>
             <div className="h-1.5 w-full bg-surface-container-highest rounded-full mb-1.5">
-              <div className="h-full bg-gradient-to-r from-secondary to-secondary-container rounded-full" style={{ width: `${pct}%` }}></div>
+              <div className="h-full bg-secondary rounded-full" style={{ width: `${pct}%` }}></div>
             </div>
           </div>
         );

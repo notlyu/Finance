@@ -140,7 +140,7 @@ function ProgressCard({ title, value, subtitle, progress }) {
       </div>
       <div className="w-full h-2 bg-surface-container-highest dark:bg-surface-container-highest rounded-full overflow-hidden">
         <div 
-          className="h-full bg-gradient-to-r from-primary to-primary-container rounded-full" 
+          className="h-full bg-primary rounded-full" 
           style={{ width: `${Math.min(progress, 100)}%` }}
         />
       </div>
@@ -293,7 +293,7 @@ function AddDebtModal({ isOpen, onClose, onSubmit, categories, form, setForm, is
             <button 
               type="submit" 
               disabled={isLoading}
-              className="flex-1 py-4 bg-gradient-to-r from-primary to-primary-container text-white rounded-xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="flex-1 py-4 bg-primary text-white rounded-xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               {isLoading ? 'Сохранение...' : 'Сохранить'}
             </button>
@@ -492,7 +492,7 @@ export default function Debts({ space = 'personal' }) {
         <div className="flex gap-4">
           <button 
             onClick={() => setShowAddModal(true)} 
-            className="bg-gradient-to-r from-primary to-primary-container text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2 hover:opacity-90 transition-all active:scale-95"
+            className="bg-primary text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2 hover:opacity-90 transition-all active:scale-95"
           >
             <span className="material-symbols-outlined">add_circle</span>
             Добавить долг
@@ -508,7 +508,7 @@ export default function Debts({ space = 'personal' }) {
           <p className="text-on-surface-variant mb-6">Добавьте ваш первый кредит для отслеживания</p>
           <button 
             onClick={() => setShowAddModal(true)} 
-            className="px-8 py-4 bg-gradient-to-r from-primary to-primary-container text-white rounded-xl font-semibold"
+            className="px-8 py-4 bg-primary text-white rounded-xl font-semibold"
           >
             Добавить первый кредит
           </button>
@@ -679,7 +679,7 @@ export default function Debts({ space = 'personal' }) {
               <button 
                 onClick={handlePartialSubmit}
                 disabled={!partialModal.amount || Number(partialModal.amount) <= 0 || Number(partialModal.amount) > partialModal.debt?.remaining}
-                className="flex-1 py-3 bg-gradient-to-r from-primary to-primary-container text-white rounded-xl font-medium disabled:opacity-50"
+                className="flex-1 py-3 bg-primary text-white rounded-xl font-medium disabled:opacity-50"
               >
                 Закрыть
               </button>

@@ -470,7 +470,7 @@ export default function Analytics({ space = 'personal' }) {
 
       {/* Forecast Card - 7.7 */}
       {forecast?.currentMonth && (
-        <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-8 rounded-3xl shadow-button relative overflow-hidden">
+        <div className="bg-amber-500 p-8 rounded-3xl shadow-button relative overflow-hidden">
           <div className="absolute -top-16 -right-16 w-64 h-64 bg-white/5 rounded-full blur-3xl pointer-events-none"></div>
           <div className="relative">
             <div className="flex items-center gap-2 mb-4">
@@ -630,7 +630,7 @@ export default function Analytics({ space = 'personal' }) {
 
       {/* Pillow History */}
       {pillowHistory.length > 0 && (
-        <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 p-8 rounded-3xl shadow-button relative overflow-hidden">
+        <div className="bg-indigo-600 p-8 rounded-3xl shadow-button relative overflow-hidden">
           <div className="absolute -top-16 -right-16 w-64 h-64 bg-white/5 rounded-full blur-3xl pointer-events-none"></div>
           <div className="absolute -bottom-20 -left-20 w-48 h-48 bg-white/5 rounded-full blur-3xl pointer-events-none"></div>
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6 relative">

@@ -167,7 +167,7 @@ export default function ForgotPassword() {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="w-full py-4 bg-gradient-to-r from-primary to-primary-container text-white font-bold text-lg rounded-3xl shadow-button hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50"
+                      className="w-full py-4 bg-primary text-white font-bold text-lg rounded-3xl shadow-button hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50"
                     >
                       {loading ? 'Отправка...' : step === 'request' ? 'Отправить код' : 'Изменить пароль'}
                     </button>

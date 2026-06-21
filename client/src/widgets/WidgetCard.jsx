@@ -190,7 +190,7 @@ function GoalsContent({ data }) {
               </div>
             </div>
             <div className="h-2 bg-surface-container-high rounded-full overflow-hidden">
-              <div className="h-full rounded-full bg-gradient-to-r from-primary to-primary-container transition-all duration-500" style={{ width: `${pct}%` }} />
+              <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${pct}%` }} />
             </div>
             {remaining > 0 && pct < 100 && (
               <p className="text-[11px] text-on-surface-variant mt-1">Осталось {formatMoney(remaining)} ₽</p>
@@ -482,7 +482,7 @@ function MemberStatsContent({ data }) {
               <span className="text-xs text-on-surface-variant shrink-0">{pct}%</span>
             </div>
             <div className="h-1.5 bg-surface-container-high rounded-full overflow-hidden ml-9">
-              <div className="h-full bg-gradient-to-r from-secondary to-secondary-container rounded-full transition-all" style={{ width: `${pct}%` }} />
+              <div className="h-full bg-secondary rounded-full transition-all" style={{ width: `${pct}%` }} />
             </div>
           </div>
         );

@@ -189,7 +189,7 @@ export default function GoalsSection({ goals, showArchived, categories, accounts
                     </div>
                   </div>
                   <div className="relative w-full h-4 bg-surface-container rounded-full overflow-hidden">
-                    <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-primary to-primary-container rounded-full transition-all duration-700" style={{ width: `${Math.min(progress, 100)}%` }}></div>
+                    <div className="absolute top-0 left-0 h-full bg-primary rounded-full transition-all duration-700" style={{ width: `${Math.min(progress, 100)}%` }}></div>
                   </div>
                   <div className="flex justify-between text-sm font-bold">
                     <span className="text-primary">{Math.round(progress)}% выполнено</span>

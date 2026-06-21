@@ -255,7 +255,7 @@ export default function Login() {
                 <div className="pt-2">
                   <button
                     type="submit"
-                    className="w-full py-4 bg-gradient-to-r from-primary to-primary-container text-white font-bold text-lg rounded-3xl shadow-button hover:opacity-90 active:scale-[0.98] transition-all duration-200"
+                    className="w-full py-4 bg-primary text-white font-bold text-lg rounded-3xl shadow-button hover:opacity-90 active:scale-[0.98] transition-all duration-200"
                   >
                     {isLogin ? 'Войти' : 'Зарегистрироваться'}
                   </button>

@@ -318,7 +318,7 @@ export default function Budgets({ space = 'personal' }) {
           <p className="text-xl font-extrabold font-headline text-on-surface">{formatMoney(Math.max(0, totals.income.actual - totals.expense.actual))} ₽</p>
           <p className="text-xs text-on-surface-variant mt-1">Доходы − Расходы</p>
         </div>
-        <div className="bg-gradient-to-br from-primary to-primary-container text-white p-5 rounded-3xl shadow-button relative overflow-hidden">
+        <div className="bg-primary text-white p-5 rounded-3xl shadow-button relative overflow-hidden">
           <div className="absolute -top-6 -right-6 w-20 h-20 bg-white/10 rounded-full blur-xl"></div>
           <div className="flex items-center gap-2 mb-2 relative">
             <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
