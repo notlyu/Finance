@@ -62,20 +62,7 @@ async function seed() {
       console.log(`Created user: ${USER_NAME} (id=${user.id})`);
     }
 
-    let family = await prisma.family.findFirst({ where: { owner_user_id: user.id } });
-    if (!family) {
-      family = await prisma.family.create({
-        data: { name: 'Моя семья', invite_code: 'DEMO2025', owner_user_id: user.id },
-      });
-      console.log(`Created family: ${family.name} (id=${family.id})`);
-    }
-
-    await prisma.user.update({ where: { id: user.id }, data: { family_id: family.id } });
-    await prisma.familyMember.upsert({
-      where: { user_id_family_id: { user_id: user.id, family_id: family.id } },
-      update: {},
-      create: { user_id: user.id, family_id: family.id, role: 'OWNER' },
-    });
+    // Личный-только аккаунт: семья не создаётся (family_id остаётся null).
 
     const catData = [
       { name: 'Зарплата', type: 'income', is_system: true },
@@ -324,7 +311,7 @@ async function seed() {
       await prisma.goal.create({
         data: {
           user_id: user.id,
-          family_id: g.name === 'Ремонт в спальне' ? family.id : null,
+          family_id: null,
           name: g.name,
           target_amount: g.target,
           current_amount: g.current,
@@ -482,10 +469,14 @@ async function seed() {
     console.log('   Пароль: demo1234\n');
   } catch (err) {
     console.error('❌ Ошибка:', err);
+    await prisma.$disconnect().catch(() => {});
+    if (prisma.pool) await prisma.pool.end().catch(() => {});
     process.exit(1);
   } finally {
-    await prisma.$disconnect();
+    await prisma.$disconnect().catch(() => {});
+    if (prisma.pool) await prisma.pool.end().catch(() => {});
   }
 }
 
-seed();
+// Пул pg создан с allowExitOnIdle:false — закрываем явно и выходим, чтобы не зависнуть.
+seed().then(() => process.exit(0));
