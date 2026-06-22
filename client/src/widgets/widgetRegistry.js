@@ -1,0 +1,98 @@
+export const WIDGET_DEFINITIONS = {
+  allocation: {
+    id: 'allocation',
+    name: 'Распределение',
+    icon: 'donut_large',
+    description: 'Куда уходят деньги за месяц',
+    familyOnly: false,
+    defaultCols: 4,
+    defaultOrder: 1,
+  },
+  transactions: {
+    id: 'transactions',
+    name: 'Последние операции',
+    icon: 'receipt_long',
+    description: 'Последние 5 транзакций',
+    familyOnly: false,
+    defaultCols: 8,
+    defaultOrder: 0,
+  },
+  goals: {
+    id: 'goals',
+    name: 'Цели и желания',
+    icon: 'flag',
+    description: 'Прогресс активных целей',
+    familyOnly: false,
+    defaultCols: 7,
+    defaultOrder: 2,
+  },
+  memberStats: {
+    id: 'memberStats',
+    name: 'Участники',
+    icon: 'groups',
+    description: 'Вклад участников семьи',
+    familyOnly: true,
+    defaultCols: 5,
+    defaultOrder: 3,
+  },
+  budgets: {
+    id: 'budgets',
+    name: 'Бюджеты',
+    icon: 'account_balance_wallet',
+    description: 'Прогресс бюджетов',
+    familyOnly: false,
+    defaultCols: 5,
+    defaultOrder: 3,
+  },
+  recurring: {
+    id: 'recurring',
+    name: 'Регулярные платежи',
+    icon: 'event_repeat',
+    description: 'Ближайшие платежи',
+    familyOnly: false,
+    defaultCols: 4,
+    defaultOrder: 4,
+  },
+  debts: {
+    id: 'debts',
+    name: 'Кредиты и долги',
+    icon: 'credit_score',
+    description: 'Общая сумма долгов',
+    familyOnly: false,
+    defaultCols: 4,
+    defaultOrder: 5,
+  },
+  safetyPillow: {
+    id: 'safetyPillow',
+    name: 'Подушка безопасности',
+    icon: 'savings',
+    description: 'Запас на непредвиденное',
+    familyOnly: false,
+    defaultCols: 4,
+    defaultOrder: 6,
+  },
+  analytics: {
+    id: 'analytics',
+    name: 'Аналитика',
+    icon: 'bar_chart',
+    description: 'Доходы, расходы, накопления',
+    familyOnly: false,
+    defaultCols: 12,
+    defaultOrder: 7,
+  },
+  family: {
+    id: 'family',
+    name: 'Семья',
+    icon: 'family_restroom',
+    description: 'Участники и их доходы',
+    familyOnly: true,
+    defaultCols: 6,
+    defaultOrder: 8,
+  },
+};
+
+export function getVisibleWidgets(widgetConfig, isFamily) {
+  return widgetConfig
+    .filter(w => !WIDGET_DEFINITIONS[w.type]?.familyOnly || isFamily)
+    .sort((a, b) => a.order - b.order);
+}

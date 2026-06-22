@@ -1,6 +1,6 @@
 const prisma = require('../lib/prisma-client');
 const pillowService = require('../services/safetyPillowService');
-const { logger, ValidationError } = require('../lib/errors');
+const { logger } = require('../lib/errors');
 
 exports.getSettings = async (req, res, next) => {
   try {
@@ -23,10 +23,7 @@ exports.getSettings = async (req, res, next) => {
 exports.updateSettings = async (req, res, next) => {
   try {
     const user = req.user;
-    const { months } = req.body;
-    if (!months || months < 1 || months > 24) {
-      throw new ValidationError('Количество месяцев должно быть от 1 до 24');
-    }
+    const { months } = req.validated;
 
     const existing = await prisma.safetyPillowSetting.findFirst({
       where: { user_id: user.id }
@@ -39,6 +36,24 @@ exports.updateSettings = async (req, res, next) => {
       : await prisma.safetyPillowSetting.create({
           data: { user_id: user.id, months: parseInt(months) }
         });
+
+    const pillowResult = await pillowService.calculateSafetyPillow(user.id, user.family_id);
+    const avgMonthlyExpense = pillowResult.monthlyAverage || 0;
+    const incomeAmount = pillowResult.liquidFunds + avgMonthlyExpense * 3;
+    const expenseAmount = avgMonthlyExpense * 3;
+    const calculatedPillow = pillowResult.liquidFunds;
+
+    await prisma.safetyPillowSnapshot.create({
+      data: {
+        user_id: user.id,
+        family_id: user.family_id,
+        total_income: incomeAmount,
+        total_expenses: expenseAmount,
+        safety_pillow: calculatedPillow,
+        monthly_limit: settings.months * avgMonthlyExpense,
+      }
+    });
+
     logger.info(`User ${user.id} updated safety pillow settings to ${months} months`);
     res.json(settings);
   } catch (error) {
@@ -80,14 +95,46 @@ exports.recalculateAndSave = async (userId, familyId) => {
 exports.getHistory = async (req, res, next) => {
   try {
     const user = req.user;
-    const limit = parseInt(req.query.limit) || 30;
-    const history = await prisma.safetyPillowHistory.findMany({
-      where: { user_id: user.id },
-      orderBy: { calculated_at: 'desc' },
-      take: limit
+    const limit = Math.min(parseInt(req.query.limit) || 30, 200);
+    const offset = parseInt(req.query.offset) || 0;
+    const where = user.family_id 
+      ? { family_id: user.family_id }
+      : { user_id: user.id };
+    const [items, total] = await Promise.all([
+      prisma.safetyPillowSnapshot.findMany({
+        where,
+        orderBy: { calculated_at: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      prisma.safetyPillowSnapshot.count({ where }),
+    ]);
+    logger.info(`User ${user.id} got ${items.length} pillow snapshot records`);
+    res.json({ items, total, limit, offset });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.createSnapshot = async (req, res, next) => {
+  try {
+    const user = req.user;
+    const result = await pillowService.calculateSafetyPillow(user.id, user.family_id);
+    
+    const snapshot = await prisma.safetyPillowSnapshot.create({
+      data: {
+        user_id: user.family_id ? null : user.id,
+        family_id: user.family_id || null,
+        total_income: 0,
+        total_expenses: 0,
+        safety_pillow: result.liquidFunds,
+        monthly_limit: result.target,
+        calculated_at: new Date(),
+      }
     });
-    logger.info(`User ${user.id} got ${history.length} pillow history records`);
-    res.json(history);
+    
+    logger.info(`User ${user.id} manually created pillow snapshot`);
+    res.status(201).json({ message: 'Snapshot created', snapshot });
   } catch (error) {
     next(error);
   }

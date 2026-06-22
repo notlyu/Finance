@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
+import socketService from '../services/socket';
+import logger from '../utils/logger';
 
 const typeIcons = {
   goal_reached: '🎯',
@@ -43,6 +45,16 @@ export default function NotificationBell() {
   }, []);
 
   useEffect(() => {
+    const handleNewNotification = (notification) => {
+      setNotifications(prev => [notification, ...prev].slice(0, 15));
+      setUnreadCount(prev => prev + 1);
+    };
+
+    socketService.on('notification', handleNewNotification);
+    return () => socketService.off('notification', handleNewNotification);
+  }, []);
+
+  useEffect(() => {
     const handleClickOutside = (e) => {
       if (ref.current && !ref.current.contains(e.target)) setOpen(false);
     };
@@ -52,23 +64,23 @@ export default function NotificationBell() {
 
   const markAsRead = async (id) => {
     try {
-      await api.put(`/notifications/${id}/read`);
+      await api.patch(`/notifications/${id}/read`);
       fetchNotifications();
-    } catch (err) { console.error(err); }
+    } catch (err) { logger.error(err); }
   };
 
   const markAllAsRead = async () => {
     try {
-      await api.put('/notifications/read-all');
+      await api.patch('/notifications/read-all');
       fetchNotifications();
-    } catch (err) { console.error(err); }
+    } catch (err) { logger.error(err); }
   };
 
   const deleteNotif = async (id) => {
     try {
       await api.delete(`/notifications/${id}`);
       fetchNotifications();
-    } catch (err) { console.error(err); }
+    } catch (err) { logger.error(err); }
   };
 
   const timeAgo = (dateStr) => {
@@ -91,14 +103,14 @@ export default function NotificationBell() {
       >
         <span className="material-symbols-outlined">notifications</span>
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+          <span className="absolute top-1 right-1 bg-red-500 dark:bg-red-600 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-surface-container-lowest rounded-2xl shadow-2xl border border-outline-variant/20 overflow-hidden z-50">
+        <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-surface-container-lowest rounded-3xl shadow-2xl border border-outline-variant/20 overflow-hidden z-50">
           {/* Header */}
           <div className="flex justify-between items-center p-4 border-b border-outline-variant/20">
             <div className="flex items-center gap-2">

@@ -11,5 +11,10 @@ router.get('/expenses-by-category', reportController.getExpensesByCategory);
 router.get('/income-by-category', reportController.getIncomeByCategory);
 router.get('/export', reportController.exportReport);
 router.get('/export/excel', reportController.exportExcel);
+router.get('/export/pdf', reportController.exportPDF);
+router.get('/compare', reportController.getComparison);
+router.get('/net-worth', reportController.getNetWorth);
+router.get('/category-transactions', reportController.getCategoryTransactions);
+router.get('/forecast', reportController.getForecast);
 
 module.exports = router;

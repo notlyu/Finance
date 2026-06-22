@@ -1,10 +1,17 @@
 require('dotenv').config();
+const http = require('http');
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const prisma = require('./lib/prisma-client');
+const { logger } = require('./lib/errors');
 const errorHandler = require('./middleware/errorHandler');
+const requestLogger = require('./middleware/requestLogger');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { initSocket } = require('./lib/socket');
+const swaggerUi = require('swagger-ui-express');
+const { swaggerSpec } = require('./lib/swagger');
 
 // Импорт маршрутов
 const authRoutes = require('./routes/authRoutes');
@@ -18,16 +25,48 @@ const budgetRoutes = require('./routes/budgetRoutes');
 const recurringRoutes = require('./routes/recurringRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const auditRoutes = require('./routes/auditRoutes');
+const debtRoutes = require('./routes/debtRoutes');
+const importRoutes = require('./routes/importRoutes');
+const exportRoutes = require('./routes/exportRoutes');
+const accountRoutes = require('./routes/accountRoutes');
+const widgetRoutes = require('./routes/widgetRoutes');
+const familySettingsRoutes = require('./routes/familySettingsRoutes');
 const cron = require('node-cron');
 const { runRecurringOnce } = require('./jobs/recurringJob');
 const { runInterestMonthly } = require('./jobs/interestJob');
+const { runSnapshotMonthly } = require('./jobs/snapshotJob');
+const { processScheduledJobs } = require('./services/failedJobService');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3001;
 
 // Middleware
+app.set('trust proxy', 1);
 app.disable('x-powered-by');
-app.use(helmet());
+app.use(helmet({
+  crossOriginEmbedderPolicy: false,
+  ...(process.env.NODE_ENV === 'production' ? {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+        imgSrc: ["'self'", 'data:', 'blob:'],
+        connectSrc: ["'self'"],
+        manifestSrc: ["'self'"],
+        workerSrc: ["'self'"],
+        frameAncestors: ["'none'"],
+        formAction: ["'self'"],
+        baseUri: ["'self'"],
+        objectSrc: ["'none'"],
+      },
+    },
+  } : {}),
+}));
+app.use(cookieParser());
+app.use(requestLogger);
 
 const corsOrigins = (process.env.CORS_ORIGINS || '')
   .split(',')
@@ -35,74 +74,188 @@ const corsOrigins = (process.env.CORS_ORIGINS || '')
   .filter(Boolean);
 
 if (corsOrigins.length === 0 && process.env.NODE_ENV === 'production') {
-  console.error('CORS_ORIGINS must be set in production');
+  logger.error('CORS_ORIGINS must be set in production');
   process.exit(1);
 }
 
 app.use(cors({
-  origin: corsOrigins.length > 0 ? corsOrigins : (process.env.NODE_ENV === 'development' ? true : 'none'),
-  credentials: process.env.CORS_CREDENTIALS === 'true',
+  origin: corsOrigins.length > 0 ? corsOrigins : true,
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
 }));
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
 
-// Rate limiting (especially auth endpoints)
+// CSRF-защита (double-submit). Для cookie-аутентифицированных мутаций; Bearer
+// (тесты/API) пропускается. Требует cookieParser (выше) и express.json (выше).
+const { csrfProtection } = require('./middleware/csrf');
+app.use(csrfProtection);
+
+// Rate limiting
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: Number(process.env.AUTH_RATE_LIMIT_MAX || 100),
   standardHeaders: true,
   legacyHeaders: false,
+  message: { message: 'Слишком много запросов, попробуйте позже' },
 });
 app.use('/api/auth', authLimiter);
 
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.API_RATE_LIMIT_MAX || 300),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Слишком много запросов, попробуйте позже' },
+});
+app.use('/api/', apiLimiter);
+
+// API Documentation
+if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'true') {
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: 'Finance API Docs',
+  }));
+  app.get('/api-docs.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(swaggerSpec);
+  });
+}
+
 // Маршруты
+app.use('/api/auth', authRoutes);
 app.use('/api/wishes', wishRoutes);
 app.use('/api/safety-pillow', safetyPillowRoutes);
-app.use('/api/auth', authRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/goals', goalRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/budgets', budgetRoutes);
 app.use('/api/recurring', recurringRoutes);
+app.use('/api/widget-config', widgetRoutes);
+app.use('/api/family-settings', familySettingsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/audit', auditRoutes);
+app.use('/api/debts', debtRoutes);
+app.use('/api/import', importRoutes);
+app.use('/api/export', exportRoutes);
+app.use('/api/accounts', accountRoutes);
 
 // Global error handler (must be after routes)
 app.use(errorHandler);
 
 // Проверка подключения к БД
 prisma.$connect()
-  .then(() => console.log('✅ Подключение к PostgreSQL (Prisma) успешно!'))
-  .catch(err => console.error('❌ Ошибка подключения к PostgreSQL:', err));
+  .then(() => logger.info('Подключение к PostgreSQL (Prisma) успешно'))
+  .catch(err => logger.error({ err }, 'Ошибка подключения к PostgreSQL'));
+
+// Job status tracking
+const jobStatus = {
+  recurring: { lastRun: null, lastSuccess: null, lastError: null, status: 'idle' },
+  interest: { lastRun: null, lastSuccess: null, lastError: null, status: 'idle' },
+  snapshot: { lastRun: null, lastSuccess: null, lastError: null, status: 'idle' },
+};
 
 // Daily recurring transactions job (03:05 server time)
 if (process.env.ENABLE_RECURRING_JOB !== 'false') {
   cron.schedule('5 3 * * *', async () => {
+    jobStatus.recurring.lastRun = new Date().toISOString();
+    jobStatus.recurring.status = 'running';
     try {
-      await runRecurringOnce();
+      const result = await runRecurringOnce();
+      jobStatus.recurring.lastSuccess = new Date().toISOString();
+      jobStatus.recurring.status = 'success';
+      logger.info({ created: result.created }, 'Recurring job completed');
     } catch (e) {
-      console.error('Recurring job error:', e);
+      jobStatus.recurring.lastError = e.message;
+      jobStatus.recurring.status = 'error';
+      logger.error({ err: e }, 'Recurring job error');
     }
   });
 }
 
-// Monthly interest accrual for goals (runs on 00:00 on the 1st day of every month)
+// Monthly interest accrual for goals (01:05 on the 1st day of every month)
 if (process.env.ENABLE_INTEREST_JOB !== 'false') {
-  cron.schedule('0 0 1 * *', async () => {
+  cron.schedule('5 1 1 * *', async () => {
+    jobStatus.interest.lastRun = new Date().toISOString();
+    jobStatus.interest.status = 'running';
     try {
-      await runInterestMonthly();
+      const result = await runInterestMonthly();
+      jobStatus.interest.lastSuccess = new Date().toISOString();
+      jobStatus.interest.status = 'success';
+      logger.info({ processed: result.processed, month: result.month }, 'Interest job completed');
     } catch (e) {
-      console.error('Interest job error:', e);
+      jobStatus.interest.lastError = e.message;
+      jobStatus.interest.status = 'error';
+      logger.error({ err: e }, 'Interest job error');
+    }
+  });
+}
+
+// Monthly SafetyPillowSnapshot (01:15 on the 1st day of every month — after interest job)
+if (process.env.ENABLE_SNAPSHOT_JOB !== 'false') {
+  cron.schedule('15 1 1 * *', async () => {
+    jobStatus.snapshot.lastRun = new Date().toISOString();
+    jobStatus.snapshot.status = 'running';
+    try {
+      const result = await runSnapshotMonthly();
+      jobStatus.snapshot.lastSuccess = new Date().toISOString();
+      jobStatus.snapshot.status = 'success';
+      logger.info({ personal: result.personal, family: result.family }, 'Snapshot job completed');
+    } catch (e) {
+      jobStatus.snapshot.lastError = e.message;
+      jobStatus.snapshot.status = 'error';
+      logger.error({ err: e }, 'Snapshot job error');
+    }
+  });
+}
+
+// Retry failed jobs every 5 minutes
+if (process.env.ENABLE_RETRY_JOB !== 'false') {
+  cron.schedule('*/5 * * * *', async () => {
+    try {
+      const results = await processScheduledJobs();
+      if (results.length > 0) {
+        logger.info({ count: results.length }, 'Retry job processed');
+      }
+    } catch (e) {
+      logger.error({ err: e }, 'Retry job error');
     }
   });
 }
 
 // Graceful shutdown
-process.on('SIGTERM', async () => {
-  await prisma.$disconnect();
+let isShuttingDown = false;
+async function shutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  logger.info({ signal }, 'Graceful shutdown initiated');
+  try {
+    await prisma.$disconnect();
+  } catch (e) {
+    logger.error({ err: e }, 'Prisma disconnect error');
+  }
+  try {
+    const { pool } = require('./lib/prisma-client');
+    await pool.end();
+  } catch (e) {
+    logger.error({ err: e }, 'Pool drain error');
+  }
   process.exit(0);
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+// Process-level error handlers — без них процесс падает молча
+process.on('unhandledRejection', (reason) => {
+  logger.error({ err: reason }, 'Unhandled promise rejection');
+});
+
+process.on('uncaughtException', (err) => {
+  logger.error({ err }, 'Uncaught exception — shutting down');
+  shutdown('uncaughtException');
 });
 
 // Тестовый маршрут
@@ -115,13 +268,24 @@ app.get('/health', async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
     res.json({ status: 'ok', database: 'connected', time: new Date().toISOString() });
-  } catch (error) {
+  } catch {
     res.status(503).json({ status: 'error', database: 'disconnected', time: new Date().toISOString() });
   }
 });
 
-// Prometheus метрики
+// Prometheus метрики (защищено METRICS_TOKEN — для scraper'ов)
 app.get('/metrics', async (req, res) => {
+  const expected = process.env.METRICS_TOKEN;
+  if (expected) {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (token !== expected) {
+      return res.status(401).send('# Unauthorized');
+    }
+  } else if (process.env.NODE_ENV === 'production') {
+    // В проде без токена метрики недоступны — чтобы не утекали счётчики
+    return res.status(404).send('# Not found');
+  }
   try {
     const userCount = await prisma.user.count();
     const transactionCount = await prisma.transaction.count();
@@ -149,7 +313,7 @@ finance_families_total ${familyCount}
 # TYPE finance_uptime_seconds gauge
 finance_uptime_seconds ${process.uptime()}
 `.trim());
-  } catch (error) {
+  } catch {
     res.status(500).send('# Error collecting metrics');
   }
 });
@@ -164,7 +328,7 @@ app.get('/health/detailed', async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
     checks.database.status = 'ok';
-  } catch (e) {
+  } catch {
     checks.database.status = 'error';
   }
 
@@ -181,6 +345,17 @@ app.get('/health/detailed', async (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(` Сервер запущен на http://localhost:${PORT}`);
+app.get('/health/jobs', (req, res) => {
+  res.json({
+    jobs: jobStatus,
+    serverUptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+const server = http.createServer(app);
+initSocket(server);
+
+server.listen(PORT, () => {
+  logger.info({ port: PORT }, 'Сервер запущен');
 });

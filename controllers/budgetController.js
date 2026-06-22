@@ -15,15 +15,138 @@ exports.getBudgets = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
+    const q = req.validatedQuery || req.query;
+    const period = q.period || 'month';
+    const year = q.year;
+    logger.info({ userId: user.id, familyId, period, year, month: q.month }, 'BUDGETS GET');
 
-    const month = String(req.query.month || new Date().toISOString().slice(0, 7));
-    if (!/^\d{4}-\d{2}$/.test(month)) {
-      throw new ValidationError('Некорректный month (ожидается YYYY-MM)');
+    const month = String(q.month || new Date().toISOString().slice(0, 7));
+    if (period === 'month') {
+      if (!/^\d{4}-\d{2}$/.test(month)) {
+        throw new ValidationError('Некорректный month (ожидается YYYY-MM)');
+      }
+    } else if (period === 'year') {
+      if (!year || !/^\d{4}$/.test(year)) {
+        throw new ValidationError('Некорректный год (ожидается YYYY)');
+      }
     }
 
-    const memberId = req.query.memberId ? Number(req.query.memberId) : null;
+    const memberId = q.memberId ? Number(q.memberId) : null;
+
+    let items, memberContributions;
+    
+    if (period === 'year' && year) {
+      const months = [];
+      for (let m = 1; m <= 12; m++) {
+        months.push(`${year}-${String(m).padStart(2, '0')}`);
+      }
+
+    const budgetWhere = familyId
+      ? { 
+          OR: [
+            { family_id: familyId, month: { in: months }, scope: 'family' },
+            { family_id: null, user_id: user.id, month: { in: months }, scope: 'personal' }
+          ]
+        }
+      : { family_id: null, user_id: user.id, month: { in: months }, scope: 'personal' };
+
+      const budgets = await prisma.budget.findMany({
+        where: budgetWhere,
+        include: {
+          category: { select: { id: true, name: true, type: true } },
+          user: { select: { id: true, name: true } },
+        },
+        orderBy: { limit_amount: 'desc' },
+      });
+
+      const budgetMap = new Map();
+      for (const b of budgets) {
+        const key = `${b.category_id}:${b.scope}`;
+        if (!budgetMap.has(key)) {
+          budgetMap.set(key, { 
+            id: b.id,
+            month: year,
+            category_id: b.category_id,
+            category_name: b.category?.name || '',
+            category_type: b.category?.type || 'expense',
+            limit_amount: 0,
+            actual_amount: 0,
+            scope: b.scope,
+            spent_by_members: [],
+          });
+        }
+        budgetMap.get(key).limit_amount += Number(b.limit_amount || 0);
+      }
+
+      const txDateStart = new Date(`${year}-01-01`);
+      const txDateEnd = new Date(`${Number(year) + 1}-01-01`);
+      
+      const txWhere = familyId
+        ? { 
+            OR: [
+              { family_id: familyId, scope: 'family', date: { gte: txDateStart, lt: txDateEnd } },
+              { family_id: null, user_id: user.id, date: { gte: txDateStart, lt: txDateEnd } }
+            ]
+          }
+        : { family_id: null, user_id: user.id, date: { gte: txDateStart, lt: txDateEnd } };
+
+      if (memberId) {
+        txWhere.user_id = memberId;
+      }
+
+      const actuals = await prisma.transaction.groupBy({
+        by: ['type', 'category_id', 'user_id'],
+        where: txWhere,
+        _sum: { amount: true },
+      });
+
+      const actualMap = new Map();
+      for (const a of actuals) {
+        const key = `${a.type}:${a.category_id}`;
+        if (!actualMap.has(key)) actualMap.set(key, {});
+        actualMap.get(key)[a.user_id] = Number(a._sum.amount || 0);
+      }
+
+      const members = familyId
+        ? await prisma.user.findMany({ where: { family_id: familyId }, select: { id: true, name: true } })
+        : [{ id: user.id, name: user.name }];
+
+      memberContributions = {};
+      members.forEach(m => { memberContributions[m.id] = { name: m.name, amount: 0 }; });
+
+      for (const a of actuals) {
+        if (memberContributions[a.user_id]) {
+          memberContributions[a.user_id].amount += Number(a._sum.amount || 0);
+        }
+      }
+
+      items = Array.from(budgetMap.values()).map(b => {
+        const categoryType = b.category_type;
+        const key = `${categoryType}:${b.category_id}`;
+        const byMember = actualMap.get(key) || {};
+        const total = Object.values(byMember).reduce((s, v) => s + v, 0);
+        const limit = Number(b.limit_amount || 0);
+        return {
+          ...b,
+          limit_amount: limit,
+          actual_amount: total,
+          progress: limit > 0 ? (total / limit) * 100 : 0,
+          spent_by_members: members.map(m => ({
+            userId: m.id,
+            name: m.name,
+            amount: byMember[m.id] || 0,
+            percentage: total > 0 ? Math.round((byMember[m.id] || 0) / total * 100) : 0,
+          })),
+        };
+      });
+
+      logger.info({ userId: user.id, action: 'getBudgets', period: 'year', year });
+      res.json({ year, items, memberContributions });
+      return;
+    }
 
     const { start, end } = monthStartEnd(month);
+    logger.info({ start, end }, 'BUDGETS GET month range');
 
     const startDate = new Date(start);
     const endDate = new Date(end);
@@ -32,7 +155,7 @@ exports.getBudgets = async (req, res, next) => {
       ? { family_id: familyId, date: { gte: startDate, lt: endDate } }
       : { family_id: null, user_id: user.id, date: { gte: startDate, lt: endDate } };
 
-    const privacyFilter = { OR: [{ is_private: false }, { user_id: user.id }] };
+    const privacyFilter = { OR: [{ scope: 'family' }, { user_id: user.id }] };
     txWhere = { ...txWhere, ...privacyFilter };
 
     if (memberId) {
@@ -40,8 +163,15 @@ exports.getBudgets = async (req, res, next) => {
     }
 
     const budgetWhere = familyId
-      ? { family_id: familyId, month }
-      : { family_id: null, user_id: user.id, month };
+      ? { 
+          OR: [
+            { family_id: familyId, month, scope: 'family' },
+            { family_id: null, user_id: user.id, month, scope: 'personal' }
+          ]
+        }
+      : { family_id: null, user_id: user.id, month, scope: 'personal' };
+
+    logger.info({ budgetWhere }, 'BUDGETS GET where');
 
     const budgets = await prisma.budget.findMany({
       where: budgetWhere,
@@ -49,7 +179,7 @@ exports.getBudgets = async (req, res, next) => {
         category: { select: { id: true, name: true, type: true } },
         user: { select: { id: true, name: true } },
       },
-      orderBy: [{ type: 'asc' }, { limit_amount: 'desc' }],
+      orderBy: { limit_amount: 'desc' },
     });
 
     const actuals = await prisma.transaction.groupBy({
@@ -65,45 +195,46 @@ exports.getBudgets = async (req, res, next) => {
       actualMap.get(key)[a.user_id] = Number(a._sum.amount || 0);
     }
 
-    const memberContributions = {};
+    const memberContributions2 = {};
     const members = familyId
       ? await prisma.user.findMany({ where: { family_id: familyId }, select: { id: true, name: true } })
       : [{ id: user.id, name: user.name }];
 
-    members.forEach(m => { memberContributions[m.id] = { name: m.name, amount: 0 }; });
+    members.forEach(m => { memberContributions2[m.id] = { name: m.name, amount: 0 }; });
 
     for (const a of actuals) {
-      if (memberContributions[a.user_id]) {
-        memberContributions[a.user_id].amount += Number(a._sum.amount || 0);
+      if (memberContributions2[a.user_id]) {
+        memberContributions2[a.user_id].amount += Number(a._sum.amount || 0);
       }
     }
 
-    const items = budgets.map(b => {
-      const key = `${b.type}:${b.category_id}`;
-      const byMember = actualMap.get(key) || {};
-      const total = Object.values(byMember).reduce((s, v) => s + v, 0);
-      const limit = Number(b.limit_amount || 0);
-      return {
-        id: b.id,
-        month: b.month,
-        type: b.type,
-        category_id: b.category_id,
-        category_name: b.category?.name || '',
-        limit_amount: limit,
-        actual_amount: total,
-        progress: limit > 0 ? (total / limit) * 100 : 0,
-        is_personal: b.is_personal,
-        spent_by_members: members.map(m => ({
-          userId: m.id,
-          name: m.name,
-          amount: byMember[m.id] || 0,
-          percentage: total > 0 ? Math.round((byMember[m.id] || 0) / total * 100) : 0,
-        })),
-      };
-    });
+      items = budgets.map(b => {
+        const categoryType = b.category?.type || 'expense';
+        const key = `${categoryType}:${b.category_id}`;
+        const byMember = actualMap.get(key) || {};
+        const total = Object.values(byMember).reduce((s, v) => s + v, 0);
+        const limit = Number(b.limit_amount || 0);
+        return {
+          id: b.id,
+          month: b.month,
+          category_id: b.category_id,
+          category_name: b.category?.name || '',
+          category_type: categoryType,
+          limit_amount: limit,
+          actual_amount: total,
+          progress: limit > 0 ? (total / limit) * 100 : 0,
+          scope: b.scope,
+          spent_by_members: members.map(m => ({
+            userId: m.id,
+            name: m.name,
+            amount: byMember[m.id] || 0,
+            percentage: total > 0 ? Math.round((byMember[m.id] || 0) / total * 100) : 0,
+          })),
+        };
+      });
 
     logger.info({ userId: user.id, action: 'getBudgets', month });
-    res.json({ month, items, memberContributions });
+    res.json({ month, items, memberContributions: memberContributions2 });
   } catch (error) {
     next(error);
   }
@@ -113,37 +244,39 @@ exports.createBudget = async (req, res, next) => {
   try {
     const user = req.user;
     const familyId = user.family_id;
+    const { month, category_id, limit_amount, scope = 'personal' } = req.validated;
 
-    const { month, type = 'expense', category_id, limit_amount, is_personal } = req.body;
-    if (!/^\d{4}-\d{2}$/.test(String(month || ''))) {
-      throw new ValidationError('Некорректный month (YYYY-MM)');
-    }
-    if (!['income', 'expense'].includes(type)) {
-      throw new ValidationError('Некорректный type');
-    }
-    if (!category_id) {
-      throw new ValidationError('category_id обязателен');
-    }
     const limit = Number(limit_amount);
     if (!Number.isFinite(limit) || limit <= 0) {
       throw new ValidationError('limit_amount должен быть > 0');
     }
 
-    const isPersonalBudget = is_personal || !familyId;
+    // Получаем категорию для определения типа бюджета
+    const category = await prisma.category.findFirst({
+      where: { id: Number(category_id) }
+    });
+    if (!category) {
+      throw new ValidationError('Категория не найдена');
+    }
+
+    // scope: 'personal' -> family_id = null, 'family' -> family_id = familyId
+    const budgetScope = scope === 'family' && familyId ? scope : 'personal';
+    const budgetFamilyId = budgetScope === 'personal' ? null : familyId;
+
     const budget = await prisma.budget.create({
       data: {
-        family_id: isPersonalBudget ? null : familyId,
+        family_id: budgetFamilyId,
         user_id: user.id,
-        category_id,
+        category_id: Number(category_id),
         month,
-        type,
         limit_amount: limit,
-        is_personal: isPersonalBudget,
+        type: category.type,
+        scope: budgetScope,
       },
     });
 
     logger.info({ userId: user.id, budgetId: budget.id, action: 'createBudget' });
-    res.status(201).json(budget);
+    res.status(201).json({ ...budget, type: category.type, category_type: category.type });
   } catch (error) {
     next(error);
   }
@@ -164,14 +297,27 @@ exports.updateBudget = async (req, res, next) => {
       throw new NotFoundError('Бюджет не найден');
     }
 
-    const limit = Number(req.body.limit_amount);
-    if (!Number.isFinite(limit) || limit <= 0) {
-      throw new ValidationError('limit_amount должен быть > 0');
+    const data = {};
+    const v = req.validated || {};
+    if (v.limit_amount !== undefined) {
+      data.limit_amount = v.limit_amount;
     }
+    if (v.month !== undefined) {
+      data.month = v.month;
+    }
+    if (v.category_id !== undefined) {
+      const cat = await prisma.category.findFirst({ where: { id: Number(v.category_id) } });
+      if (!cat) throw new NotFoundError('Категория не найдена');
+      data.category_id = Number(v.category_id);
+    }
+    if (v.type !== undefined) {
+      data.type = v.type;
+    }
+    data.updated_at = new Date();
 
     const updated = await prisma.budget.update({
       where: { id: Number(id) },
-      data: { limit_amount: limit, updated_at: new Date() },
+      data,
     });
 
     logger.info({ userId: user.id, budgetId: budget.id, action: 'updateBudget' });
@@ -199,7 +345,7 @@ exports.deleteBudget = async (req, res, next) => {
     await prisma.budget.delete({ where: { id: Number(id) } });
 
     logger.info({ userId: user.id, budgetId: budget.id, action: 'deleteBudget' });
-    res.json({ message: 'Бюджет удалён' });
+    res.status(204).send();
   } catch (error) {
     next(error);
   }

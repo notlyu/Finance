@@ -1,52 +1,44 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
-import { Link } from 'react-router-dom';
-import api from '../services/api';
-import Modal from '../components/Modal';
-import FormattedInput from '../components/ui/FormattedInput';
-import { formatMoney } from '../utils/format';
+import { useNavigate } from 'react-router-dom';
+import api, { downloadFile } from '../services/api';
+import ConfirmModal from '../components/ConfirmModal';
+import { showError } from '../utils/toast';
+import TransactionFilters from '../components/TransactionFilters';
+import TransactionList from '../components/TransactionList';
+import TransactionForm from '../components/TransactionForm';
+import logger from '../utils/logger';
+import { SkeletonTable } from '../components/ui/Skeleton';
+import { localDateStr } from '../utils/date';
+import { flags } from '../config/flags';
 
-const categoryIconMap = {
-  income: 'payments',
-  expense: 'shopping_cart',
-  food: 'restaurant',
-  transport: 'directions_car',
-  entertainment: 'movie',
-  health: 'local_hospital',
-  education: 'school',
-  home: 'home',
-  clothing: 'checkroom',
-  gifts: 'card_giftcard',
-  salary: 'work',
-  freelance: 'laptop',
-  investment: 'trending_up',
-  other: 'more_horiz',
-};
-
-const getCategoryIcon = (catName) => {
-  if (!catName) return 'receipt_long';
-  const lower = catName.toLowerCase();
-  for (const [key, icon] of Object.entries(categoryIconMap)) {
-    if (lower.includes(key)) return icon;
-  }
-  return 'receipt_long';
-};
-
-export default function Transactions() {
+export default function Transactions({ space = 'personal' }) {
+  const navigate = useNavigate();
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState({ items: [], limit: 30, offset: 0, hasMore: false });
-  const [filters, setFilters] = useState({
-    startDate: '', endDate: '', type: '', categoryId: '', includePrivate: 'all'
+  const [filters, setFilters] = useState(() => {
+    const today = new Date();
+    const start = localDateStr(new Date(today.getFullYear(), today.getMonth(), 1));
+    const end = localDateStr(today);
+    return { startDate: start, endDate: end, type: '', categoryId: '', accountId: '', includePrivate: 'all', q: '' };
   });
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [datePreset, setDatePreset] = useState('today');
+  const [datePreset, setDatePreset] = useState('month');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
+  const [confirmModal, setConfirmModal] = useState({ open: false, onConfirm: null, title: '', message: '', variant: 'danger' });
+  const [pendingBudgetWarning, setPendingBudgetWarning] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
   const { register, handleSubmit, reset, setValue, watch } = useForm();
+  
+  const hasFamily = flags.familyEnabled && currentUser?.family_id;
 
   const updateDateFilter = (preset) => {
     setDatePreset(preset);
@@ -54,21 +46,21 @@ export default function Transactions() {
     let start = '', end = '';
     switch (preset) {
       case 'today':
-        start = end = today.toISOString().slice(0, 10);
+        start = end = localDateStr(today);
         break;
       case 'yesterday': {
         const y = new Date(today); y.setDate(today.getDate() - 1);
-        start = end = y.toISOString().slice(0, 10);
+        start = end = localDateStr(y);
         break;
       }
       case 'week': {
         const w = new Date(today); w.setDate(today.getDate() - today.getDay());
-        start = w.toISOString().slice(0, 10); end = today.toISOString().slice(0, 10);
+        start = localDateStr(w); end = localDateStr(today);
         break;
       }
       case 'month':
-        start = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-        end = today.toISOString().slice(0, 10);
+        start = localDateStr(new Date(today.getFullYear(), today.getMonth(), 1));
+        end = localDateStr(today);
         break;
       case 'custom':
         start = customStart; end = customEnd;
@@ -78,70 +70,127 @@ export default function Transactions() {
     setFilters(prev => ({ ...prev, startDate: start, endDate: end }));
   };
 
+  const buildParams = useCallback((offset = 0) => {
+    const params = { paginate: true, limit: page.limit, offset };
+    if (filters.startDate) params.startDate = filters.startDate;
+    if (filters.endDate) params.endDate = filters.endDate;
+    if (filters.type) params.type = filters.type;
+    if (filters.categoryId) params.categoryId = filters.categoryId;
+    if (filters.accountId) params.accountId = filters.accountId;
+    if (filters.includePrivate && filters.includePrivate !== 'all') params.includePrivate = filters.includePrivate;
+    if (filters.q) params.q = filters.q;
+    return params;
+  }, [filters, page.limit]);
+
+  const fetchTransactions = useCallback(async (offset = 0) => {
+    const params = buildParams(offset);
+    try {
+      const res = await api.get('/transactions', { params });
+      const items = res.data?.items || [];
+      const meta = res.data?.meta || {};
+      setTransactions(items);
+      setPage(prev => ({ ...prev, items, offset: meta.offset ?? offset, hasMore: !!meta.hasMore }));
+    } catch (err) { logger.error('Transactions fetch error:', err); }
+  }, [buildParams]);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    await Promise.allSettled([
+      fetchTransactions(0),
+      (async () => {
+        try {
+          const res = await api.get('/categories');
+          setCategories(res.data);
+        } catch (err) { logger.error('Categories fetch error:', err); }
+      })(),
+      (async () => {
+        try {
+          const res = await api.get('/accounts');
+          setAccounts(res.data || []);
+        } catch (err) { logger.error('Accounts fetch error:', err); }
+      })(),
+    ]);
+    setLoading(false);
+  }, [fetchTransactions]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchData().then(() => cancelled || undefined).catch(() => {});
+    return () => { cancelled = true; };
+  }, [fetchData]);
+
+  const loadMore = async () => {
+    try {
+      const nextOffset = transactions.length;
+      const res = await api.get('/transactions', { params: buildParams(nextOffset) });
+      const items = res.data?.items || [];
+      const meta = res.data?.meta || {};
+      setTransactions(prev => [...prev, ...items]);
+      setPage(prev => ({ ...prev, offset: meta.offset ?? nextOffset, hasMore: !!meta.hasMore }));
+    } catch (err) { logger.error(err); }
+  };
+
   useEffect(() => {
     if (datePreset === 'custom') {
       setFilters(prev => ({ ...prev, startDate: customStart, endDate: customEnd }));
     }
   }, [customStart, customEnd, datePreset]);
 
-  const fetchData = async () => {
-    try {
-      const [transRes, catRes] = await Promise.all([
-        api.get('/transactions', { params: { ...filters, paginate: true, limit: page.limit, offset: 0 } }),
-        api.get('/categories')
-      ]);
-      const items = transRes.data?.items || [];
-      const meta = transRes.data?.meta || {};
-      setTransactions(items);
-      setPage(prev => ({ ...prev, items, offset: meta.offset ?? 0, hasMore: !!meta.hasMore }));
-      setCategories(catRes.data);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
-  };
-
-  const loadMore = async () => {
-    try {
-      const nextOffset = transactions.length;
-      const res = await api.get('/transactions', {
-        params: { ...filters, paginate: true, limit: page.limit, offset: nextOffset },
-      });
-      const items = res.data?.items || [];
-      const meta = res.data?.meta || {};
-      setTransactions(prev => [...prev, ...items]);
-      setPage(prev => ({ ...prev, offset: meta.offset ?? nextOffset, hasMore: !!meta.hasMore }));
-    } catch (err) { console.error(err); }
-  };
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (filters.q) {
+        fetchTransactions(0);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [filters.q, fetchTransactions]);
 
   useEffect(() => {
-    fetchData();
-    if (datePreset === 'today') {
-      const today = new Date().toISOString().slice(0, 10);
-      setFilters(prev => ({ ...prev, startDate: today, endDate: today }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.startDate, filters.endDate, filters.type, filters.categoryId, filters.includePrivate]);
+    let cancelled = false;
+    api.get('/auth/me').then(res => { if (!cancelled) setCurrentUser(res.data); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchTransactions(0).then(() => cancelled || undefined).catch(() => {});
+    return () => { cancelled = true; };
+  }, [filters.startDate, filters.endDate, filters.type, filters.categoryId, filters.includePrivate, fetchTransactions]);
 
   const onSubmit = async (data) => {
     try {
       if (editingId) {
-        await api.put(`/transactions/${editingId}`, data);
+        await api.patch(`/transactions/${editingId}`, data);
       } else {
-        const payload = { ...data };
-        if (!payload.date) payload.date = new Date().toISOString().slice(0, 10);
+        const payload = { 
+          ...data, 
+          amount: Number(data.amount),
+          category_id: Number(data.category_id)
+        };
+        if (data.account_id) payload.account_id = Number(data.account_id);
+        if (!payload.date) payload.date = localDateStr();
         const res = await api.post('/transactions', payload);
         if (res.data.budgetWarning) {
           const w = res.data.budgetWarning;
-          const confirmed = window.confirm(
-            `⚠️ Бюджет превышен!\n\nПотрачено: ${w.spent} ₽\nПосле операции: ${w.newTotal} ₽\nЛимит: ${w.limit} ₽\nПревышение: ${w.overBy} ₽\n\nПродолжить?`
-          );
-          if (!confirmed) {
-            await api.delete(`/transactions/${res.data.transaction.id}`);
-            return;
-          }
+          setPendingBudgetWarning({ txId: res.data.transaction.id });
+          setConfirmModal({
+            open: true,
+            variant: 'warning',
+            title: '⚠️ Бюджет превышен',
+            message: `Потрачено: ${w.spent} ₽\nПосле операции: ${w.newTotal} ₽\nЛимит: ${w.limit} ₽\nПревышение: ${w.overBy} ₽`,
+             onConfirm: async () => {
+               setModalOpen(false);
+               reset();
+               setEditingId(null);
+               setPendingBudgetWarning(null);
+               fetchTransactions(0);
+             }
+          });
+          return;
         }
       }
-      setModalOpen(false); reset(); setEditingId(null); fetchData();
-    } catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
+      setModalOpen(false); reset(); setEditingId(null); fetchTransactions(0);
+    } catch (err) { logger.error(err); showError(err.response?.data?.message || 'Ошибка при сохранении'); }
   };
 
   const openEditModal = (t) => {
@@ -149,30 +198,98 @@ export default function Transactions() {
     setValue('amount', t.amount);
     setValue('type', t.type);
     setValue('category_id', t.category_id);
+    setValue('account_id', t.account_id || '');
     setValue('date', t.date);
     setValue('comment', t.comment || '');
-    setValue('is_private', t.is_private || false);
+    setValue('scope', t.scope || (t.is_personal !== false ? 'personal' : 'family'));
     setModalOpen(true);
   };
 
   const deleteTransaction = async (id) => {
-    if (window.confirm('Удалить операцию?')) {
-      try { await api.delete(`/transactions/${id}`); fetchData(); }
-      catch (err) { console.error(err); alert(err.response?.data?.message || 'Ошибка'); }
+    setConfirmModal({
+      open: true,
+      variant: 'danger',
+      title: 'Удалить операцию?',
+      message: 'Это действие нельзя отменить.',
+      confirmText: 'Удалить',
+      onConfirm: async () => {
+        try { await api.delete(`/transactions/${id}`); fetchTransactions(0); }
+        catch (err) { logger.error(err); showError('Ошибка при удалении'); }
+      }
+    });
+  };
+
+  const batchDeleteTransactions = () => {
+    setConfirmModal({
+      open: true,
+      variant: 'danger',
+      title: `Удалить ${selectedIds.length} операций?`,
+      message: 'Это действие нельзя отменить.',
+      confirmText: 'Удалить',
+      onConfirm: async () => {
+        try {
+          await api.post('/transactions/batch-delete', { ids: selectedIds });
+          setSelectedIds([]);
+          fetchTransactions(0);
+        } catch (err) { logger.error(err); showError('Ошибка при массовом удалении'); }
+      }
+    });
+  };
+
+  const handleToggleSelect = (id) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const handleSelectAll = () => {
+    setSelectedIds(transactions.map(t => t.id));
+  };
+
+  const handleClearSelection = () => {
+    setSelectedIds([]);
+  };
+
+  const duplicateTransaction = (t) => {
+    setEditingId(null);
+    setValue('amount', t.amount);
+    setValue('type', t.type);
+    setValue('category_id', t.category_id);
+    setValue('account_id', t.account_id || '');
+    setValue('date', localDateStr());
+    setValue('comment', t.comment || '');
+    setValue('scope', t.scope || (t.is_personal !== false ? 'personal' : 'family'));
+    setModalOpen(true);
+  };
+
+  const handleConfirmClose = async () => {
+    if (pendingBudgetWarning) {
+      try { await api.delete(`/transactions/${pendingBudgetWarning.txId}`); }
+      catch (err) { logger.error(err); showError('Ошибка при отмене операции'); }
     }
+    setConfirmModal({ open: false });
+    setPendingBudgetWarning(null);
   };
 
   const resetFilters = () => {
-    setFilters({ startDate: '', endDate: '', type: '', categoryId: '', includePrivate: 'all' });
-    setDatePreset('custom'); setCustomStart(''); setCustomEnd('');
+    const today = localDateStr();
+    setFilters({ startDate: today, endDate: today, type: '', categoryId: '', includePrivate: 'all', q: '' });
+    setDatePreset('today'); setCustomStart(''); setCustomEnd('');
+  };
+
+  const handleExport = async (format) => {
+    setExportDropdownOpen(false);
+    const params = [];
+    if (filters.startDate) params.push(`startDate=${filters.startDate}`);
+    if (filters.endDate) params.push(`endDate=${filters.endDate}`);
+    if (filters.type) params.push(`type=${filters.type}`);
+    if (filters.categoryId) params.push(`categoryId=${filters.categoryId}`);
+    const query = params.length ? `?${params.join('&')}` : '';
+    const ext = format === 'excel' ? 'xlsx' : 'csv';
+    await downloadFile(`/api/export/transactions?format=${format === 'excel' ? 'xlsx' : 'csv'}${query}`, `transactions-${localDateStr()}.${ext}`);
   };
 
   if (loading) return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
-        <p className="text-on-surface-variant text-sm font-medium">Загрузка...</p>
-      </div>
+    <div className="min-h-[60vh] flex items-center justify-center p-6">
+      <SkeletonTable rows={8} cols={5} className="w-full max-w-6xl" />
     </div>
   );
 
@@ -181,10 +298,10 @@ export default function Transactions() {
       {/* Section Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <Link to="/" className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors mb-2">
+          <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors mb-2">
             <span className="material-symbols-outlined text-sm">arrow_back</span>
             Назад
-          </Link>
+          </button>
           <h2 className="text-3xl font-extrabold tracking-tight text-on-surface font-headline">Операции</h2>
           <p className="text-on-surface-variant text-sm mt-1">
             {transactions.length} операций за период
@@ -199,11 +316,27 @@ export default function Transactions() {
             <span className="material-symbols-outlined text-lg mr-1 align-middle">filter_list</span>
             Фильтры
           </button>
+          <div className="relative">
+            <button onClick={() => setExportDropdownOpen(!exportDropdownOpen)} className="px-4 py-2.5 rounded-xl border-2 border-outline-variant text-on-surface-variant font-medium text-sm hover:bg-surface-container transition-colors">
+              <span className="material-symbols-outlined text-lg mr-1 align-middle">download</span>
+              Экспорт
+              <span className="material-symbols-outlined text-sm ml-1">{exportDropdownOpen ? 'expand_less' : 'expand_more'}</span>
+            </button>
+            {exportDropdownOpen && (
+              <div className="absolute right-0 mt-2 w-44 bg-surface-container-lowest rounded-xl shadow-card border border-outline-variant/60 overflow-hidden z-50">
+                <button onClick={() => handleExport('excel')} className="w-full px-4 py-3 text-left text-sm hover:bg-surface-container flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">table_chart</span> Excel (.xlsx)
+                </button>
+                <button onClick={() => handleExport('csv')} className="w-full px-4 py-3 text-left text-sm hover:bg-surface-container flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">description</span> CSV
+                </button>
+              </div>
+            )}
+          </div>
           <button
             onClick={() => {
               setEditingId(null);
-              const today = new Date().toISOString().slice(0, 10);
-              reset({ type: 'expense', is_private: false, date: today });
+          reset({ type: 'expense', scope: 'personal', date: localDateStr() });
               setModalOpen(true);
             }}
             className="btn-primary px-6 py-2.5 flex items-center gap-2 text-sm"
@@ -215,314 +348,107 @@ export default function Transactions() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className={`bg-surface-container p-6 rounded-3xl transition-all ${filtersOpen ? '' : 'hidden sm:block'}`}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-          <div>
-            <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Период</label>
-            <select
-              value={datePreset}
-              onChange={(e) => updateDateFilter(e.target.value)}
-              className="select-ghost"
-            >
-              <option value="today">Сегодня</option>
-              <option value="yesterday">Вчера</option>
-              <option value="week">Эта неделя</option>
-              <option value="month">Этот месяц</option>
-              <option value="custom">Произвольный</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Тип</label>
-            <select
-              value={filters.type}
-              onChange={e => setFilters({ ...filters, type: e.target.value })}
-              className="select-ghost"
-            >
-              <option value="">Все типы</option>
-              <option value="income">Доходы</option>
-              <option value="expense">Расходы</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Категория</label>
-            <select
-              value={filters.categoryId}
-              onChange={e => setFilters({ ...filters, categoryId: e.target.value })}
-              className="select-ghost"
-            >
-              <option value="">Все категории</option>
-              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Видимость</label>
-            <select
-              value={filters.includePrivate}
-              onChange={e => setFilters({ ...filters, includePrivate: e.target.value })}
-              className="select-ghost"
-            >
-              <option value="all">Все операции</option>
-              <option value="only_visible">Только видимые</option>
-              <option value="only_private">Только скрытые</option>
-            </select>
-          </div>
-        </div>
-
-        {datePreset === 'custom' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Дата от</label>
-              <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="select-ghost" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Дата до</label>
-              <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="select-ghost" />
-            </div>
-          </div>
-        )}
-
-        <div className="flex justify-between items-center">
-          <button onClick={resetFilters} className="text-sm text-primary font-semibold hover:opacity-80 transition-colors">
-            Сбросить все фильтры
-          </button>
-          <div className="text-xs text-on-surface-variant font-medium">
-            {filters.startDate && filters.endDate
-              ? `${filters.startDate} – ${filters.endDate}`
-              : 'Фильтр не выбран'}
-          </div>
-        </div>
-      </div>
-
-      {/* Transaction List - Mobile Cards */}
-      <div className="sm:hidden space-y-4">
-        {transactions.map(t => (
-          <div
-            key={t.id}
-            className={`p-5 rounded-2xl ${
-              t.is_hidden
-                ? 'bg-surface-container-low'
-                : 'bg-surface-container-lowest shadow-card'
-            }`}
+      {/* Search */}
+      <div className="relative">
+        <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+        <input
+          type="text"
+          placeholder="Поиск по комментарию..."
+          value={filters.q}
+          onChange={(e) => setFilters(prev => ({ ...prev, q: e.target.value }))}
+          onKeyDown={(e) => e.key === 'Enter' && fetchData()}
+          className="w-full pl-12 pr-4 py-3 bg-surface-container rounded-xl border-2 border-outline-variant focus:border-primary outline-none transition-colors text-on-surface placeholder:text-on-surface-variant/50"
+        />
+        {filters.q && (
+          <button
+            onClick={() => setFilters(prev => ({ ...prev, q: '' }))}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
           >
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
-                  t.is_hidden ? 'bg-surface-container-high text-outline' :
-                  t.type === 'income' ? 'bg-secondary/10 text-secondary' : 'bg-surface-container-high text-primary'
-                }`}>
-                  <span className="material-symbols-outlined">
-                    {t.is_hidden ? 'lock' : getCategoryIcon(t.category_name)}
-                  </span>
-                </div>
-                <div className="min-w-0">
-                  <p className="font-bold text-on-surface text-sm truncate">
-                    {t.is_hidden ? '🔒 Сюрприз' : t.category_name}
-                  </p>
-                  <p className="text-xs text-on-surface-variant mt-0.5">
-                    {new Date(t.date).toLocaleDateString('ru-RU')} • {t.user_name}
-                  </p>
-                </div>
-              </div>
-              <div className="text-right shrink-0">
-                <p className={`font-bold font-headline ${t.type === 'income' ? 'text-secondary' : 'text-on-surface'}`}>
-                  {t.type === 'income' ? '+' : '-'}{t.is_hidden ? '••••' : formatMoney(t.amount)} ₽
-                </p>
-              </div>
-            </div>
-            {t.comment && !t.is_hidden && (
-              <p className="text-sm text-on-surface-variant mt-3">{t.comment}</p>
-            )}
-            {!t.is_hidden && (
-              <div className="mt-3 flex gap-2">
-                <button onClick={() => openEditModal(t)} className="flex-1 py-2 rounded-xl text-sm font-semibold text-primary bg-primary/5 hover:bg-primary/10 transition-colors">
-                  Изменить
-                </button>
-                <button onClick={() => deleteTransaction(t.id)} className="flex-1 py-2 rounded-xl text-sm font-semibold text-error bg-error-container hover:opacity-90 transition-colors">
-                  Удалить
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
-        {transactions.length === 0 && (
-          <div className="bg-surface-container-lowest p-8 rounded-3xl text-center">
-            <span className="material-symbols-outlined text-4xl text-outline mb-2">receipt_long</span>
-            <p className="text-on-surface-variant text-sm">Нет операций</p>
-          </div>
-        )}
-        {page.hasMore && (
-          <button onClick={loadMore} className="w-full py-3.5 rounded-2xl border-2 border-outline-variant text-on-surface font-semibold text-sm hover:bg-surface-container transition-colors">
-            Загрузить ещё
+            <span className="material-symbols-outlined">close</span>
           </button>
         )}
       </div>
 
-      {/* Desktop Table */}
-      <div className="hidden sm:block bg-surface-container-lowest rounded-3xl shadow-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead className="bg-surface-container">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Дата</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Категория</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Сумма</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Комментарий</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-on-surface-variant uppercase tracking-widest">Автор</th>
-                <th className="px-6 py-4 text-right text-xs font-bold text-on-surface-variant uppercase tracking-widest"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {transactions.map((t, i) => (
-                <tr key={t.id} className={`transition-colors hover:bg-surface-container ${i % 2 === 0 ? 'bg-surface-container-lowest' : 'bg-surface-container-low'}`}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-on-surface-variant">{new Date(t.date).toLocaleDateString('ru-RU')}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-                        t.is_hidden ? 'bg-surface-container-high text-outline' :
-                        t.type === 'income' ? 'bg-secondary/10 text-secondary' : 'bg-primary/10 text-primary'
-                      }`}>
-                        <span className="material-symbols-outlined text-sm">
-                          {t.is_hidden ? 'lock' : getCategoryIcon(t.category_name)}
-                        </span>
-                      </div>
-                      <span className="text-sm font-semibold text-on-surface">
-                        {t.is_hidden ? '🔒 Сюрприз' : t.category_name}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`font-bold font-headline ${t.type === 'income' ? 'text-secondary' : 'text-on-surface'}`}>
-                      {t.type === 'income' ? '+' : '-'}{t.is_hidden ? '••••' : formatMoney(t.amount)} ₽
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-on-surface-variant max-w-48 truncate">{t.comment || '—'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-on-surface-variant">{t.user_name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
-                    {!t.is_hidden && (
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEditModal(t)} className="w-9 h-9 flex items-center justify-center rounded-lg text-primary hover:bg-primary/10 transition-colors">
-                          <span className="material-symbols-outlined text-sm">edit</span>
-                        </button>
-                        <button onClick={() => deleteTransaction(t.id)} className="w-9 h-9 flex items-center justify-center rounded-lg text-error hover:bg-error-container transition-colors">
-                          <span className="material-symbols-outlined text-sm">delete</span>
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {transactions.length === 0 && (
-                <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center">
-                    <span className="material-symbols-outlined text-4xl text-outline mb-2">receipt_long</span>
-                    <p className="text-on-surface-variant text-sm">Нет операций</p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <TransactionFilters
+        datePreset={datePreset}
+        onDatePresetChange={updateDateFilter}
+        customStart={customStart}
+        customEnd={customEnd}
+        onCustomStartChange={setCustomStart}
+        onCustomEndChange={setCustomEnd}
+        type={filters.type}
+        onTypeChange={v => setFilters(prev => ({ ...prev, type: v }))}
+        categoryId={filters.categoryId}
+        onCategoryIdChange={v => setFilters(prev => ({ ...prev, categoryId: v }))}
+        accountId={filters.accountId}
+        onAccountIdChange={v => setFilters(prev => ({ ...prev, accountId: v }))}
+        includePrivate={filters.includePrivate}
+        onIncludePrivateChange={v => setFilters(prev => ({ ...prev, includePrivate: v }))}
+        categories={categories}
+        accounts={accounts}
+        filtersOpen={filtersOpen}
+        onReset={resetFilters}
+        startDate={filters.startDate}
+        endDate={filters.endDate}
+      />
 
-      {page.hasMore && (
-        <div className="hidden sm:flex justify-center">
-          <button onClick={loadMore} className="px-8 py-3 rounded-2xl border-2 border-outline-variant text-on-surface font-semibold text-sm hover:bg-surface-container transition-colors">
-            Загрузить ещё
+      <TransactionList
+        transactions={transactions}
+        hasMore={page.hasMore}
+        onLoadMore={loadMore}
+        onDuplicate={duplicateTransaction}
+        onEdit={openEditModal}
+        onDelete={deleteTransaction}
+        selectedIds={selectedIds}
+        onToggleSelect={handleToggleSelect}
+        onSelectAll={handleSelectAll}
+        onClearSelection={handleClearSelection}
+      />
+
+      {selectedIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-surface-container-lowest shadow-lg rounded-3xl border border-outline-variant px-5 py-3 flex items-center gap-4">
+          <span className="text-sm font-semibold text-on-surface">Выбрано: {selectedIds.length}</span>
+          <button
+            onClick={handleClearSelection}
+            className="px-3 py-1.5 rounded-xl text-sm text-on-surface-variant hover:bg-surface-container transition-colors"
+          >
+            Отменить
+          </button>
+          <button
+            onClick={batchDeleteTransactions}
+            className="px-4 py-1.5 rounded-xl text-sm font-semibold text-on-error bg-error hover:opacity-90 transition-colors"
+          >
+            <span className="material-symbols-outlined text-sm mr-1 align-middle">delete</span>
+            Удалить
           </button>
         </div>
       )}
 
-      {/* Modal: Add/Edit Transaction */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Редактировать операцию' : 'Добавить операцию'}>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* Large Amount Input */}
-          <div className="relative">
-            <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Сумма</label>
-            <div className="relative">
-              <FormattedInput
-                value={watch('amount') || ''}
-                onChange={(v) => setValue('amount', v)}
-                className="w-full py-5 px-6 bg-surface-container-low border-2 border-transparent rounded-2xl text-3xl font-extrabold text-on-surface outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10 placeholder:text-outline/40"
-                placeholder="0"
-              />
-              <span className="absolute right-6 top-1/2 -translate-y-1/2 text-2xl font-bold text-on-surface-variant">₽</span>
-            </div>
-          </div>
+      <TransactionForm
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        editingId={editingId}
+        categories={categories}
+        accounts={accounts}
+        space={space}
+        hasFamily={hasFamily}
+        register={register}
+        handleSubmit={handleSubmit}
+        onSubmit={onSubmit}
+        watch={watch}
+        setValue={setValue}
+        reset={reset}
+      />
 
-          {/* Segmented Toggle: Income/Expense */}
-          <div>
-            <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Тип</label>
-            <div className="flex bg-surface-container p-1 rounded-xl">
-              <button
-                type="button"
-                onClick={() => setValue('type', 'expense')}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-lg transition-all ${
-                  watch('type') === 'expense'
-                    ? 'bg-error-container text-on-error-container shadow-sm'
-                    : 'text-on-surface-variant'
-                }`}
-              >
-                <span className="material-symbols-outlined text-sm">trending_down</span>
-                Расход
-              </button>
-              <button
-                type="button"
-                onClick={() => setValue('type', 'income')}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold rounded-lg transition-all ${
-                  watch('type') === 'income'
-                    ? 'bg-secondary-container text-on-secondary-container shadow-sm'
-                    : 'text-on-surface-variant'
-                }`}
-              >
-                <span className="material-symbols-outlined text-sm">trending_up</span>
-                Доход
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Категория</label>
-              <select {...register('category_id', { required: true })} className="select-ghost">
-                <option value="">Выберите</option>
-                {categories.filter(c => c.type === watch('type')).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Дата</label>
-              <input type="date" {...register('date', { required: true })} className="select-ghost" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Комментарий</label>
-            <textarea {...register('comment')} rows="2" className="input-ghost" placeholder="Необязательно" />
-          </div>
-          <div className="flex items-center justify-between p-4 bg-surface-container rounded-2xl">
-            <div>
-              <span className="text-sm font-semibold text-on-surface">Скрыть от семьи</span>
-              <p className="text-xs text-on-surface-variant">Операция будет видна только вам как «Сюрприз»</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setValue('is_private', !watch('is_private'))}
-              className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
-                watch('is_private') ? 'bg-primary' : 'bg-outline-variant'
-              }`}
-            >
-              <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${
-                watch('is_private') ? 'translate-x-5' : 'translate-x-0.5'
-              }`}></div>
-            </button>
-          </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setModalOpen(false)} className="btn-ghost px-6 py-3">Отмена</button>
-            <button type="submit" className="btn-primary px-8 py-3">
-              {editingId ? 'Сохранить' : 'Добавить'}
-            </button>
-          </div>
-        </form>
-      </Modal>
+      <ConfirmModal
+        isOpen={confirmModal.open}
+        onClose={handleConfirmClose}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        variant={confirmModal.variant}
+        confirmText={confirmModal.confirmText}
+      />
     </div>
   );
 }

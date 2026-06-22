@@ -3,22 +3,53 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const prisma = require('../lib/prisma-client');
 const { sendPasswordResetEmail } = require('../services/emailService');
-const { logger, ConflictError } = require('../lib/errors');
+const { logger, ConflictError, UnauthorizedError, NotFoundError, ForbiddenError, ValidationError, AppError } = require('../lib/errors');
+
+const REFRESH_TOKEN_EXPIRY_DAYS = 30;
+// В5: лимит участников семьи (по умолчанию 6 — пара + дети/родители; настраивается env).
+const MAX_FAMILY_MEMBERS = Number(process.env.MAX_FAMILY_MEMBERS) || 6;
+// Grace-период ротации refresh-токена (мс): окно, в которое старый токен ещё принимается.
+const REFRESH_GRACE_MS = Number(process.env.REFRESH_GRACE_MS) || 30000;
 
 function generateSecureInviteCode(length = 10) {
   return crypto.randomBytes(Math.ceil(length)).toString('base64url').slice(0, length).toUpperCase();
 }
 
+async function generateRefreshToken(userId) {
+  return generateRefreshTokenWithTTL(userId, REFRESH_TOKEN_EXPIRY_DAYS);
+}
+
+async function generateRefreshTokenWithTTL(userId, days) {
+  const token = crypto.randomBytes(64).toString('hex');
+  const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+  await prisma.refreshToken.create({ data: { user_id: userId, token, expires_at: expiresAt } });
+  return { token, expiresAt };
+}
+
+async function revokeRefreshToken(token) {
+  await prisma.refreshToken.updateMany({
+    where: { token },
+    data: { revoked: true },
+  });
+}
+
+async function revokeAllUserTokens(userId) {
+  await prisma.refreshToken.updateMany({
+    where: { user_id: userId, revoked: false },
+    data: { revoked: true },
+  });
+}
+
 exports.register = async (req, res, next) => {
   try {
-    const { email, password, name } = req.body;
+    const { email, password, name } = req.validated;
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       throw new ConflictError('Email уже зарегистрирован');
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     const user = await prisma.user.create({
       data: {
@@ -30,14 +61,26 @@ exports.register = async (req, res, next) => {
     });
 
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { algorithm: 'HS256', expiresIn: '7d' });
+    const refreshTokenData = await generateRefreshToken(user.id);
 
     logger.info({ userId: user.id, action: 'register' }, 'User registered');
 
+    const cookieOptions = { 
+      httpOnly: true, 
+      maxAge: 7 * 24 * 60 * 60 * 1000, 
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', 
+      path: '/',
+      secure: process.env.NODE_ENV === 'production'
+    };
+    res.cookie('token', token, cookieOptions);
+    res.cookie('refreshToken', refreshTokenData.token, { ...cookieOptions, maxAge: 30 * 24 * 60 * 60 * 1000 });
     res.status(201).json({
       id: user.id,
       email: user.email,
       name: user.name,
       token,
+      refreshToken: refreshTokenData.token,
+      refreshTokenExpiresAt: refreshTokenData.expiresAt,
     });
   } catch (error) {
     next(error);
@@ -46,56 +89,81 @@ exports.register = async (req, res, next) => {
 
 exports.login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, rememberMe } = req.validated;
 
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      return res.status(401).json({ message: 'Неверный email или пароль' });
-    }
+    if (!user) throw new UnauthorizedError('Неверный email или пароль');
 
     const validPassword = await bcrypt.compare(password, user.password_hash);
-    if (!validPassword) {
-      return res.status(401).json({ message: 'Неверный email или пароль' });
-    }
+    if (!validPassword) throw new UnauthorizedError('Неверный email или пароль');
 
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { algorithm: 'HS256', expiresIn: '7d' });
+    // rememberMe = true → 30 дней; false → сессионные cookie (закрыть браузер = выйти)
+    const tokenTTL    = rememberMe === false ? '2h'  : '7d';
+    const tokenMaxAge = rememberMe === false ? 2 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+    const refreshDays = rememberMe === false ? 1    : 30;
 
-    logger.info({ userId: user.id, action: 'login' }, 'User logged in');
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { algorithm: 'HS256', expiresIn: tokenTTL });
+    const refreshTokenData = await generateRefreshTokenWithTTL(user.id, refreshDays);
 
+    logger.info({ userId: user.id, action: 'login', rememberMe }, 'User logged in');
+
+    const cookieOptions = {
+      httpOnly: true,
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/',
+      secure: process.env.NODE_ENV === 'production',
+      ...(rememberMe !== false && { maxAge: tokenMaxAge }),
+    };
+    res.cookie('token', token, cookieOptions);
+    res.cookie('refreshToken', refreshTokenData.token, {
+      ...cookieOptions,
+      ...(rememberMe !== false && { maxAge: refreshDays * 24 * 60 * 60 * 1000 }),
+    });
     res.json({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      family_id: user.family_id,
-      token,
+      id: user.id, email: user.email, name: user.name, family_id: user.family_id,
+      token, refreshToken: refreshTokenData.token, refreshTokenExpiresAt: refreshTokenData.expiresAt,
     });
   } catch (error) {
     next(error);
   }
 };
 
-exports.createFamily = async (req, res) => {
+exports.createFamily = async (req, res, next) => {
   try {
-    const { name } = req.body;
+    const { name } = req.validated;
     const user = req.user;
 
     if (user.family_id) {
-      return res.status(400).json({ message: 'Вы уже состоите в семье' });
+      throw new ValidationError('Вы уже состоите в семье');
     }
 
     const inviteCode = generateSecureInviteCode(10);
+    const hashedInviteCode = await bcrypt.hash(inviteCode, 10);
 
-    const family = await prisma.family.create({
-      data: {
-        name,
-        invite_code: inviteCode,
-        owner_user_id: user.id,
-      },
-    });
+    // Атомарно: создание семьи + привязка пользователя + запись участника-владельца.
+    // Иначе при сбое familyMember.create семья и user.family_id остаются в рассинхроне.
+    const family = await prisma.$transaction(async (tx) => {
+      const created = await tx.family.create({
+        data: {
+          name,
+          invite_code: hashedInviteCode,
+          owner_user_id: user.id,
+        },
+      });
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { family_id: family.id },
+      await tx.user.update({
+        where: { id: user.id },
+        data: { family_id: created.id },
+      });
+
+      await tx.familyMember.create({
+        data: {
+          user_id: user.id,
+          family_id: created.id,
+        },
+      });
+
+      return created;
     });
 
     res.status(201).json({
@@ -104,56 +172,94 @@ exports.createFamily = async (req, res) => {
       invite_code: family.invite_code,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-exports.joinFamily = async (req, res) => {
+exports.joinFamily = async (req, res, next) => {
   try {
-    const inviteCode = String(req.body.inviteCode || req.body.code || '').trim().toUpperCase();
+    const inviteCode = String(req.validated?.inviteCode || req.body?.code || '').trim().toUpperCase();
     
     if (!inviteCode) {
-      return res.status(400).json({ message: 'Укажите код приглашения' });
+      throw new ValidationError('Укажите код приглашения');
     }
     
     if (req.user.family_id) {
-      return res.status(400).json({ message: 'Вы уже состоите в семье' });
+      throw new ValidationError('Вы уже состоите в семье');
     }
 
-    const family = await prisma.family.findFirst({
-      where: { invite_code: inviteCode }
+    // Используем транзакцию для атомарности
+    const result = await prisma.$transaction(async (tx) => {
+      // Ищем активный инвайт по коду с блокировкой
+      const invite = await tx.familyInvite.findFirst({
+        where: {
+          code: inviteCode,
+          status: 'active',
+          OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
+        }
+      });
+      
+      if (!invite) {
+        throw new NotFoundError('Код не найден или уже использован');
+      }
+
+      const family = await tx.family.findUnique({ where: { id: invite.family_id } });
+      if (!family) {
+        throw new NotFoundError('Семья не найдена');
+      }
+
+      // В5: лимит участников. Считаем внутри транзакции (защита от гонки).
+      const memberCount = await tx.user.count({ where: { family_id: family.id } });
+      if (memberCount >= MAX_FAMILY_MEMBERS) {
+        throw new ValidationError(`В семье уже максимум участников (${MAX_FAMILY_MEMBERS})`);
+      }
+
+      // Обновляем пользователя
+      await tx.user.update({
+        where: { id: req.user.id },
+        data: { family_id: family.id }
+      });
+      
+      // Создаём запись участника
+      await tx.familyMember.create({
+        data: {
+          user_id: req.user.id,
+          family_id: family.id,
+        }
+      });
+      
+      // Помечаем инвайт как использованный
+      await tx.familyInvite.update({
+        where: { id: invite.id },
+        data: {
+          status: 'used',
+          used_by: req.user.id,
+          used_at: new Date(),
+        }
+      });
+
+      return { family_id: family.id };
     });
-    
-    if (!family) {
-      return res.status(404).json({ message: 'Код не найден' });
-    }
-    
-    await prisma.user.update({
-      where: { id: req.user.id },
-      data: { family_id: family.id }
-    });
-    
-    res.json({ message: 'Вы присоединились к семье', family_id: family.id });
+
+    res.json({ message: 'Вы присоединились к семье', family_id: result.family_id });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-exports.createFamilyInvite = async (req, res) => {
+exports.createFamilyInvite = async (req, res, next) => {
   try {
     const user = req.user;
-    if (!user.family_id) return res.status(400).json({ message: 'Вы не состоите в семье' });
+    if (!user.family_id) throw new ValidationError('Вы не состоите в семье');
 
     const family = await prisma.family.findUnique({ where: { id: user.family_id } });
-    if (!family) return res.status(404).json({ message: 'Семья не найдена' });
+    if (!family) throw new NotFoundError('Семья не найдена');
 
     if (family.owner_user_id !== user.id) {
-      return res.status(403).json({ message: 'Только владелец семьи может создавать приглашения' });
+      throw new ForbiddenError('Только владелец семьи может создавать приглашения');
     }
 
-    const days = Number(req.body.expiresInDays || 7);
+    const days = Number(req.body?.expiresInDays || 7);
     const expiresAt = Number.isFinite(days) && days > 0 ? new Date(Date.now() + days * 24 * 60 * 60 * 1000) : null;
 
     let invite = null;
@@ -166,6 +272,7 @@ exports.createFamilyInvite = async (req, res) => {
             code,
             created_by: user.id,
             expires_at: expiresAt,
+            status: 'active',
           },
         });
         break;
@@ -174,7 +281,7 @@ exports.createFamilyInvite = async (req, res) => {
       }
     }
 
-    if (!invite) return res.status(500).json({ message: 'Не удалось создать приглашение, попробуйте ещё раз' });
+    if (!invite) throw new AppError('Не удалось создать приглашение, попробуйте ещё раз');
 
     res.status(201).json({
       id: invite.id,
@@ -183,55 +290,64 @@ exports.createFamilyInvite = async (req, res) => {
       created_at: invite.created_at,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-exports.listFamilyInvites = async (req, res) => {
+exports.listFamilyInvites = async (req, res, next) => {
   try {
     const user = req.user;
-    if (!user.family_id) return res.status(400).json({ message: 'Вы не состоите в семье' });
+    if (!user.family_id) throw new ValidationError('Вы не состоите в семье');
 
     const invites = await prisma.familyInvite.findMany({
       where: {
         family_id: user.family_id,
-        OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
+        OR: [
+          { status: 'active', OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }] },
+          { status: 'used' },
+          { status: 'revoked' }
+        ],
       },
       orderBy: { created_at: 'desc' },
-      select: { id: true, code: true, created_by: true, expires_at: true, created_at: true },
+      select: { 
+        id: true, code: true, created_by: true, expires_at: true, created_at: true,
+        status: true, used_by: true, used_at: true,
+        usedByUser: { select: { id: true, name: true } }
+      },
     });
     res.json(invites);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-exports.revokeFamilyInvite = async (req, res) => {
+exports.revokeFamilyInvite = async (req, res, next) => {
   try {
     const user = req.user;
-    if (!user.family_id) return res.status(400).json({ message: 'Вы не состоите в семье' });
+    if (!user.family_id) throw new ValidationError('Вы не состоите в семье');
 
     const family = await prisma.family.findUnique({ where: { id: user.family_id } });
-    if (!family) return res.status(404).json({ message: 'Семья не найдена' });
+    if (!family) throw new NotFoundError('Семья не найдена');
     if (family.owner_user_id !== user.id) {
-      return res.status(403).json({ message: 'Только владелец семьи может отзывать приглашения' });
+      throw new ForbiddenError('Только владелец семьи может отзывать приглашения');
     }
 
     const { id } = req.params;
     const invite = await prisma.familyInvite.findFirst({ where: { id: Number(id), family_id: user.family_id } });
-    if (!invite) return res.status(404).json({ message: 'Приглашение не найдено' });
+    if (!invite) throw new NotFoundError('Приглашение не найдено');
 
-    await prisma.familyInvite.delete({ where: { id: invite.id } });
-    res.json({ message: 'Приглашение отозвано' });
+    // Вместо удаления помечаем как отозванное
+    await prisma.familyInvite.update({
+      where: { id: invite.id },
+      data: { status: 'revoked' }
+    });
+    res.status(204).send();
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-exports.getMe = async (req, res) => {
+exports.getMe = async (req, res, next) => {
   try {
     const user = req.user;
     let family = null;
@@ -249,148 +365,226 @@ exports.getMe = async (req, res) => {
       family: family ? {
         id: family.id,
         name: family.name,
-        invite_code: family.invite_code,
         owner_user_id: family.owner_user_id,
         members: family.members,
       } : null,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-exports.leaveFamily = async (req, res) => {
+exports.leaveFamily = async (req, res, next) => {
   try {
     const user = req.user;
     if (!user.family_id) {
-      return res.status(400).json({ message: 'Вы не состоите в семье' });
+      throw new ValidationError('Вы не состоите в семье');
     }
 
     const family = await prisma.family.findUnique({ where: { id: user.family_id } });
     const memberCount = await prisma.user.count({ where: { family_id: user.family_id } });
     
     if (family.owner_user_id === user.id && memberCount === 1) {
-      await prisma.transaction.updateMany({ where: { user_id: user.id }, data: { family_id: null } });
-      await prisma.budget.updateMany({ where: { user_id: user.id }, data: { family_id: null } });
-      await prisma.family.delete({ where: { id: family.id } });
-      await prisma.user.update({ where: { id: user.id }, data: { family_id: null } });
+      await prisma.$transaction(async (tx) => {
+        await tx.transaction.updateMany({ where: { user_id: user.id }, data: { family_id: null } });
+        await tx.budget.updateMany({ where: { user_id: user.id }, data: { family_id: null } });
+        await tx.family.delete({ where: { id: family.id } });
+        await tx.user.update({ where: { id: user.id }, data: { family_id: null } });
+      });
       return res.json({ message: 'Семья удалена, вы вышли из неё' });
     }
 
     if (family.owner_user_id === user.id) {
-      return res.status(400).json({ message: 'Вы владелец семьи. Сначала передайте права другому участнику.' });
+      throw new ValidationError('Вы владелец семьи. Сначала передайте права другому участнику.');
     }
 
-    await prisma.transaction.updateMany({ where: { user_id: user.id }, data: { family_id: null } });
-    await prisma.budget.updateMany({ where: { user_id: user.id }, data: { family_id: null } });
-    await prisma.user.update({ where: { id: user.id }, data: { family_id: null } });
+    // При выходе из семьи:
+    // - Личные транзакции (scope='personal'): family_id остаётся null
+    // - Семейные транзакции (scope='family'): НЕ меняем family_id (они остаются в семье)
+    // - Личные Goals/Wishes (scope='personal'): остаются личными
+    // - Семейные Goals/Wishes: остаются семейными
+    await prisma.$transaction(async (tx) => {
+      // Для личных транзакций (scope='personal') - убеждаемся что family_id=null
+      await tx.transaction.updateMany({
+        where: { user_id: user.id, scope: 'personal' },
+        data: { family_id: null }
+      });
+
+      // Для личных бюджетов - убеждаемся что family_id=null
+      await tx.budget.updateMany({
+        where: { user_id: user.id, family_id: family.id },
+        data: { family_id: null }
+      });
+
+      // Личные Goals/Wishes (family_id=null) остаются у пользователя.
+      // В2: СЕМЕЙНЫЕ цели/желания/долги переназначаем на владельца семьи — они
+      // принадлежат семье и не должны потеряться (Goal/Wish имеют onDelete: Cascade
+      // по user_id → при будущем удалении аккаунта семья лишилась бы общих целей).
+      await tx.goal.updateMany({ where: { user_id: user.id, family_id: family.id }, data: { user_id: family.owner_user_id } });
+      await tx.wish.updateMany({ where: { user_id: user.id, family_id: family.id }, data: { user_id: family.owner_user_id } });
+      await tx.debt.updateMany({ where: { user_id: user.id, family_id: family.id }, data: { user_id: family.owner_user_id } });
+
+      // Удаляем запись участника, иначе @@unique([user_id, family_id])
+      // заблокирует повторное вступление в эту же семью.
+      await tx.familyMember.deleteMany({
+        where: { user_id: user.id, family_id: family.id },
+      });
+
+      await tx.user.update({ where: { id: user.id }, data: { family_id: null } });
+    });
     res.json({ message: 'Вы покинули семью' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-exports.changePassword = async (req, res) => {
+exports.removeFamilyMember = async (req, res, next) => {
   try {
     const user = req.user;
-    const { oldPassword, newPassword } = req.body;
+    const targetUserId = req.params.memberId;
 
-    if (!oldPassword || !newPassword) {
-      return res.status(400).json({ message: 'Укажите старый и новый пароль' });
+    if (!user.family_id) {
+      throw new ValidationError('Вы не состоите в семье');
     }
 
-    const valid = await bcrypt.compare(oldPassword, user.password_hash);
-    if (!valid) {
-      return res.status(401).json({ message: 'Неверный старый пароль' });
+    const family = await prisma.family.findUnique({ where: { id: user.family_id } });
+    if (!family) {
+      throw new NotFoundError('Семья не найдена');
     }
 
-    const hashed = await bcrypt.hash(newPassword, 10);
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { password_hash: hashed },
+    if (family.owner_user_id !== user.id) {
+      throw new ForbiddenError('Только владелец может удалять участников');
+    }
+
+    if (targetUserId === user.id) {
+      throw new ValidationError('Используйте выход из семьи');
+    }
+
+    const targetUser = await prisma.user.findFirst({
+      where: { id: targetUserId, family_id: user.family_id }
     });
+    if (!targetUser) {
+      throw new NotFoundError('Участник не найден в вашей семье');
+    }
+
+    const memberCount = await prisma.user.count({ where: { family_id: user.family_id } });
+    if (memberCount <= 1) {
+      throw new ValidationError('Нельзя удалить последнего участника');
+    }
+
+    await prisma.$transaction([
+      prisma.transaction.updateMany({
+        where: { user_id: targetUserId, scope: 'personal' },
+        data: { family_id: null }
+      }),
+      prisma.budget.updateMany({
+        where: { user_id: targetUserId, family_id: user.family_id },
+        data: { family_id: null }
+      }),
+      // В2: семейные цели/желания/долги удаляемого участника переназначаем на
+      // владельца семьи (им является удаляющий, user.id) — они принадлежат семье.
+      prisma.goal.updateMany({ where: { user_id: targetUserId, family_id: user.family_id }, data: { user_id: user.id } }),
+      prisma.wish.updateMany({ where: { user_id: targetUserId, family_id: user.family_id }, data: { user_id: user.id } }),
+      prisma.debt.updateMany({ where: { user_id: targetUserId, family_id: user.family_id }, data: { user_id: user.id } }),
+      // Удаляем запись участника, иначе она осиротеет и заблокирует
+      // повторное вступление по @@unique([user_id, family_id]).
+      prisma.familyMember.deleteMany({
+        where: { user_id: targetUserId, family_id: user.family_id }
+      }),
+      prisma.user.update({
+        where: { id: targetUserId },
+        data: { family_id: null }
+      }),
+    ]);
+
+    logger.info(`User ${user.id} removed member ${targetUserId} from family ${user.family_id}`);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.transferOwnership = async (req, res, next) => {
+  try {
+    const user = req.user;
+    const { newOwnerId } = req.validated;
+
+    if (!user.family_id) {
+      throw new ValidationError('Вы не состоите в семье');
+    }
+
+    const family = await prisma.family.findUnique({ where: { id: user.family_id } });
+    if (!family) {
+      throw new NotFoundError('Семья не найдена');
+    }
+
+    if (family.owner_user_id !== user.id) {
+      throw new ForbiddenError('Только владелец может передавать права');
+    }
+
+    if (!newOwnerId) {
+      throw new ValidationError('Укажите нового владельца');
+    }
+
+    const newOwner = await prisma.user.findFirst({
+      where: { id: Number(newOwnerId), family_id: user.family_id }
+    });
+    if (!newOwner) {
+      throw new NotFoundError('Участник не найден в вашей семье');
+    }
+
+    // Владелец определяется только через family.owner_user_id (роли удалены, В3).
+    await prisma.family.update({
+      where: { id: user.family_id },
+      data: { owner_user_id: Number(newOwnerId) },
+    });
+
+    logger.info(`User ${user.id} transferred ownership of family ${user.family_id} to ${newOwnerId}`);
+    res.json({ message: 'Права владения переданы' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.changePassword = async (req, res, next) => {
+  try {
+    const user = req.user;
+    const { oldPassword, newPassword } = req.validated;
+
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { password_hash: true },
+    });
+
+    const valid = await bcrypt.compare(oldPassword, dbUser.password_hash);
+    if (!valid) {
+      throw new UnauthorizedError('Неверный старый пароль');
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 12);
+
+    await prisma.user.update({ where: { id: user.id }, data: { password_hash: hashed } });
+
+    // Отзываем все refresh-токены после смены пароля (TZ_v3 §2.6)
+    await revokeAllUserTokens(user.id);
+    logger.info(`User ${user.id} changed their password, all tokens revoked`);
+
     res.json({ message: 'Пароль изменён' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-exports.removeFamilyMember = async (req, res) => {
+exports.forgotPassword = async (req, res, next) => {
   try {
-    const user = req.user;
-    if (!user.family_id) return res.status(400).json({ message: 'Вы не состоите в семье' });
-
-    const family = await prisma.family.findUnique({ where: { id: user.family_id } });
-    if (!family) return res.status(404).json({ message: 'Семья не найдена' });
-    if (family.owner_user_id !== user.id) {
-      return res.status(403).json({ message: 'Только владелец семьи может удалять участников' });
-    }
-
-    const { memberId } = req.params;
-    const member = await prisma.user.findUnique({ where: { id: Number(memberId) } });
-    if (!member || member.family_id !== family.id) {
-      return res.status(404).json({ message: 'Участник не найден в этой семье' });
-    }
-    if (member.id === family.owner_user_id) {
-      return res.status(400).json({ message: 'Нельзя удалить владельца семьи' });
-    }
-
-    await prisma.transaction.updateMany({ where: { user_id: member.id }, data: { family_id: null } });
-    await prisma.budget.updateMany({ where: { user_id: member.id }, data: { family_id: null } });
-    await prisma.user.update({ where: { id: member.id }, data: { family_id: null } });
-    res.json({ message: `Участник ${member.name} удалён из семьи` });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
-  }
-};
-
-exports.transferOwnership = async (req, res) => {
-  try {
-    const user = req.user;
-    if (!user.family_id) return res.status(400).json({ message: 'Вы не состоите в семье' });
-
-    const family = await prisma.family.findUnique({ where: { id: user.family_id } });
-    if (!family) return res.status(404).json({ message: 'Семья не найдена' });
-    if (family.owner_user_id !== user.id) {
-      return res.status(403).json({ message: 'Только владелец семьи может передать владение' });
-    }
-
-    const { newOwnerId } = req.body;
-    if (!newOwnerId || newOwnerId === user.id) {
-      return res.status(400).json({ message: 'Укажите другого участника для передачи владения' });
-    }
-
-    const newOwner = await prisma.user.findUnique({ where: { id: newOwnerId } });
-    if (!newOwner || newOwner.family_id !== family.id) {
-      return res.status(404).json({ message: 'Участник не найден в этой семье' });
-    }
-
-    await prisma.family.update({
-      where: { id: family.id },
-      data: { owner_user_id: newOwnerId },
-    });
-    res.json({ message: `Владение передано участнику ${newOwner.name}` });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
-  }
-};
-
-exports.forgotPassword = async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ message: 'Укажите email' });
+    const { email } = req.validated;
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) return res.json({ message: 'Если email существует, код для сброса отправлен' });
 
     await prisma.passwordResetToken.deleteMany({ where: { user_id: user.id } });
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = crypto.randomBytes(8).toString('hex');
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
     await prisma.passwordResetToken.create({
@@ -404,22 +598,24 @@ exports.forgotPassword = async (req, res) => {
     await sendPasswordResetEmail(email, code);
     res.json({ message: 'Если email существует, код для сброса отправлен' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
   }
 };
 
-exports.resetPassword = async (req, res) => {
+exports.resetPassword = async (req, res, next) => {
   try {
     const { code, newPassword } = req.body;
-    if (!code || !newPassword) return res.status(400).json({ message: 'Укажите код и новый пароль' });
+    if (!code || !newPassword) throw new ValidationError('Укажите код и новый пароль');
+    if (newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+      throw new ValidationError('Пароль должен содержать минимум 8 символов, заглавную, строчную буквы, цифру и спецсимвол');
+    }
 
     const resetToken = await prisma.passwordResetToken.findFirst({
       where: { token: code, expires_at: { gt: new Date() } },
     });
-    if (!resetToken) return res.status(400).json({ message: 'Недействительный или истёкший код' });
+    if (!resetToken) throw new ValidationError('Недействительный или истёкший код');
 
-    const hashed = await bcrypt.hash(newPassword, 10);
+    const hashed = await bcrypt.hash(newPassword, 12);
     await prisma.user.update({
       where: { id: resetToken.user_id },
       data: { password_hash: hashed },
@@ -428,7 +624,136 @@ exports.resetPassword = async (req, res) => {
 
     res.json({ message: 'Пароль успешно изменён' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Ошибка сервера' });
+    next(error);
+  }
+};
+
+exports.refreshToken = async (req, res, next) => {
+  try {
+    const refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
+    if (!refreshToken) {
+      return res.status(400).json({ message: 'Refresh token required' });
+    }
+
+    const storedToken = await prisma.refreshToken.findUnique({
+      where: { token: refreshToken },
+    });
+
+    if (!storedToken) {
+      throw new UnauthorizedError('Invalid refresh token');
+    }
+
+    if (storedToken.revoked) {
+      throw new UnauthorizedError('Refresh token has been revoked');
+    }
+
+    if (storedToken.expires_at < new Date()) {
+      throw new UnauthorizedError('Refresh token has expired');
+    }
+
+    // Grace-период ротации: уже ротированный токен принимается ещё REFRESH_GRACE_MS
+    // (параллельные вкладки не разлогиниваются). После окна — отклоняем как устаревший.
+    if (storedToken.rotated_at && storedToken.rotated_at.getTime() + REFRESH_GRACE_MS < Date.now()) {
+      throw new UnauthorizedError('Refresh token has been rotated');
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: storedToken.user_id },
+    });
+
+    if (!user) {
+      throw new UnauthorizedError('User not found');
+    }
+
+    // Помечаем как ротированный (не отзываем сразу — иначе гонка вкладок = разлогин).
+    if (!storedToken.rotated_at) {
+      await prisma.refreshToken.update({ where: { id: storedToken.id }, data: { rotated_at: new Date() } });
+    }
+
+    const newToken = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { algorithm: 'HS256', expiresIn: '7d' });
+    const newRefreshTokenData = await generateRefreshToken(user.id);
+
+    logger.info({ userId: user.id, action: 'refresh_token' }, 'Token refreshed');
+
+    const cookieOptions = { 
+      httpOnly: true, 
+      maxAge: 7 * 24 * 60 * 60 * 1000, 
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', 
+      path: '/',
+      secure: process.env.NODE_ENV === 'production'
+    };
+    res.cookie('token', newToken, cookieOptions);
+    res.cookie('refreshToken', newRefreshTokenData.token, { ...cookieOptions, maxAge: 30 * 24 * 60 * 60 * 1000 });
+    res.json({
+      token: newToken,
+      refreshToken: newRefreshTokenData.token,
+      refreshTokenExpiresAt: newRefreshTokenData.expiresAt,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.revokeToken = async (req, res, next) => {
+  try {
+    const refreshToken = req.body?.refreshToken || req.cookies?.refreshToken;
+    if (!refreshToken) {
+      return res.status(400).json({ message: 'Refresh token required' });
+    }
+
+    await revokeRefreshToken(refreshToken);
+    logger.info({ action: 'revoke_token' }, 'Refresh token revoked');
+
+    res.json({ message: 'Token revoked successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.logout = async (req, res, next) => {
+  try {
+    const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
+    
+    if (refreshToken) {
+      await revokeRefreshToken(refreshToken);
+    }
+    
+    logger.info({ userId: req.user?.id, action: 'logout' }, 'User logged out');
+    res.clearCookie('token', { path: '/' });
+    res.clearCookie('refreshToken', { path: '/' });
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.updateProfile = async (req, res, next) => {
+  try {
+    const user = req.user;
+    const { name, email } = req.validated || {};
+    const updates = {};
+
+    if (name && name.trim()) updates.name = name.trim();
+
+    if (email && email.trim() && email !== user.email) {
+      const existing = await prisma.user.findUnique({ where: { email: email.trim() } });
+      if (existing) throw new ConflictError('Email уже используется другим аккаунтом');
+      updates.email = email.trim();
+    }
+
+    if (!Object.keys(updates).length) {
+      return res.json({ id: user.id, email: user.email, name: user.name, family_id: user.family_id });
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: updates,
+      select: { id: true, email: true, name: true, family_id: true },
+    });
+
+    logger.info({ userId: user.id, updates: Object.keys(updates) }, 'Profile updated');
+    res.json(updated);
+  } catch (error) {
+    next(error);
   }
 };

@@ -40,10 +40,27 @@ jobs:
         run: npx prisma db push --accept-data-loss
         env:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
-      
+
       - name: Run tests
         env:
           DATABASE_URL: postgresql://testuser:testpass@localhost:5432/testdb
           JWT_SECRET: test_secret_for_ci
           FRONTEND_URL: http://localhost:5173
         run: npm test
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './client/package-lock.json'
+      - name: Install client dependencies
+        run: npm ci --legacy-peer-deps
+        working-directory: ./client
+      - name: Frontend tests
+        run: CI=true npx react-scripts test --watchAll=false --no-coverage
+        working-directory: ./client

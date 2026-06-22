@@ -1,62 +1,92 @@
 const request = require('supertest');
 const app = require('./testApp');
-const { prisma } = require('../lib/models');
+const prisma = require('../lib/prisma-client');
+const { createTestUser, generateToken, cleanupUser } = require('./helpers');
 
-let testUser, testToken, testCategory;
+let user, token;
 
 beforeAll(async () => {
-  const user = await prisma.user.create({
-    data: {
-      email: `category_test_${Date.now()}@example.com`,
-      password_hash: '$2b$10$rS1H5xqE8pV2Z3kL4mN6OeW7yX8zA9bC0dE1fG2hI3jK4lM5nO6pQ',
-      name: 'Category Test User',
-      family_id: null,
-    }
-  });
-
-  const category = await prisma.category.create({
-    data: { name: 'Тест Категория', family_id: null, type: 'expense' }
-  });
-
-  await prisma.transaction.create({
-    data: {
-      user_id: user.id,
-      family_id: null,
-      category_id: category.id,
-      amount: 5000,
-      type: 'expense',
-      date: new Date()
-    }
-  });
-
-  testUser = user;
-  testCategory = category;
-  testToken = require('jsonwebtoken').sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-});
+  user = await createTestUser();
+  token = generateToken(user.id);
+}, 30000);
 
 afterAll(async () => {
-  if (testUser) {
-    await prisma.transaction.deleteMany({ where: { user_id: testUser.id } });
-    await prisma.category.delete({ where: { id: testCategory.id } });
-    await prisma.user.delete({ where: { id: testUser.id } });
-  }
+  await cleanupUser(user?.id);
 });
 
-describe('Categories in Transactions', () => {
-  it('GET /api/transactions should return category_name', async () => {
-    const res = await request(app)
-      .get('/api/transactions')
-      .set('Authorization', `Bearer ${testToken}`);
+describe('Categories', () => {
+  let catId;
 
-    expect(res.statusCode).toBe(200);
-    
-    const items = res.body.items || res.body;
-    expect(items).toBeDefined();
-    
-    const tx = items.find(t => t.type === 'expense');
-    if (tx) {
-      expect(tx).toHaveProperty('category_name');
-      console.log('category_name:', tx.category_name);
-    }
+  describe('POST /api/categories', () => {
+    test('creates expense category', async () => {
+      const res = await request(app)
+        .post('/api/categories')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ name: 'Food', type: 'expense' });
+      expect(res.status).toBe(201);
+      catId = res.body.id;
+    });
+
+    test('creates income category', async () => {
+      const res = await request(app)
+        .post('/api/categories')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ name: 'Salary', type: 'income' });
+      expect(res.status).toBe(201);
+    });
+
+    test('returns 400 for missing name', async () => {
+      const res = await request(app)
+        .post('/api/categories')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ type: 'expense' });
+      expect(res.status).toBe(400);
+    });
+
+    test('returns 400 for invalid type', async () => {
+      const res = await request(app)
+        .post('/api/categories')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ name: 'Bad', type: 'invalid' });
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('GET /api/categories', () => {
+    test('returns categories list', async () => {
+      const res = await request(app)
+        .get('/api/categories')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+    });
+  });
+
+  describe('PATCH /api/categories/:id', () => {
+    test('updates category name', async () => {
+      if (!catId) return;
+      const res = await request(app)
+        .patch(`/api/categories/${catId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ name: 'Updated' });
+      expect(res.status === 200 || res.status === 204).toBe(true);
+    });
+  });
+
+  describe('DELETE /api/categories/:id', () => {
+    test('deletes category', async () => {
+      if (!catId) return;
+      const res = await request(app)
+        .delete(`/api/categories/${catId}`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status === 200 || res.status === 204).toBe(true);
+    });
+
+    test('returns 404 for non-existent category', async () => {
+      const res = await request(app)
+        .delete('/api/categories/999999')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(404);
+    });
   });
 });

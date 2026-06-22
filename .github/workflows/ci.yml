@@ -29,51 +29,117 @@ jobs:
         run: npx prisma generate
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
-      - name: Migrate
-        run: npx prisma migrate deploy
+      - name: Push schema
+        run: npx prisma db push --accept-data-loss
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
-      - name: Seed
-        run: node scripts/prisma-seed.js
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
+      # Сид НЕ нужен: Jest создаёт свои данные через хелперы (createTestUser).
+      # Сид переехал в job e2e, где он реально используется (test@example.com).
       - name: Jest tests
         run: npm test
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
+          JWT_SECRET: test_secret_for_ci
+          FRONTEND_URL: http://localhost:5173
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install client deps
+        run: npm ci --legacy-peer-deps
+        working-directory: ./client
+      - name: Frontend tests
+        run: npx react-scripts test --watchAll=false --no-coverage
+        working-directory: ./client
 
   smoke:
     runs-on: ubuntu-latest
     needs: test
+    services:
+      postgres:
+        image: postgres:15
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: finance_db
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
       - run: npm ci
+      - name: Generate Prisma
+        run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
+      - name: Push schema
+        run: npx prisma db push --accept-data-loss
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
       - name: Start server
         run: |
           node server.js &
           sleep 5
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
+          JWT_SECRET: test_secret_for_ci
+          FRONTEND_URL: http://localhost:5173
       - name: Smoke tests
         run: npm run test:smoke
         env:
           CI: true
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
+          JWT_SECRET: test_secret_for_ci
+          FRONTEND_URL: http://localhost:5173
 
   e2e:
     runs-on: ubuntu-latest
     needs: smoke
+    services:
+      postgres:
+        image: postgres:15
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: finance_db
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
       - run: npm ci
+      - name: Generate Prisma
+        run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
+      - name: Push schema
+        run: npx prisma db push --accept-data-loss
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
+      # Сид нужен e2e: login.spec/transaction.spec логинятся под test@example.com / 123456.
+      - name: Seed
+        run: node scripts/prisma-seed.js
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
       - name: Install Playwright
         run: npx playwright install --with-deps
-      - name: Start server
-        run: |
-          node server.js &
-          sleep 5
+      # Сервер поднимает сам Playwright (webServer в playwright.config.ts) и ждёт /health.
       - name: Playwright tests
         run: npx playwright test
         env:
           CI: true
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finance_db
+          JWT_SECRET: test_secret_for_ci
+          FRONTEND_URL: http://localhost:5173
