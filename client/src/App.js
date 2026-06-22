@@ -7,6 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import OnboardingModal from './components/OnboardingModal';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { UnsavedChangesProvider } from './contexts/UnsavedChangesContext';
+import { flags } from './config/flags';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
@@ -137,22 +138,27 @@ function AppRoutes() {
               <Route path="settings" element={<Settings />} />
             </Route>
 
-            {/* Family Space */}
-            <Route path="/family" element={<PrivateRoute><Layout space="family" currentSpace={currentSpace} onSpaceChange={setCurrentSpace} /></PrivateRoute>}>
-              <Route index element={<Navigate to="/family/dashboard" replace />} />
-              <Route path="dashboard" element={<DashboardWithWidgets space="family" />} />
-              <Route path="transactions" element={<Transactions space="family" />} />
-              <Route path="goals" element={<GoalsWishes space="family" />} />
-              <Route path="safety-pillow" element={<SafetyPillow space="family" />} />
-              <Route path="analytics" element={<Analytics space="family" />} />
-              <Route path="budgets" element={<Budgets space="family" />} />
-              <Route path="recurring" element={<Recurring space="family" />} />
-              <Route path="debts" element={<Debts space="family" />} />
-              <Route path="import" element={<Import />} />
-              <Route path="export" element={<Export space="family" />} />
-              <Route path="manage" element={<Family />} />
-              <Route path="settings" element={<Settings />} />
-            </Route>
+            {/* Family Space — только если включён семейный слой (flags.familyEnabled).
+                По умолчанию приложение «личный-только»: /family/* редиректит на личное. */}
+            {flags.familyEnabled ? (
+              <Route path="/family" element={<PrivateRoute><Layout space="family" currentSpace={currentSpace} onSpaceChange={setCurrentSpace} /></PrivateRoute>}>
+                <Route index element={<Navigate to="/family/dashboard" replace />} />
+                <Route path="dashboard" element={<DashboardWithWidgets space="family" />} />
+                <Route path="transactions" element={<Transactions space="family" />} />
+                <Route path="goals" element={<GoalsWishes space="family" />} />
+                <Route path="safety-pillow" element={<SafetyPillow space="family" />} />
+                <Route path="analytics" element={<Analytics space="family" />} />
+                <Route path="budgets" element={<Budgets space="family" />} />
+                <Route path="recurring" element={<Recurring space="family" />} />
+                <Route path="debts" element={<Debts space="family" />} />
+                <Route path="import" element={<Import />} />
+                <Route path="export" element={<Export space="family" />} />
+                <Route path="manage" element={<Family />} />
+                <Route path="settings" element={<Settings />} />
+              </Route>
+            ) : (
+              <Route path="/family/*" element={<Navigate to="/personal/dashboard" replace />} />
+            )}
 
             <Route path="/" element={<Navigate to="/personal/dashboard" replace />} />
             <Route path="*" element={<NotFound />} />

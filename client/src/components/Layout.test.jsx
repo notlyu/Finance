@@ -64,30 +64,19 @@ describe('Layout', () => {
     expect(await screen.findByText('Выйти')).toBeInTheDocument();
   });
 
-  // T3.1 / T3.3 — индикатор пространства и хоткей (только для участника семьи)
-  describe('family member: space badge + Alt+S hotkey', () => {
+  // Личный-только режим (familyEnabled=false): семейного UI нет даже при family_id.
+  describe('personal-only: no family UI', () => {
     beforeEach(() => { mockUser.family_id = 7; mockNavigate.mockClear(); });
     afterEach(() => { delete mockUser.family_id; });
 
-    it('shows the active-space badge in the sidebar (personal)', async () => {
-      render(<Layout space="personal" />);
-      expect(await screen.findByText('Личное пространство')).toBeInTheDocument();
-    });
-
-    it('shows the active-space badge in the sidebar (family)', async () => {
-      render(<Layout space="family" />);
-      expect(await screen.findByText('Семейное пространство')).toBeInTheDocument();
-    });
-
-    it('Alt+S switches to the other space', async () => {
+    it('does not show the space badge even with family_id', async () => {
       render(<Layout space="personal" />);
       await screen.findByText('Выйти');
-      fireEvent.keyDown(window, { code: 'KeyS', key: 's', altKey: true });
-      expect(mockNavigate).toHaveBeenCalledWith('/family/dashboard');
+      expect(screen.queryByText('Личное пространство')).not.toBeInTheDocument();
+      expect(screen.queryByText('Семейное пространство')).not.toBeInTheDocument();
     });
 
-    it('does not register the hotkey for a solo user', async () => {
-      delete mockUser.family_id;
+    it('Alt+S does not switch space', async () => {
       render(<Layout space="personal" />);
       await screen.findByText('Выйти');
       fireEvent.keyDown(window, { code: 'KeyS', key: 's', altKey: true });

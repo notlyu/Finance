@@ -128,11 +128,9 @@ describe('Settings', () => {
     });
   });
 
-  it('shows family settings tab when user has family_id', async () => {
+  it('does not show family settings tab (personal-only, familyEnabled off)', async () => {
     render(<Settings />);
     await screen.findByText('Настройки');
-    expect(screen.getByText('Семья')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('Семья'));
-    expect(screen.getByText('Настройки семьи')).toBeInTheDocument();
+    expect(screen.queryByText('Семья')).not.toBeInTheDocument();
   });
 });

@@ -2,7 +2,11 @@ import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
+import { flags } from '../config/flags';
 import NotificationBell from './NotificationBell';
+
+// Семейный слой в UI включается флагом (по умолчанию выкл → «личный-только»).
+const FAMILY_UI = flags.familyEnabled;
 
 export const FAMILY_CHANGED_EVENT = 'family:changed';
 
@@ -33,7 +37,7 @@ export default function Layout({ space = 'personal', currentSpace, onSpaceChange
 
   // T3.3 — хоткей Alt+S для переключения пространства (только при наличии семьи).
   useEffect(() => {
-    if (!user?.family_id) return undefined;
+    if (!FAMILY_UI || !user?.family_id) return undefined;
     const onKey = (e) => {
       if (e.altKey && (e.code === 'KeyS' || e.key === 's' || e.key === 'S')) {
         e.preventDefault();
@@ -125,7 +129,7 @@ export default function Layout({ space = 'personal', currentSpace, onSpaceChange
         </div>
 
         {/* T3.1 — бейдж активного пространства (desktop): всегда видно «где я», клик = переключение (Alt+S) */}
-        {user?.family_id && (
+        {FAMILY_UI && user?.family_id && (
           <button
             onClick={toggleSpace}
             title="Переключить пространство (Alt+S)"
@@ -236,7 +240,7 @@ export default function Layout({ space = 'personal', currentSpace, onSpaceChange
           </button>
           <h2 className="font-headline text-lg font-semibold text-on-surface">{pageTitle}</h2>
           {/* Space Switcher */}
-          {user?.family_id && (
+          {FAMILY_UI && user?.family_id && (
             <button
               onClick={toggleSpace}
               title={space === 'personal' ? 'Личное пространство — нажмите (или Alt+S), чтобы переключиться на семейное' : 'Семейное пространство — нажмите (или Alt+S), чтобы переключиться на личное'}

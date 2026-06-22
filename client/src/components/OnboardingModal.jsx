@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { flags } from '../config/flags';
 
 const ONBOARDING_KEY = 'onboarding_completed';
-// Версия зависит от флага: при включённой механике пространств бамп до '2' покажет
-// обновлённый тур (со слайдом «Личное и Семья») существующим пользователям один раз.
-const ONBOARDING_VERSION = flags.spaceUxV2 ? '2' : '1';
+// Слайд «Личное и Семья» — только при включённом семейном слое.
+const SHOW_SPACES_SLIDE = flags.spaceUxV2 && flags.familyEnabled;
+// Версия: бамп до '2' только когда есть слайд про пространства.
+const ONBOARDING_VERSION = SHOW_SPACES_SLIDE ? '2' : '1';
 
 // T4.1 — слайд про модель «Личное/Семья» (текст из ТЗ §1.4). Показываем только при flag.
 const spacesSlide = {
@@ -17,10 +18,10 @@ const spacesSlide = {
 
 const baseSlides = [
   {
-    id: 'family',
-    icon: 'groups',
-    title: 'Объедините финансы',
-    description: 'Создайте семейный профиль и пригласите близких. Общие цели, бюджеты и желания — всё вместе.',
+    id: 'welcome',
+    icon: 'wallet',
+    title: 'Все финансы в одном месте',
+    description: 'Учитывайте доходы и расходы, ведите счета и держите бюджет под контролем.',
     color: '#3525cd',
   },
   {
@@ -39,8 +40,8 @@ const baseSlides = [
   },
 ];
 
-// Слайд «Личное/Семья» вставляем вторым (после знакомства с семьёй), только при флаге.
-const slides = flags.spaceUxV2
+// Слайд «Личное/Семья» вставляем вторым — только при включённом семейном слое.
+const slides = SHOW_SPACES_SLIDE
   ? [baseSlides[0], spacesSlide, ...baseSlides.slice(1)]
   : baseSlides;
 

@@ -88,7 +88,7 @@ function colSpanClass(cols) {
 
 export default function DashboardWithWidgets({ space: routeSpace }) {
   const { currentUser, selectedMember } = useOutletContext() || {};
-  const hasFamily = currentUser?.family_id;
+  const hasFamily = flags.familyEnabled && currentUser?.family_id;
 
   const [widgetConfig, setWidgetConfig] = useState([]);
   const [widgetConfigLoading, setWidgetConfigLoading] = useState(true);

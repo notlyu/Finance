@@ -112,7 +112,7 @@ describe('DashboardWithWidgets', () => {
   });
 
   // T2.1 — двойной баланс: участник семьи видит оба пространства сразу
-  describe('dual-balance strip (family member)', () => {
+  describe('personal-only: no dual-balance (familyEnabled off)', () => {
     beforeEach(() => {
       mockOutlet = {
         currentUser: { id: 1, name: 'Test', family_id: 7 },
@@ -126,21 +126,11 @@ describe('DashboardWithWidgets', () => {
       });
     });
 
-    it('renders both Личное and Семья summaries with their amounts', async () => {
-      render(<DashboardWithWidgets space="family" />);
-      expect(await screen.findByText('Личное')).toBeInTheDocument();
-      expect(screen.getByText('Семья')).toBeInTheDocument();
-      // личный «доступно» виден только в дуал-карте (hero показывает семейное)
-      expect(screen.getByText(/600\s*000/)).toBeInTheDocument();
-      // семейное «доступно» — и в карте, и в hero
-      expect(screen.getAllByText(/250\s*000/).length).toBeGreaterThanOrEqual(1);
-    });
-
-    it('navigates to the other space when its card is clicked', async () => {
-      render(<DashboardWithWidgets space="family" />);
-      const personalCard = (await screen.findByText('Личное')).closest('button');
-      fireEvent.click(personalCard);
-      expect(mockNavigate).toHaveBeenCalledWith('/personal/dashboard');
+    it('does not render the dual-balance cards even with family_id', async () => {
+      render(<DashboardWithWidgets space="personal" />);
+      await screen.findByText('Личные финансы');
+      expect(screen.queryByText('Личное')).not.toBeInTheDocument();
+      expect(screen.queryByText('Семья')).not.toBeInTheDocument();
     });
   });
 });

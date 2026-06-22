@@ -6,6 +6,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import logger from '../utils/logger';
 import { SkeletonCard } from '../components/ui/Skeleton';
 import Toggle from '../components/ui/Toggle';
+import { flags } from '../config/flags';
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -225,7 +226,7 @@ export default function Settings() {
       { key: 'categories', label: 'Категории', icon: 'category' },
       { key: 'theme', label: 'Оформление', icon: 'palette' },
     ];
-    if (user?.family_id) {
+    if (flags.familyEnabled && user?.family_id) {
       items.push({ key: 'family', label: 'Семья', icon: 'groups' });
     }
     return items;
@@ -488,7 +489,7 @@ export default function Settings() {
       )}
 
       {/* Family Tab */}
-      {activeTab === 'family' && user?.family_id && (
+      {activeTab === 'family' && flags.familyEnabled && user?.family_id && (
         <div className="bg-surface-container-lowest p-8 rounded-3xl shadow-card border border-outline-variant/60">
           <h3 className="text-lg font-bold font-headline mb-6">Настройки семьи</h3>
           <div className="space-y-6 max-w-lg">

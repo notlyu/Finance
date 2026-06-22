@@ -10,6 +10,7 @@ import TransactionForm from '../components/TransactionForm';
 import logger from '../utils/logger';
 import { SkeletonTable } from '../components/ui/Skeleton';
 import { localDateStr } from '../utils/date';
+import { flags } from '../config/flags';
 
 export default function Transactions({ space = 'personal' }) {
   const navigate = useNavigate();
@@ -37,7 +38,7 @@ export default function Transactions({ space = 'personal' }) {
   const [selectedIds, setSelectedIds] = useState([]);
   const { register, handleSubmit, reset, setValue, watch } = useForm();
   
-  const hasFamily = currentUser?.family_id;
+  const hasFamily = flags.familyEnabled && currentUser?.family_id;
 
   const updateDateFilter = (preset) => {
     setDatePreset(preset);
