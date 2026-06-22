@@ -287,18 +287,6 @@ export default function Login() {
             </div>
           </div>
 
-          {/* Social proof */}
-          <div className="mt-8 flex flex-col items-center gap-2">
-            <div className="flex -space-x-3 overflow-hidden">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="inline-block h-8 w-8 rounded-full ring-4 ring-surface bg-surface-container-high flex items-center justify-center text-xs font-bold text-primary">
-                  {String.fromCharCode(64 + i)}
-                </div>
-              ))}
-              <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface-container-high ring-4 ring-surface text-[10px] font-bold text-primary">12k+</div>
-            </div>
-            <p className="text-xs font-medium text-outline text-center">Присоединяйтесь к 12,000+ семей, управляющих капиталом эффективно.</p>
-          </div>
         </div>
       </main>
     </div>

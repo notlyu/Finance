@@ -91,10 +91,10 @@ async function seed() {
     console.log(`Categories: ${Object.keys(cats).length}`);
 
     const accountsConfig = [
-      { name: 'Дебетовая карта', type: 'debit', balance: 45000.0 },
-      { name: 'Накопительный', type: 'savings', balance: 180000.0 },
+      { name: 'Дебетовая карта', type: 'debit', balance: 420000.0 },
+      { name: 'Накопительный', type: 'savings', balance: 250000.0 },
       { name: 'Кредитная карта', type: 'credit', balance: -15000.0 },
-      { name: 'Наличные', type: 'cash', balance: 8500.0 },
+      { name: 'Наличные', type: 'cash', balance: 35000.0 },
     ];
 
     const accounts = {};
