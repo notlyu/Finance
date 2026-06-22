@@ -45,7 +45,8 @@ describe('TransactionFilters', () => {
     expect(screen.getByText('Тип')).toBeInTheDocument();
     expect(screen.getByText('Категория')).toBeInTheDocument();
     expect(screen.getByText('Счёт')).toBeInTheDocument();
-    expect(screen.getByText('Фильтр')).toBeInTheDocument();
+    // scope-фильтр («Фильтр») скрыт в личном-только режиме
+    expect(screen.queryByText('Фильтр')).not.toBeInTheDocument();
     expect(screen.getByText('Сбросить все фильтры')).toBeInTheDocument();
   });
 
@@ -119,11 +120,9 @@ describe('TransactionFilters', () => {
     expect(props.onCustomEndChange).toHaveBeenCalledWith('2025-01-15');
   });
 
-  it('calls onIncludePrivateChange when private filter changes', () => {
-    const { props } = renderFilters();
-    const selects = screen.getAllByRole('combobox');
-    const filterSelect = selects[4];
-    fireEvent.change(filterSelect, { target: { value: 'my' } });
-    expect(props.onIncludePrivateChange).toHaveBeenCalledWith('my');
+  it('does not render the scope filter in personal-only mode', () => {
+    renderFilters();
+    // в личном-только режиме остаётся 4 селекта: период, тип, категория, счёт
+    expect(screen.getAllByRole('combobox')).toHaveLength(4);
   });
 });

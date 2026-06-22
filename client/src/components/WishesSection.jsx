@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
+import { flags } from '../config/flags';
 import Modal from './Modal';
 import ConfirmModal from './ConfirmModal';
 import FormattedInput from './ui/FormattedInput';
@@ -228,13 +229,15 @@ export default function WishesSection({ wishes, showArchived, categories, accoun
               <option value="postponed">Отложено</option>
             </select>
           </div>
-          <div className="flex items-center justify-between p-4 bg-surface-container rounded-3xl">
-            <div>
-              <span className="text-sm font-semibold text-on-surface">Скрыть от семьи</span>
-              <p className="text-xs text-on-surface-variant">Желание будет видно только вам</p>
+          {flags.familyEnabled && (
+            <div className="flex items-center justify-between p-4 bg-surface-container rounded-3xl">
+              <div>
+                <span className="text-sm font-semibold text-on-surface">Скрыть от семьи</span>
+                <p className="text-xs text-on-surface-variant">Желание будет видно только вам</p>
+              </div>
+              <Toggle checked={watch('scope') === 'personal'} onChange={() => setValue('scope', watch('scope') === 'personal' ? 'family' : 'personal')} />
             </div>
-            <Toggle checked={watch('scope') === 'personal'} onChange={() => setValue('scope', watch('scope') === 'personal' ? 'family' : 'personal')} />
-          </div>
+          )}
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={() => setWishModalOpen(false)} className="btn-ghost px-6 py-3">Отмена</button>
             <button type="submit" className="btn-primary px-8 py-3">Сохранить</button>

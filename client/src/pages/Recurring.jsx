@@ -238,7 +238,6 @@ export default function Recurring({ space = 'personal' }) {
       <div className="space-y-2">
         {sortedItems.map((i) => {
           const isIncome = i.type === 'income';
-          const isFamily = i.scope === 'family' || i.scope === 'shared';
           return (
             <div key={i.id} className={`group flex items-center gap-3 px-3 py-3 rounded-2xl border border-outline-variant/60 bg-surface-container-lowest transition-colors hover:bg-surface-container ${!i.active ? 'opacity-60' : ''}`}>
               <span className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${isIncome ? 'bg-secondary/10 text-secondary' : 'bg-surface-container-high text-on-surface-variant'}`}>
@@ -247,8 +246,7 @@ export default function Recurring({ space = 'personal' }) {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-on-surface truncate">{i.category_name}</p>
                 <p className="text-xs text-on-surface-variant truncate">
-                  каждое {i.day_of_month}-е · {isFamily ? 'Семейное' : 'Личное'}
-                  {i.comment ? ` · ${i.comment}` : ''}
+                  каждое {i.day_of_month}-е число{i.comment ? ` · ${i.comment}` : ''}
                 </p>
               </div>
               <span className={`text-sm font-bold shrink-0 ${isIncome ? 'text-secondary' : 'text-on-surface'}`}>

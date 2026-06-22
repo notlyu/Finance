@@ -421,19 +421,21 @@ export default function Settings() {
                   <label className="block text-xs font-bold uppercase tracking-widest text-outline mb-2">Остаток (₽)</label>
                   <input type="number" value={accountForm.balance} onChange={(e) => setAccountForm(prev => ({ ...prev, balance: e.target.value }))} className="w-full bg-surface-container-low dark:bg-surface-container-high border-none rounded-3xl py-4 px-5 text-on-surface dark:text-on-surface focus:ring-2 focus:ring-primary/20 transition-all" placeholder="0" step="0.01" />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-outline mb-2">Доступность</label>
-                  <div className="flex gap-3">
-                    <button type="button" onClick={() => setAccountForm(prev => ({ ...prev, scope: 'personal' }))} className={`flex-1 py-4 rounded-3xl font-semibold transition-all ${accountForm.scope === 'personal' ? 'bg-primary text-white' : 'bg-surface-container-low dark:bg-surface-container-high text-on-surface-variant'}`}>
-                      <span className="material-symbols-outlined text-sm mr-1 align-middle">lock</span>
-                      Личный
-                    </button>
-                    <button type="button" onClick={() => setAccountForm(prev => ({ ...prev, scope: 'family' }))} className={`flex-1 py-4 rounded-3xl font-semibold transition-all ${accountForm.scope === 'family' ? 'bg-primary text-white' : 'bg-surface-container-low dark:bg-surface-container-high text-on-surface-variant'}`}>
-                      <span className="material-symbols-outlined text-sm mr-1 align-middle">home</span>
-                      Семейный
-                    </button>
+                {flags.familyEnabled && (
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-outline mb-2">Доступность</label>
+                    <div className="flex gap-3">
+                      <button type="button" onClick={() => setAccountForm(prev => ({ ...prev, scope: 'personal' }))} className={`flex-1 py-4 rounded-3xl font-semibold transition-all ${accountForm.scope === 'personal' ? 'bg-primary text-white' : 'bg-surface-container-low dark:bg-surface-container-high text-on-surface-variant'}`}>
+                        <span className="material-symbols-outlined text-sm mr-1 align-middle">lock</span>
+                        Личный
+                      </button>
+                      <button type="button" onClick={() => setAccountForm(prev => ({ ...prev, scope: 'family' }))} className={`flex-1 py-4 rounded-3xl font-semibold transition-all ${accountForm.scope === 'family' ? 'bg-primary text-white' : 'bg-surface-container-low dark:bg-surface-container-high text-on-surface-variant'}`}>
+                        <span className="material-symbols-outlined text-sm mr-1 align-middle">home</span>
+                        Семейный
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
                 <button type="submit" className="w-full py-4 bg-primary text-white rounded-3xl font-bold text-lg hover:shadow-xl hover:shadow-primary/20 transition-all">
                   {editingAccountId ? 'Сохранить изменения' : 'Создать счёт'}
                 </button>
@@ -463,7 +465,7 @@ export default function Settings() {
                           <span className="text-sm font-semibold text-on-surface">{Number(acc.balance).toLocaleString('ru-RU')} ₽</span>
                           <span className="text-xs text-on-surface-variant">• {acc.currency}</span>
                           {acc.is_liquid && <span className="text-[10px] bg-secondary/10 dark:bg-secondary/20 text-secondary dark:text-secondary px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Ликвидный</span>}
-                          {acc.scope === 'family' && <span className="text-[10px] bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary px-1.5 py-0.5 rounded font-bold uppercase flex items-center gap-0.5"><span className="material-symbols-outlined text-[10px]">home</span>Семейный</span>}
+                          {flags.familyEnabled && acc.scope === 'family' && <span className="text-[10px] bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary px-1.5 py-0.5 rounded font-bold uppercase flex items-center gap-0.5"><span className="material-symbols-outlined text-[10px]">home</span>Семейный</span>}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -680,7 +682,7 @@ export default function Settings() {
                             }`}>
                               {cat.type === 'expense' ? 'Расход' : 'Доход'}
                             </span>
-                            {cat.family_id && (
+                            {flags.familyEnabled && cat.family_id && (
                               <span className="text-[10px] bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary px-1.5 py-0.5 rounded font-bold uppercase flex items-center gap-0.5">
                                 <span className="material-symbols-outlined text-[10px]">home</span>
                                 Семейная

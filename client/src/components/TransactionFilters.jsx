@@ -1,3 +1,5 @@
+import { flags } from '../config/flags';
+
 export default function TransactionFilters({
   datePreset, onDatePresetChange,
   customStart, customEnd, onCustomStartChange, onCustomEndChange,
@@ -62,18 +64,20 @@ export default function TransactionFilters({
             {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
         </div>
-        <div>
-          <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Фильтр</label>
-          <select
-            value={includePrivate}
-            onChange={e => onIncludePrivateChange(e.target.value)}
-            className="select-ghost"
-          >
-            <option value="all">Все операции</option>
-            <option value="my">Только мои</option>
-            <option value="family">Семейные</option>
-          </select>
-        </div>
+        {flags.familyEnabled && (
+          <div>
+            <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2 ml-1">Фильтр</label>
+            <select
+              value={includePrivate}
+              onChange={e => onIncludePrivateChange(e.target.value)}
+              className="select-ghost"
+            >
+              <option value="all">Все операции</option>
+              <option value="my">Только мои</option>
+              <option value="family">Семейные</option>
+            </select>
+          </div>
+        )}
       </div>
 
       {datePreset === 'custom' && (

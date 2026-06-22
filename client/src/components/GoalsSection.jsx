@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
+import { flags } from '../config/flags';
 import Modal from './Modal';
 import ConfirmModal from './ConfirmModal';
 import ForecastModal from './ForecastModal';
@@ -288,13 +289,15 @@ export default function GoalsSection({ goals, showArchived, categories, accounts
               <input type="number" step="0.01" {...register('interest_rate')} className="input-ghost" placeholder="0" />
             </div>
           </div>
-          <label className="flex items-center justify-between p-4 bg-surface-container rounded-3xl cursor-pointer">
-            <div>
-              <span className="text-sm font-semibold text-on-surface">Семейная цель</span>
-              <p className="text-xs text-on-surface-variant">Доступна всем членам семьи</p>
-            </div>
-            <Toggle checked={watch('scope') !== 'personal'} onChange={() => setValue('scope', watch('scope') === 'personal' ? 'family' : 'personal')} />
-          </label>
+          {flags.familyEnabled && (
+            <label className="flex items-center justify-between p-4 bg-surface-container rounded-3xl cursor-pointer">
+              <div>
+                <span className="text-sm font-semibold text-on-surface">Семейная цель</span>
+                <p className="text-xs text-on-surface-variant">Доступна всем членам семьи</p>
+              </div>
+              <Toggle checked={watch('scope') !== 'personal'} onChange={() => setValue('scope', watch('scope') === 'personal' ? 'family' : 'personal')} />
+            </label>
+          )}
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={() => setGoalModalOpen(false)} className="btn-ghost px-6 py-3">Отмена</button>
             <button type="submit" className="btn-primary px-8 py-3">Сохранить</button>
